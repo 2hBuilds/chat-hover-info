@@ -12,7 +12,8 @@ import java.util.List;
  * pet, a level, a diary tier, a personal best or a kill count. Pure model: it holds the title, one row of facts, the
  * notes (the description, whole), the wiki page, and the line it came from with the place of the thing's name in it; it draws
  * nothing and asks the client nothing. It is the {@link HoverCard} of these: a game sprite for its picture, or an item
- * (a pet's, the clue watch's), or none.
+ * (a pet's, the clue watch's), or none; the card of a boss, monster, raid or chest also says it wants the wiki's own
+ * picture of its page ({@link #wikiPicture}), the sprite or item standing behind it until that comes.
  */
 final class InfoCard implements HoverCard
 {
@@ -31,10 +32,11 @@ final class InfoCard implements HoverCard
 	private final int spriteId;
 	private final int itemId;
 	private final boolean marked;
+	private final boolean wikiPicture;
 
 	/**
-	 * The card with its title, its one row of facts, its notes (the description or the sentences of it, whole, for the
-	 * painter to wrap; may be empty), the wiki page to open (the part after {@code /w/}), the plain chat line, where the
+	 * The card with its title, its one row of facts, its notes (the task description, or the unlocks one to a note, for the
+	 * painter to set; may be empty), the wiki page to open (the part after {@code /w/}), the plain chat line, where the
 	 * thing's name starts and ends in that line, and the game sprite of its picture or -1 for none; the card has no item
 	 * for a picture.
 	 */
@@ -55,12 +57,24 @@ final class InfoCard implements HoverCard
 	}
 
 	/**
-	 * The same card with {@code marked} said: false makes it a quiet one, whose words the chat does not colour (the level,
-	 * total level and XP phrases); the other constructors make a marked card.
+	 * The same card with {@code marked} said: false makes it a quiet one, whose words the chat does not colour (the level
+	 * and XP phrases); the other constructors make a marked card.
 	 */
 	InfoCard(String title, List<Pair> row, List<String> notes, String page, String line, int start, int end,
 		int spriteId, int itemId, boolean marked)
 	{
+		this(title, row, notes, page, line, start, end, spriteId, itemId, marked, false);
+	}
+
+	/**
+	 * The fullest card: {@code wikiPicture} true makes it show the wiki's own picture of its page in the big picture box
+	 * (the card of a boss, monster, raid or chest), with the item or the sprite behind it until the picture comes; the
+	 * other constructors make a card that does not.
+	 */
+	InfoCard(String title, List<Pair> row, List<String> notes, String page, String line, int start, int end,
+		int spriteId, int itemId, boolean marked, boolean wikiPicture)
+	{
+		this.wikiPicture = wikiPicture;
 		this.marked = marked;
 		this.itemId = itemId;
 		this.title = title;
@@ -97,7 +111,8 @@ final class InfoCard implements HoverCard
 		return rows;
 	}
 
-	/** The notes under the row, whole sentences the painter wraps to the card; empty for most kinds. */
+	/** The notes under the row: the task description, or the level unlocks one to a note, set by the painter as a
+	 * paragraph or a numbered list; empty for most kinds. */
 	@Override
 	public List<String> notes()
 	{
@@ -179,7 +194,14 @@ final class InfoCard implements HoverCard
 		return spriteId;
 	}
 
-	/** Whether the card's words are coloured in the chat; false for the quiet level, total level and XP cards. */
+	/** Whether the card shows the wiki's own picture of its page: true for a boss, monster, raid or chest card. */
+	@Override
+	public boolean wikiPicture()
+	{
+		return wikiPicture;
+	}
+
+	/** Whether the card's words are coloured in the chat; false for the quiet level and XP cards. */
 	@Override
 	public boolean marked()
 	{

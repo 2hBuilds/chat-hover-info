@@ -32,9 +32,11 @@ switched off or the client closes.
 
 ## The cards
 
-A line gives one card. Its picture is the item's own sprite for an item and for a pet, and the game's own icon for
-the rest: the quest icon, the sword of a task's tier, a skill's icon, the diary icon, the clue watch for a personal
-best and the combat icon for a kill count. Every card ends in a small grey hint, *Right-click: Open wiki | Copy*.
+A line gives one card, or two when a drop line names the boss it came from (see *Items*). Its picture is the item's own sprite for an item and for a pet, the wiki's own picture of the page for a boss, monster, raid or chest (see
+*Wiki picture*), and the game's own icon for the rest: the quest icon, the sword of a task's tier, a skill's icon, the
+diary icon. A boss, monster, raid or chest card shows the clue watch (a personal best) or the combat icon (a kill count
+and a drop line's boss) in its picture box until the wiki's picture comes, and when the page has none. Every card ends in
+a small grey hint, *Right-click: Open wiki | Copy*.
 
 **Items.** A drop, a stacked drop (*"10 x Black knife"*), a clue item, a new collection log item or a raid's
 special loot, whether a clan mate's broadcast or one of your own lines. The card shows the item's **Price** and its
@@ -46,7 +48,13 @@ the better rate first. The card shows the first four, each as the source's name 
 (*1/512*), and a grey *and 2 more* for the rest. An item the table has no source for shows no drop line. The item
 must be one RuneLite knows by that exact name (capitals do not matter), or there is no card. An item the Grand
 Exchange does not list is found through an index of every item name that the plugin builds in the first twenty
-seconds or so after you log in, so such a card may take that long to appear.
+seconds or so after you log in, so such a card may take that long to appear. A drop line that says where the drop
+came from (*"... received a drop: 45 x Runite ore (456,345 coins) from Duke Sucellus."*) also gives the boss, monster,
+raid or chest a quiet card of its own, with its name, the wiki's own picture of it in a 64 px box (the combat icon
+stands in the box until the picture comes, and when the page has none), and, for a boss in the bundled boss table, its
+**Combat** level, **Hitpoints** and **Max hit** and the **Quest** it belongs to (a fact is shown only when there is
+something to say, so a boss with no quest has no *Quest* line), then the wiki's first paragraph. That card is on by
+default and has its own switch, *Boss cards*. The pictures have theirs, *Wiki pictures*.
 
 **Quests.** *"... has completed a quest: Dragon Slayer II"*. The card shows the quest's **Difficulty**, **Length** and
 **Points** from the bundled table. A quest the table does not hold gets *Quest completed* alone.
@@ -61,35 +69,39 @@ like she's acquired something special: Abyssal orphan"*. The card shows the pet'
 **Pet from** (what it comes from), its **Rate** when the drop table holds one, and **Dropped at** with the count and
 its unit from the line when the line gives one. A pet the table does not hold reads *Pet* alone.
 
-**Levels.** *"... has reached Defence level 70."* The card is titled *Defence 70*. **New** says *4 unlocks*,
-*1 unlock* or *Nothing new*, and the unlocks follow as sentences, in the order of the wiki's level-up table for that
-skill; all the skills are in it. The combat level, and any level before the table has loaded, get a plain card with
-the skill and its level instead. The words are the phrase *"Defence level 70"*, and it is a *quiet* card (see *The
+**Levels.** *"... has reached Defence level 70."* The card is titled *Defence 70*. **New unlocks** says *4*,
+*1* or *None*, and the unlocks follow as a numbered list, one per line, a long one wrapping under its own text, as many
+as ten lines, the last cut with *...* when more remain, in the order of the wiki's level-up table for that
+skill; all the skills are in it. A level before the table has loaded gets a plain card with the skill and its level.
+A combat level line gets no card. The words are the phrase *"Defence level 70"*, and it is a *quiet* card (see *The
 underline*).
 
-**Total level and XP milestones.** *"... has reached a total level of 2225."* gives a card reading *Total level 2225*
-with **Skills** *All*; *"... has reached 200,000,000 XP in Cooking."* gives one naming the figure and the skill, with
-**Skill**. Both are quiet.
+**XP milestones.** *"... has reached 200,000,000 XP in Cooking."* gives a card naming the figure and the skill, with
+**Skill**. It is quiet. A total level line gets no card.
 
 **Achievement diaries.** *"... has completed the Elite Ardougne diary."* The card reads *Ardougne diary, Elite* with
 its **Tier**; the area is spelled the wiki's way when the table knows it.
 
 **Personal bests.** *"... has achieved a new Vorkath personal best: 2:28"*. The card reads *Vorkath personal best*
-with the **Time**.
+with the **Time** first and then, for a boss in the bundled boss table, its combat level, hitpoints and max hit and the
+quest it belongs to; the picture is the wiki's own, with the clue watch in the box until it comes.
 
 **Kill counts.** Your own *"Your King Black Dragon kill count is: 420."* The card reads *King Black Dragon kill
-count* with **Kills**. The game words its other counts the same way - chest, completion, harvest, success, opened,
-lap and ticket counts - and those cards show **Count** instead.
+count* with **Kills** first and then, for a boss in the bundled boss table, its combat level, hitpoints and max hit and
+the quest it belongs to; the picture is the wiki's own, with the combat icon in the box until it comes. The game words its other
+counts the same way - chest, completion, harvest, success, opened, lap and ticket counts - and those cards show
+**Count** instead.
 
 **Chat Commands answers.** When a member types *!kc* or *!pb*, RuneLite's Chat Commands plugin swaps the typed
 command for its answer, *"Brutus kill count: 343"* or *"Chambers of Xeric personal best: 21:14"*. That swap lands
 after every chat event has run, so the plugin reads it from the chatbox as drawn, when the mouse reaches the line.
 The text has to be the answer from its first word to its last digit, with only a sender and a colon allowed before
-it; a line that goes on after the number matches nothing. These cards are quiet. Because the plugin matches the
-drawn words, it cannot tell the answer from someone typing the same words by hand.
+it; a line that goes on after the number matches nothing. These cards are quiet. They carry the boss's combat level,
+hitpoints, max hit, quest and picture the way the personal best and kill count cards above do. Because the plugin matches
+the drawn words, it cannot tell the answer from someone typing the same words by hand.
 
 When a bundled table is missing or has not loaded yet (they load a second or two after start-up), a quest, task, pet
-or diary card shows what the line alone says, and an item card shows no drop line. In RuneLite's developer mode only,
+or diary card shows what the line alone says, an item card shows no drop line, and a boss card shows no facts. In RuneLite's developer mode only,
 the command `::hoverinfo demo` posts sample lines to hover; in a normal client it does nothing.
 
 ## Where the card opens and when
@@ -97,12 +109,14 @@ the command `::hoverinfo demo` posts sample lines to hover; in a normal client i
 **Two places** (the *Card place* setting), and the card looks a little different in each:
 
 - **Above the cursor** (the default). The card is centred above the pointer, its bottom edge 6 px above it. The
-  header runs across the top: the picture, the bold title with *x10* after it in grey for a stack, and the facts of
-  the card (price and alch, or tier and points) at the right end of the same row - or on a row under the title when
-  they do not fit. For an item, one grey line of drops follows, *Drops:* then each source with its rate in white. A
-  rule, then the wiki's paragraph (when there is one) across the full width of the card in white, in at most three
-  lines, ending in *...* when it runs on. A rule, then the hint. The card is as wide as its content asks, never
-  more than 480 px at the default text size, so a short card is narrow. If there is no room above the pointer it
+  header runs across the top: the picture (in a 36 x 32 box for an item or a game icon, in a 64 px square box for a
+  boss, monster, raid or chest), the bold title with *x10* after it in grey for a stack, and the facts of the card
+  (price and alch, or tier and points) at the right end of the same row - or, when they do not fit, under the title,
+  wrapped onto as many rows as they need. For an item, one grey line of drops follows, *Drops:* then each source with its rate in white. A
+  rule, then the wiki's paragraph (when there is one) across the full width of the card in white, in at most five
+  lines (three with *Card width* set to Wide), ending in *...* when it runs on. A rule, then the hint. The card is
+  as wide as its content asks, never more than the *Card width* setting allows: 409 px at the default text size
+  for Medium, the default, 480 for Wide, 391 for Narrow, all growing with the text size; so a short card is narrow. If there is no room above the pointer it
   opens below it, 18 px under, and it is held inside the game window at the sides.
 - **Above the chat.** The card is as wide as the chatbox and pinned above it: its left edge on the chatbox's left
   edge, its bottom edge on the chatbox's top edge (held at the top of the window if it is taller than the room).
@@ -133,26 +147,35 @@ line scrolled out of view does nothing. Only the newest 200 lines that have a ca
 **Wiki paragraph.** With *Wiki descriptions* on, a card shows the first paragraph of its wiki page; until the wiki
 has answered, it opens without one and asks again on the next hover. A task and a level with unlocks have their own text.
 
+**Wiki picture.** With *Wiki pictures* on, the card of a boss, monster, raid or chest shows the wiki's own picture of
+its page, the page's lead image asked for at 128 px wide and scaled down to fit a 64 px square box, its longer side 64
+and nothing cropped (a picture already that small is drawn as it is, centred in the box). The game's icon stands in the
+box until the picture comes, and stays there when the page has no picture or has one only as a WebP file, which the
+client cannot show. The picture is asked for as the line arrives, like the paragraph, kept for the session in memory, the
+200 asked for last, and a name is asked for once.
+
 ## The underline
 
-**Hover-reveal.** While the pointer is anywhere on a chat line that has a card, the words of every card on that line
-are underlined with a 1 px line in the *Hover colour*. This happens in every show mode and before the delay is up,
-so you can see where the words are. On a line that wrapped, there is a piece on each row the words fall on. A line
+**Hover-reveal.** While the pointer is anywhere on a chat line that has a card, the words of every *quiet* card on
+that line are underlined with a 1 px line in the *Hover colour*; a blue word carries no underline, it is its own
+signal. This happens in every show mode and before the delay is up, so you can see where the words are. On a line that wrapped, there is a piece on each row the words fall on. A line
 whose rows the plugin cannot tell apart (a rank icon wide enough to change where the game wraps) may show its card
 but no underline.
 
 **Quiet cards.** Item, quest, task, pet, diary, personal best and own kill count words are coloured in the chat (the
-*Colour hoverable words* setting). Level, total level and XP phrases, and the Chat Commands answers, are *quiet*: the
-line keeps the game's own colour, so the hover-reveal underline is how they show themselves.
+*Colour hoverable words* setting). Level and XP phrases, the Chat Commands answers and the boss of a
+drop line are *quiet*: the line keeps the game's own colour, so the hover-reveal underline is how they show
+themselves.
 
-**Always underline level-ups** (off by default) keeps a 1 px line, in the *Always underline colour* (grey), under
+**Underline level-ups** (off by default) keeps a 1 px line, in the *Underline colour* (grey), under
 every quiet phrase on every visible chat line, with the pointer anywhere or nowhere. A Chat Commands answer gets its
 line only after the mouse has reached it once.
 
 **Colour hoverable words** (on by default) puts the *Hover colour* (blue) on the words of the marked cards. It adds
 colour tags around those words and nothing else, closing back to the line's own colour; a line with no marked card is
 left exactly as the game wrote it. It applies to a line as the line arrives, so changing it does not recolour lines
-already in the chat. Turning it off leaves the words their usual colour; the hover-reveal underline stays.
+already in the chat. Turning it off leaves the words their usual colour, and the hover-reveal underline then shows
+under them too, so a line still tells you where its cards are when you point at it.
 
 ## The right-click menu
 
@@ -168,8 +191,8 @@ words of a card. With *Show hover cards* off there are none.
 
 ## Settings
 
-Eleven settings, in the order of RuneLite's settings page. Eight are also controls in the sidebar's settings menu
-(below); *Hover colour*, *Card key* and *Always underline colour* are set on RuneLite's settings page only.
+Fourteen settings, in the order of RuneLite's settings page. Eleven are also controls in the sidebar's settings menu
+(below); *Hover colour*, *Card key* and *Underline colour* are set on RuneLite's settings page only.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -181,9 +204,12 @@ Eleven settings, in the order of RuneLite's settings page. Eight are also contro
 | Card key | Alt | The key to hold when 'Show a card' is 'While holding a key'. |
 | Card delay | 0 ms | How long the mouse rests on the words before the card opens. From 0 to 1,000 ms. |
 | Wiki descriptions | On | Show the first paragraph of the wiki page on each card. Sends only the thing's name to oldschool.runescape.wiki. |
+| Wiki pictures | On | Show the wiki's own picture of a boss, monster, raid or chest on its card. Sends only the thing's name to oldschool.runescape.wiki, then fetches the picture the wiki names. |
+| Boss cards | On | On a drop line that says where the drop came from, give the boss, monster, raid or chest its own card, with the wiki's first paragraph. |
 | Card place | Above the cursor | Where a card opens: centred above the cursor, or as wide as the chatbox and pinned above it. Choices: *Above the cursor*, *Above the chat*. |
-| Always underline level-ups | Off | Keep a line under the level, total level and XP phrases that have a card, whether or not the mouse is on them. |
-| Always underline colour | Grey (#969696) | The colour of that line. |
+| Card width | Medium | How wide the card at the cursor may grow: wide, or two narrower widths that give the paragraph up to five lines. Choices: *Wide*, *Medium*, *Narrow*. |
+| Underline level-ups | Off | Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them. |
+| Underline colour | Grey (#969696) | The colour of that line. |
 
 **Show hover cards** is the master switch: off, no card opens, no underline is drawn (the hover-reveal and the
 always-underline both), the right-click entries are not added, and the wiki is not asked for anything. It does not
@@ -194,19 +220,20 @@ else, in this version: a short card reading *Nothing here yet*, with the Discord
 top-right corner. Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it; press it
 again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.1*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 0.0.2*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
-- four **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Always underline level-ups*;
-- four **rows**: *Show a card* (a drop-down), *Card delay (ms)* (a number box, stepping by 100), *Card place* (a
-  drop-down) and *Card text size* (a number box);
-- at the bottom, **Reset to default** on the left, which puts all eleven settings back to their defaults, and **OK**
+- six **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
+  *Underline level-ups*;
+- five **rows**: *Show a card* (a drop-down), *Card delay (ms)* (a number box, stepping by 100), *Card place* (a
+  drop-down), *Card width* (a drop-down) and *Card text size* (a number box);
+- at the bottom, **Reset to default** on the left, which puts all fourteen settings back to their defaults, and **OK**
   on the right, which closes the menu.
 
 Everything in the menu saves itself as you set it, and it is the same setting as on RuneLite's settings page.
 
 ## Data and credit
 
-The bundled tables - **quests, combat achievements, pets, achievement diaries, level unlocks and drop rates** - come
+The bundled tables - **quests, combat achievements, pets, achievement diaries, level unlocks, bosses and drop rates** - come
 from the **Old School RuneScape Wiki**, https://oldschool.runescape.wiki, and are licensed **CC BY-NC-SA 3.0**
 (https://creativecommons.org/licenses/by-nc-sa/3.0/). They are cut down to the fields a card shows and bundled inside
 the plugin, so reading them needs no download:
@@ -215,24 +242,37 @@ the plugin, so reading them needs no download:
 |---|---|---|
 | Drop rates | 3,715 items, up to six sources each, with the rate as the wiki writes it | 2026-10-07 |
 | Quests, combat achievements, pets, diaries, level unlocks | 213 quests, 655 combat tasks, 71 pets, 12 diary areas, and what is new at each level of all 24 skills | 2026-10-08 |
+| Bosses | 62 bosses: combat level, hitpoints, max hit, the quest | 2026-10-08 |
 
 The first paragraphs a card shows come from the same wiki, under the same licence, and are read live (see *Privacy*);
 one that runs past the card is cut with *...*. The **price** and the **high alch value** come from RuneLite's item
-manager, and the pictures are the game's own sprites, drawn through RuneLite. The Discord, X and GitHub marks in the
+manager, and the pictures are the game's own sprites, drawn through RuneLite, except the boss pictures, which are the
+wiki's own, read live like the paragraphs (see *Privacy*), under the same licence. The Discord, X and GitHub marks in the
 sidebar are the brands' own, used as links. The plugin's own code is BSD 2-Clause (see `LICENSE`).
 
 ## Privacy
 
-**Everything stays on your machine except one thing.** Lines, cards, the words you hover and your settings never leave
+**Everything stays on your machine except the names of wiki pages.** Lines, cards, the words you hover and your settings never leave
 it. Settings are kept by RuneLite, in its own configuration; the plugin writes no files of its own.
 
-**The one thing sent:** while **Wiki descriptions** is on (it is on by default), the **name of a card's wiki page**
-goes to **oldschool.runescape.wiki**, to ask for that page's first paragraph. The request is the wiki's own
-`api.php?action=query&prop=extracts&exintro=1&explaintext=1&redirects=1&format=json&formatversion=2&titles=<name>`,
-for example `titles=Dragon claws`, and nothing else. It goes through RuneLite's own HTTP client, in the background
-(the game never waits for it), with a User-Agent that names the plugin and its source: *2h Chat Hover Info (RuneLite
-plugin; github.com/2hBuilds/chat-hover-info)*. Nothing about you goes with it: not your name, not the chat line, not
-the world, nothing about your account. Like any web request it reaches the wiki from your IP address.
+**The one thing sent:** the **name of a card's wiki page** goes to **oldschool.runescape.wiki**, for two things, each
+with its own switch.
+
+- While **Wiki descriptions** is on (it is on by default), to ask for the page's first paragraph. The request is the
+  wiki's own
+  `api.php?action=query&prop=extracts&exintro=1&explaintext=1&redirects=1&format=json&formatversion=2&titles=<name>`,
+  for example `titles=Dragon claws`, and nothing else.
+- While **Wiki pictures** is on (it is on by default), for the card of a boss, monster, raid or chest, to ask for the
+  page's own picture. The request is
+  `api.php?action=query&prop=pageimages&piprop=thumbnail&pithumbsize=128&redirects=1&format=json&formatversion=2&titles=<name>`,
+  for example `titles=Duke Sucellus`, and nothing else. The wiki's answer names the picture's own address, and the
+  plugin then makes one more request, for that address. It follows the address only when it is on
+  oldschool.runescape.wiki and ends in PNG, GIF or JPEG; any other address is not requested.
+
+Both go through RuneLite's own HTTP client, in the background (the game never waits for them), with a User-Agent that
+names the plugin and its source: *2h Chat Hover Info (RuneLite plugin; github.com/2hBuilds/chat-hover-info)*. Nothing
+about you goes with them: not your name, not the chat line, not the world, nothing about your account. Like any web
+request they reach the wiki from your IP address.
 
 - **When it is asked.** As the line with a card arrives, so the paragraph is there by the time you hover. A card not
   asked for then (a Chat Commands answer, or a line that arrived while the switch was off) asks on its first hover.
@@ -242,11 +282,15 @@ the world, nothing about your account. Like any web request it reaches the wiki 
 - **A missing page.** If the wiki says the page does not exist, the plugin asks the wiki's search for that same name
   once and, if the first hit is another page, makes one more request for that page's paragraph, kept under the name
   the card asked by. The title in that last request is the one the wiki itself gave back.
-- **Capped.** At most 10 names wait for an answer at once, and at most 60 requests start in a minute; a name let go
-  because of the cap is asked for again by a later hover.
-- **Turn it off** with *Wiki descriptions*, on RuneLite's settings page or in the sidebar menu, and nothing is sent.
-  The cards then show without a paragraph (apart from a task's and a level's own bundled text). With *Show hover
-  cards* off nothing is sent either: no card, no asking.
+- **Pictures.** A picture is asked for the same way: as the line arrives, once per name, the answer kept in memory, the
+  200 asked for last; a page with no picture, or whose picture is a WebP file, is kept as having none and not asked
+  again. At most 1 MB of a picture is read, and a longer one is dropped.
+- **Capped.** At most 10 names wait for an answer at once, and at most 60 requests start in a minute (the page request
+  and the picture request each count); a name let go because of the cap is asked for again by a later hover.
+- **Turn it off** with *Wiki descriptions* and *Wiki pictures*, on RuneLite's settings page or in the sidebar menu, and
+  nothing is sent for what each one covers. The cards then show without a paragraph (apart from a task's and a level's
+  own bundled text), and with the game's icon in place of a picture. With *Show hover cards* off nothing is sent
+  either: no card, no asking.
 
 **Every link opens through RuneLite's own link opener**, and only when you press it: *Open wiki*, and the marks in the
 sidebar's menu and card.

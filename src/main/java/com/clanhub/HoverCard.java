@@ -70,8 +70,15 @@ interface HoverCard
 	int spriteId();
 
 	/**
+	 * Whether the card shows the wiki's own picture of its page in the big picture box, fetched while the "Wiki pictures"
+	 * setting is on, with the item or the sprite behind it until it comes; true for the cards of a boss, monster, raid or
+	 * chest, false for the rest.
+	 */
+	boolean wikiPicture();
+
+	/**
 	 * Whether the card's words are coloured in the chat at rest. A card that is not marked is quiet: the line keeps the
-	 * game's own colour, and the words show themselves only when the mouse is on the line, or under the "Always underline
+	 * game's own colour, and the words show themselves only when the mouse is on the line, or under the "Underline
 	 * level-ups" setting.
 	 */
 	boolean marked();

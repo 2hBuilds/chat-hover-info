@@ -2,6 +2,7 @@ package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
+import com.clanhub.ClanHubConfig.CardWidth;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -30,8 +31,8 @@ import net.runelite.client.util.LinkBrowser;
 
 /**
  * The sidebar panel: one message card (a bold line and a grey line, centred) whose top row ends with the support
- * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the four switches, the four
- * editable rows (when a card opens, its delay, where it opens, its text size), then the OK row. The colour and the key are set in
+ * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the six switches, the five
+ * editable rows (when a card opens, its delay, where it opens, how wide it grows, its text size), then the OK row. The colour and the key are set in
  * RuneLite's own settings panel, not here. The plugin replaces the card with its own views; the pair, the menu and the
  * type sizes stay.
  */
@@ -46,10 +47,13 @@ public class ClanHubPanel extends PluginPanel
 	static final String SHOW_CARDS_TEXT = "Show hover cards";
 	static final String COLOUR_TEXT = "Colour hoverable words";
 	static final String WIKI_TEXT = "Wiki descriptions";
-	static final String ALWAYS_UNDERLINE_TEXT = "Always underline level-ups";
+	static final String PICTURES_TEXT = "Wiki pictures";
+	static final String BOSS_TEXT = "Boss cards";
+	static final String ALWAYS_UNDERLINE_TEXT = "Underline level-ups";
 	static final String CARD_TRIGGER_TEXT = "Show a card";
 	static final String CARD_DELAY_TEXT = "Card delay (ms)";
 	static final String CARD_PLACE_TEXT = "Card place";
+	static final String CARD_WIDTH_TEXT = "Card width";
 	static final String CARD_SIZE_TEXT = "Card text size";
 
 	/** The card text size's smallest, default and largest, in px: the setting's own range. */
@@ -76,9 +80,12 @@ public class ClanHubPanel extends PluginPanel
 	private final JCheckBoxMenuItem showCheck;
 	private final JCheckBoxMenuItem colourCheck;
 	private final JCheckBoxMenuItem wikiCheck;
+	private final JCheckBoxMenuItem picturesCheck;
+	private final JCheckBoxMenuItem bossCheck;
 	private final JCheckBoxMenuItem underlineCheck;
 	private final JComboBox<CardTrigger> triggerCombo;
 	private final JComboBox<CardPlace> placeCombo;
+	private final JComboBox<CardWidth> widthCombo;
 	private final JSpinner delaySpinner;
 	private final JSpinner sizeSpinner;
 	private final JPopupMenu menu;
@@ -100,9 +107,12 @@ public class ClanHubPanel extends PluginPanel
 		this.showCheck = check(SHOW_CARDS_TEXT, settings::setShowCards);
 		this.colourCheck = check(COLOUR_TEXT, settings::setColourHoverables);
 		this.wikiCheck = check(WIKI_TEXT, settings::setWikiDescriptions);
+		this.picturesCheck = check(PICTURES_TEXT, settings::setWikiPictures);
+		this.bossCheck = check(BOSS_TEXT, settings::setBossCards);
 		this.underlineCheck = check(ALWAYS_UNDERLINE_TEXT, settings::setAlwaysUnderlineLevels);
 		this.triggerCombo = triggerCombo();
 		this.placeCombo = placeCombo();
+		this.widthCombo = widthCombo();
 		this.delaySpinner = spinner(0, 0, MAX_CARD_DELAY, CARD_DELAY_STEP, 4, settings::setCardDelayMs);
 		this.sizeSpinner = spinner(DEFAULT_CARD_SIZE, MIN_CARD_SIZE, MAX_CARD_SIZE, 1, 2, settings::setCardFontSize);
 		this.menu = buildMenu();
@@ -173,8 +183,8 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * The settings menu, in STANDARD A5's order: the header, a rule, the four switches, a rule, the four editable rows
-	 * (when a card opens, the delay, where it opens, the text size), a rule, then the OK row.
+	 * The settings menu, in STANDARD A5's order: the header, a rule, the six switches, a rule, the five editable rows
+	 * (when a card opens, the delay, where it opens, how wide it grows, the text size), a rule, then the OK row.
 	 */
 	private JPopupMenu buildMenu()
 	{
@@ -185,11 +195,14 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(showCheck);
 		popup.add(colourCheck);
 		popup.add(wikiCheck);
+		popup.add(picturesCheck);
+		popup.add(bossCheck);
 		popup.add(underlineCheck);
 		popup.addSeparator();
 		popup.add(row(CARD_TRIGGER_TEXT, triggerCombo));
 		popup.add(row(CARD_DELAY_TEXT, delaySpinner));
 		popup.add(row(CARD_PLACE_TEXT, placeCombo));
+		popup.add(row(CARD_WIDTH_TEXT, widthCombo));
 		popup.add(row(CARD_SIZE_TEXT, sizeSpinner));
 		popup.addSeparator();
 		popup.add(okRow());
@@ -258,6 +271,22 @@ public class ClanHubPanel extends PluginPanel
 		return combo;
 	}
 
+	/** The "Card width" dropdown, in the menu's 12 px type and no wider than its longest choice. */
+	private JComboBox<CardWidth> widthCombo()
+	{
+		final JComboBox<CardWidth> combo = new JComboBox<>(CardWidth.values());
+		combo.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
+		combo.setMaximumSize(combo.getPreferredSize());
+		combo.addActionListener(e ->
+		{
+			if (!syncing && combo.getSelectedItem() != null)
+			{
+				settings.setCardWidth((CardWidth) combo.getSelectedItem());
+			}
+		});
+		return combo;
+	}
+
 	/**
 	 * A number spinner from {@code min} to {@code max} in steps of {@code step}, in the menu's 12 px type and
 	 * {@code columns} characters wide, writing its value when it changes.
@@ -311,9 +340,12 @@ public class ClanHubPanel extends PluginPanel
 			showCheck.setSelected(settings.showCards());
 			colourCheck.setSelected(settings.colourHoverables());
 			wikiCheck.setSelected(settings.wikiDescriptions());
+			picturesCheck.setSelected(settings.wikiPictures());
+			bossCheck.setSelected(settings.bossCards());
 			underlineCheck.setSelected(settings.alwaysUnderlineLevels());
 			triggerCombo.setSelectedItem(settings.cardTrigger());
 			placeCombo.setSelectedItem(settings.cardPlace());
+			widthCombo.setSelectedItem(settings.cardWidth());
 			delaySpinner.setValue(Math.max(0, Math.min(MAX_CARD_DELAY, settings.cardDelayMs())));
 			sizeSpinner.setValue(Math.max(MIN_CARD_SIZE, Math.min(MAX_CARD_SIZE, settings.cardFontSize())));
 		}

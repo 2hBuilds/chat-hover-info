@@ -1,6 +1,9 @@
 package com.clanhub;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
@@ -21,6 +24,8 @@ public class CardTablesTest
 {
 	private static final String FIXTURE = "/com/clanhub/cards-fixture.json";
 	private static final String BUNDLED = "/com/clanhub/cards.json";
+	private static final String BOSSES_FIXTURE = "/com/clanhub/bosses-fixture.json";
+	private static final String BOSSES_BUNDLED = "/com/clanhub/bosses.json";
 
 	/** A classpath resource opened as the plugin opens its table: read as UTF-8. */
 	private static Reader open(String resource)
@@ -104,6 +109,89 @@ public class CardTablesTest
 		assertEquals("no item reads as 0", 0, bare.pet("Aggy").itemId);
 		assertNull("no unlocks member gives null", bare.unlocks("Defence", 1));
 		assertTrue(bare.loaded());
+	}
+
+	// Re-aimed by the lead, 2026-10-08 (lot 8U): the wiki's picture replaces the pet.
+	@Test
+	public void theBossTableGivesStatsAndQuest() throws Exception
+	{
+		final CardTables tables;
+		try (Reader cards = open(FIXTURE); Reader bosses = open(BOSSES_FIXTURE))
+		{
+			tables = CardTables.parse(cards, new Gson()).readBosses(bosses, new Gson());
+		}
+
+		final CardTables.BossInfo duke = tables.boss("Duke Sucellus");
+		assertNotNull(duke);
+		assertEquals("Duke Sucellus", duke.name);
+		assertEquals("450", duke.combat);
+		assertEquals("440", duke.hitpoints);
+		assertEquals("24", duke.maxHit);
+		assertEquals("Desert Treasure II - The Fallen Empire", duke.quest);
+		assertEquals("Duke_Sucellus", duke.wiki);
+
+		final CardTables.BossInfo zulrah = tables.boss("zulrah");
+		assertNotNull("ignoring case", zulrah);
+		assertEquals("a boss with no quest has an empty one", "", zulrah.quest);
+
+		final CardTables.BossInfo raid = tables.boss("Chambers of Xeric");
+		assertNotNull(raid);
+		assertEquals("", raid.combat);
+		assertEquals("", raid.hitpoints);
+		assertEquals("", raid.maxHit);
+		assertNull("a name the table lacks is null", tables.boss("Nobody"));
+		assertNull("a null name is null", tables.boss(null));
+		assertNotNull("the other tables are still there", tables.quest("Dragon Slayer II"));
+
+		final CardTables none = new CardTables();
+		assertNull(none.boss("Duke Sucellus"));
+		assertNull(none.boss("Zulrah"));
+		assertNull(none.boss("Nobody"));
+
+		final CardTables bare;
+		try (Reader cards = new StringReader("{}");
+			Reader bosses = new StringReader("{\"bosses\": [{\"name\": \"Aggy\"}, {\"wiki\": \"Nameless\"}]}"))
+		{
+			bare = CardTables.parse(cards, new Gson()).readBosses(bosses, new Gson());
+		}
+		assertEquals("a missing text reads as empty", "", bare.boss("Aggy").quest);
+		assertNull("an entry with no name is skipped", bare.boss(""));
+	}
+
+	@Test
+	public void theBundledBossTableIsSane() throws Exception
+	{
+		Assume.assumeNotNull(CardTables.class.getResource(BOSSES_BUNDLED));
+		final CardTables tables;
+		final JsonArray entries;
+		try (Reader cards = open(FIXTURE); Reader bosses = open(BOSSES_BUNDLED))
+		{
+			tables = CardTables.parse(cards, new Gson()).readBosses(bosses, new Gson());
+		}
+		try (Reader bosses = open(BOSSES_BUNDLED))
+		{
+			entries = new Gson().fromJson(bosses, JsonObject.class).getAsJsonArray("bosses");
+		}
+		assertTrue("at least 50 bosses: " + entries.size(), entries.size() >= 50);
+		int withQuestOrPet = 0;
+		for (final JsonElement element : entries)
+		{
+			final JsonObject entry = element.getAsJsonObject();
+			assertFalse("every entry has a name: " + entry, entry.get("name").getAsString().isEmpty());
+			assertFalse("and a wiki page: " + entry, entry.get("wiki").getAsString().isEmpty());
+			if (!entry.get("quest").getAsString().isEmpty() || entry.get("petItem").getAsInt() > 0)
+			{
+				withQuestOrPet++;
+			}
+		}
+		assertTrue("at least half have a quest or a pet: " + withQuestOrPet + " of " + entries.size(),
+			withQuestOrPet * 2 >= entries.size());
+		for (final String name : new String[]{"Zulrah", "Vorkath", "Duke Sucellus"})
+		{
+			final CardTables.BossInfo boss = tables.boss(name);
+			assertNotNull(name + " is in the table", boss);
+			assertFalse(name + " has a combat level", boss.combat.isEmpty());
+		}
 	}
 
 	@Test

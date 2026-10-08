@@ -23,8 +23,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link BroadcastKindReader}: the quest, task, pet, level, total, XP, diary and personal best broadcasts and the
- * player's own kill count each give their card, raid loot gives the item card, and every other line gives nothing.
+ * {@link BroadcastKindReader}: the quest, task, pet, level, XP, diary and personal best broadcasts and the player's own
+ * kill count each give their card, raid loot gives the item card, and every other line, a combat level or total level
+ * line among them, gives nothing.
  */
 public class BroadcastKindReaderTest
 {
@@ -157,24 +158,9 @@ public class BroadcastKindReaderTest
 		assertEquals("Defence level 70", defenceLine.substring(defence.start(), defence.end()));
 		assertFalse("a level phrase is quiet", defence.marked());
 
-		final HoverCard combat = theCard(reader, clan, "MechaPanzer has reached combat level 104.");
-		assertEquals("Combat level 104", combat.title());
-		assertEquals("Skill Combat", rowOf(combat));
-		assertEquals(168, combat.spriteId());
-		assertTrue(combat.wikiUrl().endsWith("/w/Combat_level"));
-		assertEquals("combat level 104", combat.plainLine().substring(combat.start(), combat.end()));
-		assertFalse("a combat level phrase is quiet", combat.marked());
-
-		final String totalLine = "I Vision I has reached a total level of 2225.";
-		final HoverCard total = theCard(reader, clan, totalLine);
-		assertEquals("Total level 2225", total.title());
-		assertEquals("Skills All", rowOf(total));
-		assertEquals(222, total.spriteId());
-		assertTrue(total.wikiUrl().endsWith("/w/Total_level"));
-		// Re-aimed by the lead, 2026-10-08 (lot 8g): the number is the card; the skill's word is never one.
-		// Re-aimed by the lead, 2026-10-08 (lot 8j): the phrase is the card, and it is quiet in the chat.
-		assertEquals("total level of 2225", totalLine.substring(total.start(), total.end()));
-		assertFalse("a total level phrase is quiet", total.marked());
+		// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card.
+		assertTrue(reader.read(clan, "MechaPanzer has reached combat level 104.").isEmpty());
+		assertTrue(reader.read(clan, "I Vision I has reached a total level of 2225.").isEmpty());
 
 		final HoverCard xp = theCard(reader, clan, "Marsel has reached 200,000,000 XP in Cooking.");
 		assertEquals("200,000,000 XP in Cooking", xp.title());
@@ -218,15 +204,16 @@ public class BroadcastKindReaderTest
 		assertEquals("Defence 70", unlocks.title());
 		assertEquals("Defence level 70", unlocks.plainLine().substring(unlocks.start(), unlocks.end()));
 		assertFalse("quiet", unlocks.marked());
-		assertEquals("New 4 unlocks", rowOf(unlocks));
+		assertEquals("New unlocks 4", rowOf(unlocks));
 		// Re-aimed by the lead, 2026-10-08 (lot 8L): the unlocks come whole, as sentences; the painter wraps them.
-		assertEquals(Arrays.asList("Wear Barrows armour.", "Wear Bandos armour.", "Wear Armadyl armour.",
-			"Wield the dragonfire shield."), unlocks.notes());
+		// Re-aimed by the lead, 2026-10-08 (lot 8S): the unlocks are a list, no full stop is added.
+		assertEquals(Arrays.asList("Wear Barrows armour", "Wear Bandos armour", "Wear Armadyl armour",
+			"Wield the dragonfire shield"), unlocks.notes());
 		assertTrue(unlocks.wikiUrl().endsWith("/w/Defence/Level_up_table"));
 		assertEquals(199, unlocks.spriteId());
 
 		final HoverCard nothing = theCard(reader, clan, "Klar has reached Defence level 72.");
-		assertEquals("New Nothing new", rowOf(nothing));
+		assertEquals("New unlocks None", rowOf(nothing));
 		assertTrue(nothing.notes().isEmpty());
 		assertEquals("Defence level 72", nothing.plainLine().substring(nothing.start(), nothing.end()));
 		assertFalse("quiet", nothing.marked());
@@ -237,9 +224,8 @@ public class BroadcastKindReaderTest
 		assertEquals(207, crafting.spriteId());
 		assertFalse("quiet", crafting.marked());
 
-		final HoverCard combat = theCard(reader, clan, "Mossy Rock has reached combat level 104.");
-		assertEquals("combat level 104", combat.plainLine().substring(combat.start(), combat.end()));
-		assertFalse("quiet", combat.marked());
+		// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card.
+		assertTrue(reader.read(clan, "Mossy Rock has reached combat level 104.").isEmpty());
 
 		final BroadcastKindReader unloaded = new BroadcastKindReader(new CardTables(), Mockito.mock(ItemCards.class));
 		final HoverCard plain = theCard(unloaded, clan, "Klar has reached Defence level 70.");
@@ -249,14 +235,13 @@ public class BroadcastKindReaderTest
 	}
 
 	// Re-aimed by the lead, 2026-10-08 (lot 8j): the phrase is the card, and it is quiet in the chat.
+	// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card.
 	@Test
 	public void thePhraseIsTheCardAndIsQuiet() throws Exception
 	{
 		final BroadcastKindReader reader = reader(Mockito.mock(ItemCards.class));
 		final String[][] linesAndPhrases = {
 			{"Klar has reached Defence level 70.", "Defence level 70"},
-			{"Mossy Rock has reached combat level 104.", "combat level 104"},
-			{"Iron Pete has reached a total level of 2225.", "total level of 2225"},
 			{"Marsel has reached 200,000,000 XP in Cooking.", "200,000,000 XP in Cooking"}};
 		for (final String[] lineAndPhrase : linesAndPhrases)
 		{
@@ -265,6 +250,26 @@ public class BroadcastKindReaderTest
 				card.plainLine().substring(card.start(), card.end()));
 			assertFalse("quiet: " + lineAndPhrase[0], card.marked());
 		}
+	}
+
+	@Test
+	public void combatAndTotalLevelLinesGiveNoCard() throws Exception
+	{
+		final BroadcastKindReader reader = reader(Mockito.mock(ItemCards.class));
+		final ChatMessageType clan = ChatMessageType.CLAN_MESSAGE;
+		for (final String line : new String[] {
+			"Mossy Rock has reached combat level 104.",
+			"Mossy Rock has reached the highest possible combat level of 126.",
+			"Iron Pete has reached a total level of 2225.",
+			"Iron Pete has reached the highest possible total level of 2376."})
+		{
+			assertTrue("no card from: " + line, reader.read(clan, line).isEmpty());
+		}
+
+		final BroadcastKindReader unloaded = new BroadcastKindReader(new CardTables(), Mockito.mock(ItemCards.class));
+		assertEquals("Defence level 70", theCard(unloaded, clan, "Klar has reached Defence level 70.").title());
+		assertEquals("200,000,000 XP in Cooking",
+			theCard(unloaded, clan, "Marsel has reached 200,000,000 XP in Cooking.").title());
 	}
 
 	@Test
@@ -352,6 +357,8 @@ public class BroadcastKindReaderTest
 			"Iron Pete has a funny feeling like he's being followed: Pet snakeling at 2,678 killcount.");
 		assertEquals(12921, pet.itemId());
 		assertEquals(-1, pet.spriteId());
+		// Re-aimed by the lead, 2026-10-08 (lot 8U): the pet card keeps its item and asks for no wiki picture.
+		assertFalse("the pet card shows its item, not the wiki's picture", pet.wikiPicture());
 
 		final HoverCard best = theCard(reader, ChatMessageType.CLAN_MESSAGE,
 			"Iron Pete has achieved a new Vorkath personal best: 2:28");
@@ -390,5 +397,64 @@ public class BroadcastKindReaderTest
 			"Klar received a drop: Dragon claws (121,453,000 coins).").isEmpty());
 		assertTrue(reader.read(ChatMessageType.GAMEMESSAGE, QUEST_LINE).isEmpty());
 		verify(itemCards, times(1)).forName(anyString(), anyInt(), anyString(), anyInt(), anyInt());
+	}
+
+	/** The fixture's tables with the bosses fixture read into them, as the plugin's own are. */
+	private static CardTables fixtureTablesWithBosses() throws Exception
+	{
+		try (Reader bosses = new InputStreamReader(BroadcastKindReaderTest.class.getResourceAsStream(
+			"/com/clanhub/bosses-fixture.json"), StandardCharsets.UTF_8))
+		{
+			return fixtureTables().readBosses(bosses, new Gson());
+		}
+	}
+
+	// Re-aimed by the lead, 2026-10-08 (lot 8U): the wiki's picture replaces the pet.
+	@Test
+	public void theKillCountAndPersonalBestCardsCarryTheBoss() throws Exception
+	{
+		final BroadcastKindReader reader = new BroadcastKindReader(fixtureTablesWithBosses(), Mockito.mock(ItemCards.class));
+
+		final HoverCard zulrah = theCard(reader, ChatMessageType.GAMEMESSAGE, "Your Zulrah kill count is: 343.");
+		assertEquals("Zulrah kill count", zulrah.title());
+		assertEquals("the count first, then the stats, and no Quest row for a boss with no quest",
+			"Kills 343, Combat 725, Hitpoints 500, Max hit 41", rowOf(zulrah));
+		assertEquals("no pet: the wiki's picture replaces it", -1, zulrah.itemId());
+		assertTrue("the kill count card asks for the wiki's picture", zulrah.wikiPicture());
+		assertEquals("with the combat sprite behind it", 168, zulrah.spriteId());
+		assertEquals("Zulrah", zulrah.plainLine().substring(zulrah.start(), zulrah.end()));
+
+		final HoverCard vorkath = theCard(reader, ChatMessageType.CLAN_MESSAGE,
+			"Klar has achieved a new Vorkath personal best: 2:28");
+		assertEquals("Vorkath personal best", vorkath.title());
+		assertEquals("the time first, then the four facts", "Time 2:28, Combat 732, Hitpoints 750, Max hit 32, "
+			+ "Quest Dragon Slayer II", rowOf(vorkath));
+		assertEquals("the clue watch stands behind the wiki's picture", ItemID.TRAIL_WATCH, vorkath.itemId());
+		assertTrue("the personal best card asks for the wiki's picture", vorkath.wikiPicture());
+		assertEquals("Vorkath", vorkath.plainLine().substring(vorkath.start(), vorkath.end()));
+
+		final HoverCard brutus = theCard(reader, ChatMessageType.CLAN_MESSAGE,
+			"Klar has achieved a new Brutus personal best: 0:58");
+		assertEquals("Time 0:58, Combat 70, Hitpoints 100, Max hit 10, Quest The Ides of Milk", rowOf(brutus));
+		assertEquals("the clue watch behind the picture", ItemID.TRAIL_WATCH, brutus.itemId());
+		assertTrue("and the wiki's picture asked for", brutus.wikiPicture());
+
+		final HoverCard raid = theCard(reader, ChatMessageType.GAMEMESSAGE,
+			"Your Chambers of Xeric chest count is: 12.");
+		assertEquals("a raid with no stats has the count alone", "Count 12", rowOf(raid));
+		assertEquals("a raid card has no pet either", -1, raid.itemId());
+		assertTrue("and asks for the wiki's picture", raid.wikiPicture());
+
+		final HoverCard unknownKills = theCard(reader, ChatMessageType.GAMEMESSAGE,
+			"Your King Black Dragon kill count is: 420.");
+		assertEquals("a boss the table lacks gives the card as today", "Kills 420", rowOf(unknownKills));
+		assertEquals(-1, unknownKills.itemId());
+		assertEquals(168, unknownKills.spriteId());
+		assertTrue("a boss the table lacks still asks for the wiki's picture", unknownKills.wikiPicture());
+		final HoverCard unknownBest = theCard(reader, ChatMessageType.CLAN_MESSAGE,
+			"Iron Pete has achieved a new Inferno personal best: 1:02:15");
+		assertEquals("Time 1:02:15", rowOf(unknownBest));
+		assertEquals(ItemID.TRAIL_WATCH, unknownBest.itemId());
+		assertTrue("and so does an unknown personal best", unknownBest.wikiPicture());
 	}
 }

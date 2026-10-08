@@ -25,6 +25,8 @@ final class BroadcastLine
 	/** "received a new collection log item: Abyssal whip (1/484)": the name. */
 	private static final Pattern COLLECTION_LOG = Pattern.compile(
 		"received a new collection log item: (.+?) \\(\\d+/\\d+\\)", Pattern.CASE_INSENSITIVE);
+	/** ") from Duke Sucellus.": the boss, monster, raid or chest a drop line names after the value. */
+	private static final Pattern SOURCE = Pattern.compile("\\) from (.+?)\\.?$", Pattern.CASE_INSENSITIVE);
 
 	private BroadcastLine()
 	{
@@ -32,7 +34,8 @@ final class BroadcastLine
 
 	/**
 	 * One item named in a broadcast line: the item's name, how many of it, where the name starts and ends in the plain
-	 * text (every tag already stripped), and that plain text. Plain data, read by the plugin when it builds the card.
+	 * text (every tag already stripped), that plain text, and the boss, monster, raid or chest the line says the item came
+	 * from, with where that name stands in the text. Plain data, read by the plugin when it builds the card.
 	 */
 	static final class ItemMention
 	{
@@ -46,14 +49,24 @@ final class BroadcastLine
 		final int end;
 		/** The line without its tags. */
 		final String text;
+		/** The boss, monster, raid or chest the line names after the value ("from Duke Sucellus"), or null when it names none. */
+		final String source;
+		/** Where the source's name starts in {@link #text}, or -1 when the line names none. */
+		final int sourceStart;
+		/** Just past the source's name in {@link #text}, or -1 when the line names none. */
+		final int sourceEnd;
 
-		ItemMention(String name, int quantity, int start, int end, String text)
+		ItemMention(String name, int quantity, int start, int end, String text, String source, int sourceStart,
+			int sourceEnd)
 		{
 			this.name = name;
 			this.quantity = quantity;
 			this.start = start;
 			this.end = end;
 			this.text = text;
+			this.source = source;
+			this.sourceStart = sourceStart;
+			this.sourceEnd = sourceEnd;
 		}
 	}
 
@@ -63,6 +76,10 @@ final class BroadcastLine
 	 * collection log item, so a stacked drop is never read as an item called "10 x Black knife".
 	 *
 	 * <p>Choice: a quantity too large for an int gives no mention, so no card.
+	 *
+	 * <p>Choice: the source ("from Duke Sucellus") is read only after a drop, a stacked drop or a clue item's value, from
+	 * the closing bracket of the value to the line's end, without the full stop that ends the sentence; a collection log
+	 * line names none, and a line with no "from" gives a mention with no source.
 	 */
 	static Optional<ItemMention> parse(ChatMessageType type, String message)
 	{
@@ -77,7 +94,7 @@ final class BroadcastLine
 		{
 			try
 			{
-				return Optional.of(mention(found, 2, Integer.parseInt(found.group(1)), text));
+				return Optional.of(mention(found, 2, Integer.parseInt(found.group(1)), text, true));
 			}
 			catch (NumberFormatException e)
 			{
@@ -87,25 +104,48 @@ final class BroadcastLine
 		found = DROP.matcher(text);
 		if (found.find())
 		{
-			return Optional.of(mention(found, 1, 1, text));
+			return Optional.of(mention(found, 1, 1, text, true));
 		}
 		found = CLUE.matcher(text);
 		if (found.find())
 		{
-			return Optional.of(mention(found, 1, 1, text));
+			return Optional.of(mention(found, 1, 1, text, true));
 		}
 		found = COLLECTION_LOG.matcher(text);
 		if (found.find())
 		{
-			return Optional.of(mention(found, 1, 1, text));
+			return Optional.of(mention(found, 1, 1, text, false));
 		}
 		return Optional.empty();
 	}
 
-	/** The mention for the match's name group. */
-	private static ItemMention mention(Matcher found, int nameGroup, int quantity, String text)
+	/**
+	 * The mention for the match's name group; when {@code withSource} is true, the source the line names after the match's
+	 * closing bracket is read too, trimmed.
+	 */
+	private static ItemMention mention(Matcher found, int nameGroup, int quantity, String text, boolean withSource)
 	{
-		return new ItemMention(found.group(nameGroup), quantity, found.start(nameGroup), found.end(nameGroup), text);
+		String source = null;
+		int sourceStart = -1;
+		int sourceEnd = -1;
+		if (withSource)
+		{
+			final Matcher from = SOURCE.matcher(text);
+			from.region(found.end() - 1, text.length());
+			if (from.find())
+			{
+				final String raw = from.group(1);
+				final String trimmed = raw.trim();
+				if (!trimmed.isEmpty())
+				{
+					source = trimmed;
+					sourceStart = from.start(1) + raw.indexOf(trimmed);
+					sourceEnd = sourceStart + trimmed.length();
+				}
+			}
+		}
+		return new ItemMention(found.group(nameGroup), quantity, found.start(nameGroup), found.end(nameGroup), text,
+			source, sourceStart, sourceEnd);
 	}
 
 	/** The four channels whose broadcast lines carry a card. */

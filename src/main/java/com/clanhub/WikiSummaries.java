@@ -40,10 +40,10 @@ final class WikiSummaries
 {
 	private static final Logger log = LoggerFactory.getLogger(WikiSummaries.class);
 
-	/** The wiki's host; the only one this class talks to. */
-	private static final String HOST = "oldschool.runescape.wiki";
-	/** The User-Agent every call carries, naming the plugin and where its source is. */
-	private static final String USER_AGENT = "2h Chat Hover Info (RuneLite plugin; github.com/2hBuilds/chat-hover-info)";
+	/** The wiki's host; the only one this class talks to, and the one {@link WikiPictures} reads its pictures from. */
+	static final String HOST = "oldschool.runescape.wiki";
+	/** The User-Agent every call carries, naming the plugin and where its source is; {@link WikiPictures} sends it too. */
+	static final String USER_AGENT = "2h Chat Hover Info (RuneLite plugin; github.com/2hBuilds/chat-hover-info)";
 	/** How many answers are kept; the oldest go first. */
 	private static final int MAX_CACHED = 500;
 	/** How many titles may be waiting for an answer at once. */
@@ -180,8 +180,8 @@ final class WikiSummaries
 		return (lineBreak < 0 ? text : text.substring(0, lineBreak)).trim();
 	}
 
-	/** The first page of a page answer, or null when the answer has none or is not JSON. */
-	private static JsonObject firstPage(String json, Gson gson)
+	/** The first page of a page answer, or null when the answer has none or is not JSON; {@link WikiPictures} reads it too. */
+	static JsonObject firstPage(String json, Gson gson)
 	{
 		final JsonObject query = objectOf(parse(json, gson), "query");
 		final JsonElement pages = query == null ? null : query.get("pages");

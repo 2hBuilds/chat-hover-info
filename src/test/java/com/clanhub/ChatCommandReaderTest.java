@@ -1,5 +1,11 @@
 package com.clanhub;
 
+import com.google.gson.Gson;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import net.runelite.api.gameval.ItemID;
 import org.junit.Test;
@@ -16,7 +22,8 @@ public class ChatCommandReaderTest
 	/** The one card a text gives. */
 	private static HoverCard theCard(String text)
 	{
-		final List<HoverCard> cards = ChatCommandReader.read(text);
+		// Re-aimed by the lead, 2026-10-08 (lot 8T): the reader takes the tables.
+		final List<HoverCard> cards = ChatCommandReader.read(text, new CardTables());
 		assertEquals("one card from: " + text, 1, cards.size());
 		return cards.get(0);
 	}
@@ -41,6 +48,8 @@ public class ChatCommandReaderTest
 		assertEquals("Brutus", brutus.wikiTitle());
 		assertEquals(SkillSprites.spriteOf("Combat"), brutus.spriteId());
 		assertEquals(-1, brutus.itemId());
+		// Re-aimed by the lead, 2026-10-08 (lot 8U): the wiki's picture is asked for, the combat icon stands behind it.
+		assertTrue("the kill count answer asks for the wiki's picture", brutus.wikiPicture());
 		assertEquals("Brutus kill count: 343", brutus.plainLine());
 
 		final HoverCard raid = theCard("Chambers of Xeric Challenge Mode kill count: 1,303");
@@ -69,6 +78,8 @@ public class ChatCommandReaderTest
 		assertEquals(ItemID.TRAIL_WATCH, raid.itemId());
 		assertEquals(-1, raid.spriteId());
 		assertEquals("Chambers of Xeric", raid.wikiTitle());
+		// Re-aimed by the lead, 2026-10-08 (lot 8U): the wiki's picture is asked for, the clue watch stands behind it.
+		assertTrue("the personal best answer asks for the wiki's picture", raid.wikiPicture());
 
 		assertEquals("Time 14:32.40", rowOf(theCard("Theatre of Blood personal best: 14:32.40")));
 		assertEquals("Time 1:02:15", rowOf(theCard("Inferno personal best: 1:02:15")));
@@ -89,8 +100,69 @@ public class ChatCommandReaderTest
 		};
 		for (final String text : none)
 		{
-			assertTrue("nothing from: " + text, ChatCommandReader.read(text).isEmpty());
+			// Re-aimed by the lead, 2026-10-08 (lot 8T): the reader takes the tables.
+			assertTrue("nothing from: " + text, ChatCommandReader.read(text, new CardTables()).isEmpty());
 		}
-		assertTrue("nothing from null", ChatCommandReader.read(null).isEmpty());
+		assertTrue("nothing from null", ChatCommandReader.read(null, new CardTables()).isEmpty());
+	}
+
+	/** The card's one row as each pair's label and value, in order. */
+	private static List<String> pairsOf(HoverCard card)
+	{
+		assertEquals("one row", 1, card.rows().size());
+		final List<String> pairs = new ArrayList<>();
+		for (final HoverCard.Pair pair : card.rows().get(0))
+		{
+			pairs.add(pair.label + " " + pair.value);
+		}
+		return pairs;
+	}
+
+	// Re-aimed by the lead, 2026-10-08 (lot 8U): the wiki's picture replaces the pet.
+	@Test
+	public void theAnswersCarryTheBoss() throws Exception
+	{
+		final CardTables tables;
+		try (Reader cards = new InputStreamReader(ChatCommandReaderTest.class.getResourceAsStream(
+			"/com/clanhub/cards-fixture.json"), StandardCharsets.UTF_8);
+			Reader bosses = new InputStreamReader(ChatCommandReaderTest.class.getResourceAsStream(
+				"/com/clanhub/bosses-fixture.json"), StandardCharsets.UTF_8))
+		{
+			tables = CardTables.parse(cards, new Gson()).readBosses(bosses, new Gson());
+		}
+
+		final HoverCard brutus = ChatCommandReader.read("Brutus kill count: 343", tables).get(0);
+		assertEquals("Brutus kill count", brutus.title());
+		assertEquals(Arrays.asList("Kills 343", "Combat 70", "Hitpoints 100", "Max hit 10", "Quest The Ides of Milk"),
+			pairsOf(brutus));
+		assertEquals("a kill count has no item behind the picture", -1, brutus.itemId());
+		assertTrue("it asks for the wiki's picture", brutus.wikiPicture());
+		assertEquals("and the combat sprite stands behind it", SkillSprites.spriteOf("Combat"), brutus.spriteId());
+		assertFalse("still quiet", brutus.marked());
+		assertEquals("Brutus", brutus.plainLine().substring(brutus.start(), brutus.end()));
+
+		final HoverCard zulrah = ChatCommandReader.read("zambzy: Zulrah kill count: 1,224", tables).get(0);
+		assertEquals(Arrays.asList("Kills 1,224", "Combat 725", "Hitpoints 500", "Max hit 41"), pairsOf(zulrah));
+		assertEquals("no pet: the wiki's picture replaces it", -1, zulrah.itemId());
+		assertTrue(zulrah.wikiPicture());
+
+		final HoverCard raid = ChatCommandReader.read("Chambers of Xeric personal best: 21:14", tables).get(0);
+		assertEquals("a raid with no stats has the time alone", Arrays.asList("Time 21:14"), pairsOf(raid));
+		assertEquals("the clue watch behind its picture", ItemID.TRAIL_WATCH, raid.itemId());
+		assertTrue(raid.wikiPicture());
+		assertEquals(-1, raid.spriteId());
+
+		final HoverCard best = ChatCommandReader.read("Vorkath personal best: 2:28", tables).get(0);
+		assertEquals(Arrays.asList("Time 2:28", "Combat 732", "Hitpoints 750", "Max hit 32", "Quest Dragon Slayer II"),
+			pairsOf(best));
+
+		final HoverCard bare = ChatCommandReader.read("Brutus kill count: 343", new CardTables()).get(0);
+		assertEquals("a table that has not loaded gives the card as today", Arrays.asList("Kills 343"), pairsOf(bare));
+		assertEquals(-1, bare.itemId());
+		assertTrue("a table that has not loaded still asks for the wiki's picture", bare.wikiPicture());
+		assertEquals(Arrays.asList("Kills 343"), pairsOf(ChatCommandReader.read("Nobody kill count: 343", tables).get(0)));
+		final HoverCard inferno = ChatCommandReader.read("Inferno personal best: 1:02:15", tables).get(0);
+		assertEquals("a personal best the table lacks keeps the clue watch", ItemID.TRAIL_WATCH, inferno.itemId());
+		assertTrue(inferno.wikiPicture());
 	}
 }

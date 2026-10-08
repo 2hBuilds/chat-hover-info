@@ -1,5 +1,6 @@
 package com.clanhub;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -39,10 +40,15 @@ final class ChatCommandReader
 
 	/**
 	 * The one card a widget's plain text ({@link ChatText#plain}) answers, or an empty list. The kill count is tried first,
-	 * then the personal best; the card's words are the boss, and the picture is the combat icon for a kill count and the
-	 * clue watch for a personal best. A null text, and a boss that is only spaces, give none.
+	 * then the personal best; the card's words are the boss. Its first fact is the count or the time, then, when
+	 * {@code tables} knows the boss, its combat level, hitpoints, max hit and quest ({@link BossCards#facts}); the picture
+	 * is the wiki's own of the boss's page, the combat icon behind it for a kill count and the clue watch for a personal
+	 * best until it comes. A null text, and a boss that is only spaces, give none.
+	 *
+	 * <p>Choice: a table that has not loaded, or lacks the boss, gives the card as it was before the table: the count or
+	 * the time alone, the wiki's picture asked for all the same.
 	 */
-	static List<HoverCard> read(String plain)
+	static List<HoverCard> read(String plain, CardTables tables)
 	{
 		if (plain == null)
 		{
@@ -53,22 +59,31 @@ final class ChatCommandReader
 		{
 			final String boss = found.group("boss").trim();
 			final int start = startOf(found, boss);
-			return card(new InfoCard(boss + " kill count",
-				Collections.singletonList(new HoverCard.Pair("Kills", found.group("count"), "")),
-				Collections.<String>emptyList(), InfoCard.pageFor(boss), plain, start, start + boss.length(),
-				SkillSprites.spriteOf("Combat"), -1, false));
+			final CardTables.BossInfo info = tables.boss(boss);
+			return card(new InfoCard(boss + " kill count", row("Kills", found.group("count"), info),
+				Collections.<String>emptyList(), BossCards.page(info, boss), plain, start, start + boss.length(),
+				SkillSprites.spriteOf("Combat"), -1, false, true));
 		}
 		found = PERSONAL_BEST.matcher(plain);
 		if (found.matches() && !found.group("boss").trim().isEmpty())
 		{
 			final String boss = found.group("boss").trim();
 			final int start = startOf(found, boss);
-			return card(new InfoCard(boss + " personal best",
-				Collections.singletonList(new HoverCard.Pair("Time", found.group("time"), "")),
-				Collections.<String>emptyList(), InfoCard.pageFor(boss), plain, start, start + boss.length(), -1,
-				ItemID.TRAIL_WATCH, false));
+			final CardTables.BossInfo info = tables.boss(boss);
+			return card(new InfoCard(boss + " personal best", row("Time", found.group("time"), info),
+				Collections.<String>emptyList(), BossCards.page(info, boss), plain, start, start + boss.length(), -1,
+				ItemID.TRAIL_WATCH, false, true));
 		}
 		return Collections.emptyList();
+	}
+
+	/** The card's row: the pair of {@code label} and {@code value}, then the boss's facts. */
+	private static List<HoverCard.Pair> row(String label, String value, CardTables.BossInfo info)
+	{
+		final List<HoverCard.Pair> row = new ArrayList<>();
+		row.add(new HoverCard.Pair(label, value, ""));
+		row.addAll(BossCards.facts(info));
+		return row;
 	}
 
 	/** Where the trimmed boss starts in the text: the group's start, past the whitespace the trim took off its front. */

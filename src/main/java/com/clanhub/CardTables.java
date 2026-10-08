@@ -21,12 +21,17 @@ import org.slf4j.LoggerFactory;
 /**
  * The quests, combat achievement tasks, pets, achievement diaries and skill unlocks of the Old School RuneScape Wiki,
  * from the table the plugin bundles ({@code /com/clanhub/cards.json}, built from the wiki and credited in its own
- * header): for a name, what the wiki says about it, and for a skill's level, what the wiki lists as new at it. The table
- * is read once, off the client thread, a second or two after start-up; until then, and for ever if the file is missing
- * or unreadable, every lookup answers null and the cards of these broadcasts are the plain ones. Parsing is pure and is
- * the only part that needs the table's shape.
+ * header), and the bosses' combat level, hitpoints, max hit and quest from the second table it bundles
+ * ({@code /com/clanhub/bosses.json}, credited the same way): for a name, what the wiki says about it, and for a skill's
+ * level, what the wiki lists as new at it. The tables are read once, off the client thread, a second or two after
+ * start-up; until then, and for ever if the file is missing or unreadable, every lookup answers null and the cards of
+ * these broadcasts are the plain ones. Parsing is pure and is the only part that needs the tables' shape.
  *
  * <p>Choice: the load task runs once; a plugin restart runs it again.
+ *
+ * <p>Choice: the boss table is a file of its own, and the load treats it apart from the cards: a boss file that is
+ * missing or unreadable leaves {@link #boss} answering null and the rest of the table loaded, and when the card table
+ * did not load nothing of the bosses is read.
  */
 final class CardTables
 {
@@ -34,6 +39,9 @@ final class CardTables
 
 	/** Where the bundled table lives on the classpath. */
 	private static final String RESOURCE = "/com/clanhub/cards.json";
+
+	/** Where the bundled boss table lives on the classpath. */
+	private static final String BOSSES = "/com/clanhub/bosses.json";
 
 	/** What the wiki says of a quest. */
 	static final class QuestInfo
@@ -119,6 +127,33 @@ final class CardTables
 		}
 	}
 
+	/** What the wiki says of a boss, or of a raid, with the quest it goes with. */
+	static final class BossInfo
+	{
+		/** The boss's name as the pets' table and the game spell it, such as "Duke Sucellus". */
+		final String name;
+		/** The wiki page, such as "Duke_Sucellus". */
+		final String wiki;
+		/** The combat level as the wiki writes it, such as "758"; empty when the wiki has none. */
+		final String combat;
+		/** The hitpoints as the wiki writes them, such as "485"; empty when the wiki has none. */
+		final String hitpoints;
+		/** The max hit as the wiki writes it, such as "56 (Melee)"; empty when the wiki has none. */
+		final String maxHit;
+		/** The quest the boss belongs to, such as "Desert Treasure II - The Fallen Empire"; empty when it has none. */
+		final String quest;
+
+		BossInfo(String name, String wiki, String combat, String hitpoints, String maxHit, String quest)
+		{
+			this.name = name;
+			this.wiki = wiki;
+			this.combat = combat;
+			this.hitpoints = hitpoints;
+			this.maxHit = maxHit;
+			this.quest = quest;
+		}
+	}
+
 	/** A table read whole: each kind by its name's key. */
 	private static final class Table
 	{
@@ -126,6 +161,7 @@ final class CardTables
 		private final Map<String, TaskInfo> tasks = new HashMap<>();
 		private final Map<String, PetInfo> pets = new HashMap<>();
 		private final Map<String, DiaryInfo> diaries = new HashMap<>();
+		private final Map<String, BossInfo> bosses = new HashMap<>();
 		/** Each skill's key, then each level with unlocks, to what the wiki lists as new at it. */
 		private final Map<String, Map<Integer, List<String>>> unlocks = new HashMap<>();
 	}
@@ -187,6 +223,35 @@ final class CardTables
 			readUnlocks(root, read.unlocks);
 		}
 		return new CardTables(read);
+	}
+
+	/**
+	 * Reads the boss table's shape, {@code {"bosses": [...]}}, each entry an object with a {@code name} and the members of
+	 * {@link BossInfo}, into this table, and returns this table. A missing array gives no bosses.
+	 *
+	 * <p>Choice: an entry with no {@code name} is skipped, a missing text member reads as an empty text, a member the
+	 * class has no field for (the bundled file still carries each boss's {@code petItem}) is ignored, and a name met twice
+	 * keeps its first entry, as {@link #parse} reads the other kinds.
+	 *
+	 * @throws IllegalStateException when this table has not loaded: the bosses are added to a table {@link #parse} made
+	 * @throws com.google.gson.JsonParseException when the text is not JSON
+	 */
+	CardTables readBosses(Reader json, Gson gson)
+	{
+		if (table == null)
+		{
+			throw new IllegalStateException("the boss table is read into a table that has loaded");
+		}
+		final JsonObject root = gson.fromJson(json, JsonObject.class);
+		if (root != null)
+		{
+			for (final JsonObject entry : objectsOf(root, "bosses"))
+			{
+				table.bosses.putIfAbsent(key(text(entry, "name")), new BossInfo(text(entry, "name"), text(entry, "wiki"),
+					text(entry, "combat"), text(entry, "hitpoints"), text(entry, "maxHit"), text(entry, "quest")));
+			}
+		}
+		return this;
 	}
 
 	/**
@@ -313,6 +378,15 @@ final class CardTables
 		return loaded() && name != null ? table.pets.get(key(name)) : null;
 	}
 
+	/**
+	 * The boss, monster or raid called {@code name}, matched as {@link #quest} matches; null when the boss table does not
+	 * know it or has not loaded.
+	 */
+	BossInfo boss(String name)
+	{
+		return loaded() && name != null ? table.bosses.get(key(name)) : null;
+	}
+
 	/** The achievement diary of the area called {@code area}, matched as {@link #quest} matches; null when unknown. */
 	DiaryInfo diary(String area)
 	{
@@ -356,7 +430,7 @@ final class CardTables
 		executor.execute(() -> load(gson));
 	}
 
-	/** The load task: one classpath read, one parse, one publish. */
+	/** The load task: two classpath reads, two parses, one publish. */
 	private void load(Gson gson)
 	{
 		try (InputStream in = CardTables.class.getResourceAsStream(RESOURCE))
@@ -366,12 +440,35 @@ final class CardTables
 				log.warn("The card table {} is not in the plugin; the cards show what the chat line says and no more", RESOURCE);
 				return;
 			}
-			table = parse(new InputStreamReader(in, StandardCharsets.UTF_8), gson).table;
+			final CardTables read = parse(new InputStreamReader(in, StandardCharsets.UTF_8), gson);
+			readBossTable(read, gson);
+			table = read.table;
 		}
 		catch (IOException | RuntimeException e)
 		{
 			log.warn("The card table {} could not be read ({}); the cards show what the chat line says and no more", RESOURCE,
 				e.toString());
+		}
+	}
+
+	/**
+	 * Reads the bundled boss table into {@code into}, which has not been published. A missing resource or a table that
+	 * does not parse logs one warning naming the cause and leaves the bosses empty; nothing is thrown out of it.
+	 */
+	private static void readBossTable(CardTables into, Gson gson)
+	{
+		try (InputStream in = CardTables.class.getResourceAsStream(BOSSES))
+		{
+			if (in == null)
+			{
+				log.warn("The boss table {} is not in the plugin; the boss cards show no facts", BOSSES);
+				return;
+			}
+			into.readBosses(new InputStreamReader(in, StandardCharsets.UTF_8), gson);
+		}
+		catch (IOException | RuntimeException e)
+		{
+			log.warn("The boss table {} could not be read ({}); the boss cards show no facts", BOSSES, e.toString());
 		}
 	}
 }

@@ -1,0 +1,8 @@
+{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki", "fetched": "2026-10-08",
+ "bosses": [
+  {"name": "Zulrah", "wiki": "Zulrah", "combat": "725", "hitpoints": "500", "maxHit": "41", "quest": "", "petItem": 12921},
+  {"name": "Vorkath", "wiki": "Vorkath", "combat": "732", "hitpoints": "750", "maxHit": "32", "quest": "Dragon Slayer II", "petItem": 21992},
+  {"name": "Duke Sucellus", "wiki": "Duke_Sucellus", "combat": "450", "hitpoints": "440", "maxHit": "24", "quest": "Desert Treasure II - The Fallen Empire", "petItem": 28250},
+  {"name": "Chambers of Xeric", "wiki": "Chambers_of_Xeric", "combat": "", "hitpoints": "", "maxHit": "", "quest": "", "petItem": 20851},
+  {"name": "Brutus", "wiki": "Brutus", "combat": "70", "hitpoints": "100", "maxHit": "10", "quest": "The Ides of Milk", "petItem": -1}
+ ]}

@@ -2,6 +2,7 @@ package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
+import com.clanhub.ClanHubConfig.CardWidth;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Window;
@@ -34,9 +35,12 @@ public class ClanHubPanelTest
 	private final List<Boolean> shown = new ArrayList<>();
 	private final List<Boolean> coloured = new ArrayList<>();
 	private final List<Boolean> wiki = new ArrayList<>();
+	private final List<Boolean> pictures = new ArrayList<>();
+	private final List<Boolean> bosses = new ArrayList<>();
 	private final List<Boolean> underlines = new ArrayList<>();
 	private final List<CardTrigger> triggers = new ArrayList<>();
 	private final List<CardPlace> places = new ArrayList<>();
+	private final List<CardWidth> widths = new ArrayList<>();
 	private final List<Integer> delays = new ArrayList<>();
 	private final List<Integer> sizes = new ArrayList<>();
 
@@ -80,6 +84,30 @@ public class ClanHubPanelTest
 		}
 
 		@Override
+		public boolean wikiPictures()
+		{
+			return true;
+		}
+
+		@Override
+		public void setWikiPictures(boolean on)
+		{
+			pictures.add(on);
+		}
+
+		@Override
+		public boolean bossCards()
+		{
+			return true;
+		}
+
+		@Override
+		public void setBossCards(boolean on)
+		{
+			bosses.add(on);
+		}
+
+		@Override
 		public boolean alwaysUnderlineLevels()
 		{
 			return false;
@@ -113,6 +141,18 @@ public class ClanHubPanelTest
 		public void setCardPlace(CardPlace place)
 		{
 			places.add(place);
+		}
+
+		@Override
+		public CardWidth cardWidth()
+		{
+			return CardWidth.WIDE;
+		}
+
+		@Override
+		public void setCardWidth(CardWidth width)
+		{
+			widths.add(width);
 		}
 
 		@Override
@@ -162,7 +202,10 @@ public class ClanHubPanelTest
 				// Re-aimed by the lead, 2026-10-08 (lot 8b): a third check, "Wiki descriptions".
 				// Re-aimed by the lead, 2026-10-08 (lot 8c): a fourth row, "Card place".
 				// Re-aimed by the lead, 2026-10-08 (lot 8j): a fourth check, "Always underline level-ups".
-				assertEquals("header, rule, four checks, rule, four rows, rule, OK row", 13, parts.length);
+				// Re-aimed by the lead, 2026-10-08 (lot 8Q): a fifth row, "Card width".
+				// Re-aimed by the lead, 2026-10-08 (lot 8R): a fifth check, "Boss cards".
+				// Re-aimed by the lead, 2026-10-08 (lot 8U): a sixth check, "Wiki pictures".
+				assertEquals("header, rule, six checks, rule, five rows, rule, OK row", 16, parts.length);
 				assertTrue("the header is the support header's one panel", parts[0] instanceof JPanel);
 				assertEquals("the header's title, version and links", 3, ((JPanel) parts[0]).getComponentCount());
 				assertTrue("a rule", parts[1] instanceof JPopupMenu.Separator);
@@ -170,13 +213,16 @@ public class ClanHubPanelTest
 				assertTrue("the second check", parts[3] instanceof JCheckBoxMenuItem);
 				assertTrue("the third check", parts[4] instanceof JCheckBoxMenuItem);
 				assertTrue("the fourth check", parts[5] instanceof JCheckBoxMenuItem);
-				assertTrue("a rule", parts[6] instanceof JPopupMenu.Separator);
-				assertTrue("the show row", parts[7] instanceof JPanel);
-				assertTrue("the delay row", parts[8] instanceof JPanel);
-				assertTrue("the place row", parts[9] instanceof JPanel);
-				assertTrue("the size row", parts[10] instanceof JPanel);
-				assertTrue("a rule", parts[11] instanceof JPopupMenu.Separator);
-				assertTrue("the OK row", parts[12] instanceof JPanel);
+				assertTrue("the fifth check", parts[6] instanceof JCheckBoxMenuItem);
+				assertTrue("the sixth check", parts[7] instanceof JCheckBoxMenuItem);
+				assertTrue("a rule", parts[8] instanceof JPopupMenu.Separator);
+				assertTrue("the show row", parts[9] instanceof JPanel);
+				assertTrue("the delay row", parts[10] instanceof JPanel);
+				assertTrue("the place row", parts[11] instanceof JPanel);
+				assertTrue("the width row", parts[12] instanceof JPanel);
+				assertTrue("the size row", parts[13] instanceof JPanel);
+				assertTrue("a rule", parts[14] instanceof JPopupMenu.Separator);
+				assertTrue("the OK row", parts[15] instanceof JPanel);
 
 				final JCheckBoxMenuItem showCheck = (JCheckBoxMenuItem) parts[2];
 				assertEquals("Show hover cards", showCheck.getText());
@@ -187,32 +233,45 @@ public class ClanHubPanelTest
 				final JCheckBoxMenuItem wikiCheck = (JCheckBoxMenuItem) parts[4];
 				assertEquals("Wiki descriptions", wikiCheck.getText());
 				assertTrue("ticked, as the setting is", wikiCheck.isSelected());
-				final JCheckBoxMenuItem underlineCheck = (JCheckBoxMenuItem) parts[5];
-				assertEquals("Always underline level-ups", underlineCheck.getText());
+				final JCheckBoxMenuItem picturesCheck = (JCheckBoxMenuItem) parts[5];
+				assertEquals("Wiki pictures", picturesCheck.getText());
+				assertTrue("ticked, as the setting is", picturesCheck.isSelected());
+				final JCheckBoxMenuItem bossCheck = (JCheckBoxMenuItem) parts[6];
+				assertEquals("Boss cards", bossCheck.getText());
+				assertTrue("ticked, as the setting is", bossCheck.isSelected());
+				final JCheckBoxMenuItem underlineCheck = (JCheckBoxMenuItem) parts[7];
+				assertEquals("Underline level-ups", underlineCheck.getText());
 				assertFalse("not ticked, as the setting is", underlineCheck.isSelected());
 
-				final JPanel showRow = (JPanel) parts[7];
+				final JPanel showRow = (JPanel) parts[9];
 				assertFalse("see-through", showRow.isOpaque());
 				assertEquals("Show a card", ((JLabel) showRow.getComponent(0)).getText());
 				@SuppressWarnings("unchecked")
 				final JComboBox<CardTrigger> combo = (JComboBox<CardTrigger>) lastOf(showRow);
 				assertEquals("On hover", String.valueOf(combo.getSelectedItem()));
 
-				final JPanel delayRow = (JPanel) parts[8];
+				final JPanel delayRow = (JPanel) parts[10];
 				assertEquals("Card delay (ms)", ((JLabel) delayRow.getComponent(0)).getText());
 				final JSpinner delaySpinner = (JSpinner) lastOf(delayRow);
 				assertEquals(0, delaySpinner.getValue());
 				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) delaySpinner.getEditor())
 					.getTextField().getColumns() <= 4);
 
-				final JPanel placeRow = (JPanel) parts[9];
+				final JPanel placeRow = (JPanel) parts[11];
 				assertFalse("see-through", placeRow.isOpaque());
 				assertEquals("Card place", ((JLabel) placeRow.getComponent(0)).getText());
 				@SuppressWarnings("unchecked")
 				final JComboBox<CardPlace> placeCombo = (JComboBox<CardPlace>) lastOf(placeRow);
 				assertEquals("Above the cursor", String.valueOf(placeCombo.getSelectedItem()));
 
-				final JPanel sizeRow = (JPanel) parts[10];
+				final JPanel widthRow = (JPanel) parts[12];
+				assertFalse("see-through", widthRow.isOpaque());
+				assertEquals("Card width", ((JLabel) widthRow.getComponent(0)).getText());
+				@SuppressWarnings("unchecked")
+				final JComboBox<CardWidth> widthCombo = (JComboBox<CardWidth>) lastOf(widthRow);
+				assertEquals("Wide", String.valueOf(widthCombo.getSelectedItem()));
+
+				final JPanel sizeRow = (JPanel) parts[13];
 				assertFalse("see-through", sizeRow.isOpaque());
 				assertEquals("Card text size", ((JLabel) sizeRow.getComponent(0)).getText());
 				final JSpinner sizeSpinner = (JSpinner) lastOf(sizeRow);
@@ -221,7 +280,7 @@ public class ClanHubPanelTest
 					.getTextField().getColumns() <= 4);
 
 				final List<String> okRow = new ArrayList<>();
-				for (final Component part : ((JPanel) parts[12]).getComponents())
+				for (final Component part : ((JPanel) parts[15]).getComponents())
 				{
 					if (part instanceof JButton)
 					{
@@ -231,13 +290,22 @@ public class ClanHubPanelTest
 				assertEquals("the OK row is last: Reset to default, then OK", List.of("Reset to default", "OK"), okRow);
 
 				assertTrue("opening the menu writes nothing back", shown.isEmpty() && coloured.isEmpty() && wiki.isEmpty()
-					&& underlines.isEmpty() && triggers.isEmpty() && places.isEmpty() && delays.isEmpty() && sizes.isEmpty());
+					&& pictures.isEmpty() && bosses.isEmpty() && underlines.isEmpty() && triggers.isEmpty() && places.isEmpty() && widths.isEmpty() && delays.isEmpty() && sizes.isEmpty());
 				colourCheck.doClick(0);
 				assertEquals("un-ticking the colour check says false", List.of(false), coloured);
 				assertTrue("and writes nothing to the wiki check", wiki.isEmpty());
 				wikiCheck.doClick(0);
 				assertEquals("un-ticking the wiki check says false, once", List.of(false), wiki);
 				assertEquals("and the colour check was not touched again", List.of(false), coloured);
+				assertTrue("and nothing to the pictures check", pictures.isEmpty());
+				picturesCheck.doClick(0);
+				assertEquals("un-ticking the pictures check says false, once", List.of(false), pictures);
+				assertEquals("and the wiki check was not touched again", List.of(false), wiki);
+				assertEquals("nor the colour check", List.of(false), coloured);
+				assertTrue("and nothing to the boss check", bosses.isEmpty());
+				bossCheck.doClick(0);
+				assertEquals("un-ticking the boss check says false, once", List.of(false), bosses);
+				assertEquals("and the wiki check was not touched again", List.of(false), wiki);
 				assertTrue("nor the first check", shown.isEmpty());
 				assertTrue("nor the fourth", underlines.isEmpty());
 				underlineCheck.doClick(0);
@@ -248,6 +316,9 @@ public class ClanHubPanelTest
 				placeCombo.setSelectedItem(CardPlace.CHAT);
 				assertEquals("choosing 'Above the chat' says so, once", List.of(CardPlace.CHAT), places);
 				assertEquals("and the trigger was not touched again", List.of(CardTrigger.HOLD_KEY), triggers);
+				widthCombo.setSelectedItem(CardWidth.MEDIUM);
+				assertEquals("choosing 'Medium' says so, once", List.of(CardWidth.MEDIUM), widths);
+				assertEquals("and the place was not touched again", List.of(CardPlace.CHAT), places);
 				delaySpinner.setValue(300);
 				assertEquals("setting the delay spinner to 300 says 300", List.of(300), delays);
 				sizeSpinner.setValue(20);

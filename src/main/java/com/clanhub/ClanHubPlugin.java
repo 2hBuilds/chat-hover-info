@@ -2,6 +2,7 @@ package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
+import com.clanhub.ClanHubConfig.CardWidth;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.Toolkit;
@@ -45,13 +46,15 @@ import org.slf4j.LoggerFactory;
  * guest clan, group ironman and friends chat broadcasts for the item each names), keeps the cards they give, and lets
  * the overlay show a card at the cursor when the mouse is on its line; a right-click on the line adds "Open wiki" and
  * "Copy" to the game's menu. While "Wiki descriptions" is on, each card's page name is sent to the wiki as its line
- * arrives, for the page's first paragraph, which the card shows (see {@link WikiSummaries}). With the show mode "On click" a left click on the words opens the card; the click is read
+ * arrives, for the page's first paragraph, which the card shows (see {@link WikiSummaries}); while "Wiki pictures" is on,
+ * the page name of each boss, monster, raid or chest card is sent too, for the page's own picture (see
+ * {@link WikiPictures}). With the show mode "On click" a left click on the words opens the card; the click is read
  * through RuneLite's mouse manager and passed on to the game untouched. In developer mode the command {@code ::hoverinfo demo} posts sample lines to hover.
  */
 @PluginDescriptor(
 	name = "2h Chat Hover Info",
 	internalName = "chat-hover-info",
-	description = "Hover a broadcast in your chat, a drop, a quest, a combat task, a pet or a level, for a card with the price, the drop rates, the unlocks and the wiki's first paragraph. (v" + Version.CURRENT + ")",
+	description = "Hover a broadcast in your chat, a drop, a quest, a combat task, a pet or a level, for a card with the price, the drop rates, the unlocks, the boss's picture and the wiki's first paragraph. (v" + Version.CURRENT + ")",
 	tags = {"chat", "hover", "info", "tooltip", "broadcast", "wiki", "drop", "price", "item", "quest", "achievement", "combat", "task", "pet", "level", "clan", "friends"}
 )
 public class ClanHubPlugin extends Plugin
@@ -123,7 +126,10 @@ public class ClanHubPlugin extends Plugin
 	/** The drop rates of the wiki, loading in the background after start-up; the item cards read from it. */
 	private DropRates dropRates;
 
-	/** The quests, tasks, pets and diaries of the wiki, loading in the background after start-up; the kind cards read from it. */
+	/**
+	 * The quests, tasks, pets, diaries and bosses of the wiki, loading in the background after start-up; the kind cards
+	 * and the boss cards read from it.
+	 */
 	private CardTables tables;
 
 	/**
@@ -133,6 +139,15 @@ public class ClanHubPlugin extends Plugin
 	 * thread that reads it; turning the plugin off and on starts with none kept.
 	 */
 	private volatile WikiSummaries summaries;
+
+	/**
+	 * The wiki's own pictures of the boss, monster, raid and chest pages, asked for as chat lines with such cards arrive; the
+	 * cards read from it.
+	 *
+	 * <p>Choice: made new in {@link #startUp} and volatile, like {@link #summaries}; turning the plugin off and on starts
+	 * with none kept.
+	 */
+	private volatile WikiPictures pictures;
 
 	/**
 	 * The names of every item, built a slice per game tick after login: the item cards' way to an id the price list
@@ -167,11 +182,14 @@ public class ClanHubPlugin extends Plugin
 		index = new ItemNameIndex();
 		final ItemCards itemCards = new ItemCards(itemManager, dropRates, index);
 		readers = Arrays.asList(
-			new BroadcastItemReader(itemCards),
-			new OwnLineReader(itemCards),
+			new BroadcastItemReader(itemCards, config::bossCards, tables),
+			new OwnLineReader(itemCards, config::bossCards, tables),
 			new BroadcastKindReader(tables, itemCards));
 		summaries = new WikiSummaries(okHttpClient, gson);
 		overlay.summaries(summaries);
+		pictures = new WikiPictures(okHttpClient, gson);
+		overlay.pictures(pictures);
+		overlay.tables(tables);
 		overlay.attach(store);
 		overlayManager.add(overlay);
 		cardKeyListener = new HotkeyListener(config::cardKey)
@@ -242,6 +260,30 @@ public class ClanHubPlugin extends Plugin
 			}
 
 			@Override
+			public boolean wikiPictures()
+			{
+				return config.wikiPictures();
+			}
+
+			@Override
+			public void setWikiPictures(boolean on)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "wikiPictures", on);
+			}
+
+			@Override
+			public boolean bossCards()
+			{
+				return config.bossCards();
+			}
+
+			@Override
+			public void setBossCards(boolean on)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "bossCards", on);
+			}
+
+			@Override
 			public boolean alwaysUnderlineLevels()
 			{
 				return config.alwaysUnderlineLevels();
@@ -275,6 +317,18 @@ public class ClanHubPlugin extends Plugin
 			public void setCardPlace(CardPlace place)
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "cardPlace", place);
+			}
+
+			@Override
+			public CardWidth cardWidth()
+			{
+				return config.cardWidth();
+			}
+
+			@Override
+			public void setCardWidth(CardWidth width)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "cardWidth", width);
 			}
 
 			@Override
@@ -370,22 +424,37 @@ public class ClanHubPlugin extends Plugin
 	}
 
 	/**
-	 * Asks the wiki, in the background, for the first paragraph of each card's page, so it is there by the time the line is
-	 * hovered: only while "Show hover cards" and "Wiki descriptions" are both on, and only for a card with no description
-	 * of its own. Only the page's title is sent.
+	 * Asks the wiki, in the background, for what each card shows of its page, so it is there by the time the line is
+	 * hovered: only while "Show hover cards" is on, and then the first paragraph of each card's page while "Wiki
+	 * descriptions" is on (only for a card with no description of its own) and the page's own picture of each boss,
+	 * monster, raid or chest card while "Wiki pictures" is on. Only the page's title is sent.
 	 */
 	private void prefetch(List<HoverCard> cards)
 	{
-		final WikiSummaries asked = summaries;
-		if (asked == null || !config.showCards() || !config.wikiDescriptions())
+		if (!config.showCards())
 		{
 			return;
 		}
-		for (final HoverCard card : cards)
+		final WikiSummaries asked = summaries;
+		if (asked != null && config.wikiDescriptions())
 		{
-			if (card.notes().isEmpty())
+			for (final HoverCard card : cards)
 			{
-				asked.fetch(card.wikiTitle());
+				if (card.notes().isEmpty())
+				{
+					asked.fetch(card.wikiTitle());
+				}
+			}
+		}
+		final WikiPictures pictured = pictures;
+		if (pictured != null && config.wikiPictures())
+		{
+			for (final HoverCard card : cards)
+			{
+				if (card.wikiPicture())
+				{
+					pictured.fetch(card.wikiTitle());
+				}
 			}
 		}
 	}
@@ -435,7 +504,7 @@ public class ClanHubPlugin extends Plugin
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
 	}
 
-	/** "Reset to default": the plugin's eleven settings go back to their defaults. */
+	/** "Reset to default": the plugin's fourteen settings go back to their defaults. */
 	private void resetSettings()
 	{
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "showCards");
@@ -446,7 +515,10 @@ public class ClanHubPlugin extends Plugin
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardKey");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardDelayMs");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "wikiDescriptions");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "wikiPictures");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "bossCards");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardPlace");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardWidth");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineLevels");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineColour");
 	}

@@ -182,6 +182,13 @@ final class ItemCard implements HoverCard
 		return -1;
 	}
 
+	/** An item's picture is its own sprite, never the wiki's picture of a page: false. */
+	@Override
+	public boolean wikiPicture()
+	{
+		return false;
+	}
+
 	/** An item's name is coloured in the chat. */
 	@Override
 	public boolean marked()

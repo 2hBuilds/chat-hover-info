@@ -25,6 +25,7 @@ public class CardPainterTest
 	private static final Dimension CANVAS = new Dimension(765, 503);
 	private static final Color ACCENT = new Color(59, 130, 246);
 	// Re-aimed by the lead, 2026-10-08 (lot 8i): the painter wraps the description itself.
+	// Re-aimed by the lead, 2026-10-08 (lot 8Q): the cap and the line count are the caller's now.
 	private static final String NONE = "";
 	private static final String THREE_LINES = "The dragon claws are a rare drop from the abyssal demon.";
 	private static final String PARAGRAPH = words(400);
@@ -103,7 +104,7 @@ public class CardPainterTest
 	{
 		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
 		final Graphics2D g = image.createGraphics();
-		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), fontSize, 0, 0, description);
+		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), fontSize, 0, 0, description, 480, 3);
 		g.dispose();
 		return new Object[]{image, size};
 	}
@@ -205,13 +206,46 @@ public class CardPainterTest
 	}
 
 	@Test
+	public void theNarrowerCapsGiveMoreLines()
+	{
+		final int bodyHeight = bodyMetrics().getAscent() + bodyMetrics().getDescent() + 2;
+		final Dimension wide = splitSized(claws(), PARAGRAPH, 480, 3);
+		final Dimension medium = splitSized(claws(), PARAGRAPH, 409, 5);
+		final Dimension narrow = splitSized(claws(), PARAGRAPH, 391, 5);
+
+		assertEquals("480 wide at the wide cap", 480, wide.width);
+		assertEquals("409 wide at the medium cap", 409, medium.width);
+		assertEquals("391 wide at the narrow cap", 391, narrow.width);
+		assertEquals("two more paragraph lines at the medium cap", 2 * bodyHeight, medium.height - wide.height);
+		assertEquals("and the narrow cap gives five lines too", medium.height, narrow.height);
+
+		final int bare = splitSized(claws(), NONE, 480, 3).height;
+		assertEquals("with no paragraph the medium cap gives the same height", bare, splitSized(claws(), NONE, 409, 5).height);
+		assertEquals("and the narrow cap too", bare, splitSized(claws(), NONE, 391, 5).height);
+
+		// Re-aimed by the lead, 2026-10-08 (lot 8T): the facts wrap, so a card with no paragraph is as wide as its widest fact asks.
+		assertEquals("a long title with no paragraph is as wide as its title asks at the medium cap: the picture, the "
+			+ "title (247 px) and the padding", 309, splitSized(dragonSlayerTwo(), NONE, 409, 5).width);
+	}
+
+	/** The size of a split card at 16 px under the cap {@code capAt16} and the line count {@code lines}. */
+	private static Dimension splitSized(HoverCard card, String description, int capAt16, int lines)
+	{
+		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
+		final Graphics2D g = image.createGraphics();
+		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), 16, 0, 0, description, capAt16, lines);
+		g.dispose();
+		return size;
+	}
+
+	@Test
 	public void theGroundIsSolid()
 	{
 		assertEquals("the ground's alpha is full", 255, CardPainter.GROUND.getAlpha());
 
 		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D g = image.createGraphics();
-		CardPainter.paintSplit(g, claws(), redSprite(), 16, 0, 0, NONE);
+		CardPainter.paintSplit(g, claws(), redSprite(), 16, 0, 0, NONE, 480, 3);
 		g.dispose();
 		// (4, 4) is inside the black edge and the line inside it, and before any text.
 		assertEquals("a pixel of the ground on a clear canvas is opaque", 255, image.getRGB(4, 4) >>> 24);
@@ -264,6 +298,104 @@ public class CardPainterTest
 		assertTrue("and it fits: " + longWord.get(0), metrics.stringWidth(longWord.get(0)) <= 220);
 	}
 
+	/** The texts of the laid-out lines, in order. */
+	private static List<String> textsOf(List<CardPainter.TextLine> lines)
+	{
+		final List<String> texts = new ArrayList<>();
+		for (final CardPainter.TextLine line : lines)
+		{
+			texts.add(line.text);
+		}
+		return texts;
+	}
+
+	// Amended by the lead, 2026-10-08 (lot 8S): a list has its own cap of ten lines, not the card's paragraph count.
+	@Test
+	public void aListIsNumberedOnePerLineWithAHangingIndent()
+	{
+		final FontMetrics metrics = bodyMetrics();
+
+		final List<CardPainter.TextLine> hitpoints = CardPainter.layout("Skill mastery\nBuy the hitpoints cape and hood from "
+			+ "Surgeon General Tafani in the Emir's Arena hospital, and wear them", metrics, 391, 5);
+		final int indent = metrics.stringWidth("2. ");
+		assertEquals("the first item", "1. Skill mastery", hitpoints.get(0).text);
+		assertEquals("at no indent", 0, hitpoints.get(0).indent);
+		assertTrue("the second item begins with its marker: " + hitpoints.get(1).text,
+			hitpoints.get(1).text.startsWith("2. Buy"));
+		assertEquals("at no indent", 0, hitpoints.get(1).indent);
+		for (int i = 2; i < hitpoints.size(); i++)
+		{
+			assertEquals("a continuation hangs as wide as the marker", indent, hitpoints.get(i).indent);
+			assertTrue("and does not start with a digit: " + hitpoints.get(i).text,
+				!Character.isDigit(hitpoints.get(i).text.charAt(0)));
+		}
+		for (final CardPainter.TextLine line : hitpoints)
+		{
+			assertTrue("no line wider than the room it has: " + line.text,
+				metrics.stringWidth(line.text) <= 391 - line.indent);
+			assertTrue("none ends in the mark: " + line.text, !line.text.endsWith("..."));
+		}
+		assertTrue("three to five lines: " + hitpoints.size(), hitpoints.size() >= 3 && hitpoints.size() <= 5);
+
+		// The five unlocks of Defence 70 come whole under a ten-line cap, though the card's paragraph count is five.
+		final List<CardPainter.TextLine> defence = CardPainter.layout(
+			"Use Piety (with 70 Prayer and completing the Knight Waves Training Grounds)\n"
+				+ "Use Rigour (with 74 Prayer and unlocked using a dexterous prayer scroll)\n"
+				+ "Use Augury (with 77 Prayer and unlocked using an arcane prayer scroll)\n"
+				+ "Wear Neitiznot faceguard (with Fremennik Exiles completed)\n"
+				+ "Wear Barrows armour", metrics, 391, 5);
+		assertTrue("six to ten lines: " + defence.size(), defence.size() >= 6 && defence.size() <= 10);
+		assertTrue("the first line is the first item cut at a word: " + defence.get(0).text,
+			defence.get(0).text.startsWith("1. Use Piety")
+				&& "1. Use Piety (with 70 Prayer and completing the Knight Waves Training Grounds)"
+					.startsWith(defence.get(0).text));
+		final int fiveIndent = metrics.stringWidth("5. ");
+		for (final CardPainter.TextLine line : defence)
+		{
+			assertTrue("none ends in the mark: " + line.text, !line.text.endsWith("..."));
+			assertTrue("no line wider than the room it has: " + line.text,
+				metrics.stringWidth(line.text) <= 391 - line.indent);
+			assertTrue("a line at no indent begins with a marker, one at the hang does not: " + line.text,
+				(line.indent == 0) == Character.isDigit(line.text.charAt(0)));
+		}
+		for (int number = 1; number <= 5; number++)
+		{
+			boolean found = false;
+			for (final CardPainter.TextLine line : defence)
+			{
+				found |= line.text.startsWith(number + ". ");
+			}
+			assertTrue("item " + number + " is there", found);
+		}
+		final CardPainter.TextLine last = defence.get(defence.size() - 1);
+		assertTrue("the last line is item five, or its continuation: " + last.text,
+			("5. Wear Barrows armour".equals(last.text) && last.indent == 0)
+				|| (last.indent == fiveIndent && "5. Wear Barrows armour".endsWith(last.text)));
+
+		// Eleven items: ten lines, the tenth cut with the mark.
+		final StringBuilder eleven = new StringBuilder();
+		final String[] numbers = {"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"};
+		for (int i = 0; i < numbers.length; i++)
+		{
+			eleven.append(i == 0 ? "" : "\n").append("Item ").append(numbers[i]);
+		}
+		final List<CardPainter.TextLine> many = CardPainter.layout(eleven.toString(), metrics, 391, 5);
+		assertEquals("ten lines", 10, many.size());
+		assertTrue("the last ends in the mark: " + many.get(9).text, many.get(9).text.endsWith("..."));
+		assertTrue("and keeps its marker: " + many.get(9).text, many.get(9).text.startsWith("10. "));
+		assertTrue("the ninth does not: " + many.get(8).text, !many.get(8).text.endsWith("..."));
+
+		// No line break: the paragraph, wrapToWidth's lines, no indent.
+		final String paragraph = words(60);
+		final List<CardPainter.TextLine> flat = CardPainter.layout(paragraph, metrics, 220, 5);
+		assertEquals("the paragraph's lines", CardPainter.wrapToWidth(paragraph, metrics, 220, 5), textsOf(flat));
+		for (final CardPainter.TextLine line : flat)
+		{
+			assertEquals("at no indent", 0, line.indent);
+		}
+		assertTrue("no text, no lines", CardPainter.layout("", metrics, 391, 5).isEmpty());
+	}
+
 	@Test
 	public void theFactsDropUnderTheTitleWhenTheyDoNotFit()
 	{
@@ -272,7 +404,9 @@ public class CardPainterTest
 		final Dimension questSize = (Dimension) quest[1];
 		final Object[] bare = splitPainted(claws(), 16, NONE);
 		final Dimension clawsSize = (Dimension) bare[1];
-		assertEquals("a long title with four facts is as wide as the card goes", 480, questSize.width);
+		// Re-aimed by the lead, 2026-10-08 (lot 8T): the facts wrap, so the card no longer needs the cap for them.
+		assertTrue("a long title with four facts is as wide as its widest fact asks, at most the cap: " + questSize.width,
+			questSize.width <= 480);
 		assertTrue("and taller than the claws card: " + questSize.height + " vs " + clawsSize.height,
 			questSize.height > clawsSize.height);
 
@@ -300,13 +434,94 @@ public class CardPainterTest
 		assertTrue("the facts' labels stand under the title", grey);
 	}
 
+	/** The split card at the top-left of a black image under the cap {@code capAt16} and {@code lines}: the image and its size. */
+	private static Object[] splitPaintedUnder(HoverCard card, String description, int capAt16, int lines)
+	{
+		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
+		final Graphics2D g = image.createGraphics();
+		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), 16, 0, 0, description, capAt16, lines);
+		g.dispose();
+		return new Object[]{image, size};
+	}
+
+	@Test
+	public void theFactsWrapUnderTheTitleWhenTooWide()
+	{
+		final FontMetrics body = bodyMetrics();
+		final int bodyHeight = body.getAscent() + body.getDescent() + 2;
+		final List<HoverCard.Pair> facts = dragonSlayerTwo().rows().get(0);
+
+		// The row builder: greedy, in order, as many as fit.
+		final List<List<HoverCard.Pair>> rows = CardPainter.factRows(facts, body, 380, 16);
+		assertEquals("two rows at 380 px: " + rows.size(), 2, rows.size());
+		assertEquals("all four facts, in order", facts, concat(rows));
+		for (final List<HoverCard.Pair> row : rows)
+		{
+			assertTrue("a row is at most 380 px: " + CardPainter.rowWidth(row, body, 16),
+				CardPainter.rowWidth(row, body, 16) <= 380);
+		}
+		final List<HoverCard.Pair> firstAndNext = new ArrayList<>(rows.get(0));
+		firstAndNext.add(rows.get(1).get(0));
+		assertTrue("the first row holds as many as fit: with the next fact it would be "
+			+ CardPainter.rowWidth(firstAndNext, body, 16), CardPainter.rowWidth(firstAndNext, body, 16) > 380);
+
+		final List<List<HoverCard.Pair>> alone = CardPainter.factRows(Collections.singletonList(facts.get(0)), body, 100, 16);
+		assertTrue("the fact is wider than 100 px: " + CardPainter.rowWidth(alone.get(0), body, 16),
+			CardPainter.rowWidth(alone.get(0), body, 16) > 100);
+		assertEquals("a fact wider than the width stands alone: one row", 1, alone.size());
+		assertEquals("of one fact", 1, alone.get(0).size());
+		assertEquals("a wide fact between two small ones breaks the rows round it", 3,
+			CardPainter.factRows(Arrays.asList(facts.get(2), facts.get(0), facts.get(2)), body, 100, 16).size());
+		assertTrue("no facts, no rows", CardPainter.factRows(new ArrayList<HoverCard.Pair>(), body, 380, 16).isEmpty());
+
+		// Painted under the medium cap with a paragraph, which makes the card as wide as the cap: the facts wrap inside
+		// it and nothing of them runs into the right padding.
+		final Object[] painted = splitPaintedUnder(dragonSlayerTwo(), PARAGRAPH, 409, 5);
+		final BufferedImage image = (BufferedImage) painted[0];
+		final Dimension size = (Dimension) painted[1];
+		assertEquals("409 wide at the medium cap", 409, size.width);
+		int rule = CardPainter.INSET;
+		while (rule < size.height && !isColour(image, CardPainter.INSET + 5, rule, CardPainter.LINE))
+		{
+			rule++;
+		}
+		assertTrue("the first rule is found below the header: " + rule, rule > CardPainter.INSET + 32 && rule < size.height);
+		for (int y = CardPainter.INSET; y < rule; y++)
+		{
+			for (int x = 409 - CardPainter.INSET; x < 409; x++)
+			{
+				assertTrue("only the ground, the edge or the line in the right padding, at " + x + ", " + y,
+					isColour(image, x, y, CardPainter.GROUND) || isColour(image, x, y, Color.BLACK)
+						|| isColour(image, x, y, CardPainter.LINE));
+			}
+		}
+
+		// A second row of facts makes the header one body line taller: three facts fit one row at this width, four do not.
+		final InfoCard threeFacts = new InfoCard("Dragon Slayer II: The Legacy of Elvarg", facts.subList(0, 3),
+			Collections.<String>emptyList(), "Dragon_Slayer_II",
+			"Klar has completed a quest: Dragon Slayer II: The Legacy of Elvarg.", 33, 70, -1);
+		assertEquals("the four-fact card is one body line taller than the three-fact card", bodyHeight,
+			size.height - ((Dimension) splitPaintedUnder(threeFacts, PARAGRAPH, 409, 5)[1]).height);
+	}
+
+	/** The facts of every row, in order. */
+	private static List<HoverCard.Pair> concat(List<List<HoverCard.Pair>> rows)
+	{
+		final List<HoverCard.Pair> all = new ArrayList<>();
+		for (final List<HoverCard.Pair> row : rows)
+		{
+			all.addAll(row);
+		}
+		return all;
+	}
+
 	@Test
 	public void aShortCardIsNarrow()
 	{
 		final int bodyHeight = bodyMetrics().getAscent() + bodyMetrics().getDescent() + 2;
 		final String sentence = "Catch stymphikes (with The Blood Moon Rises completed).";
 		final InfoCard hunter = new InfoCard("Hunter 82",
-			Collections.singletonList(new HoverCard.Pair("New", "1 unlock", "")), Collections.<String>emptyList(), "Hunter",
+			Collections.singletonList(new HoverCard.Pair("New unlocks", "1", "")), Collections.<String>emptyList(), "Hunter",
 			"Mossy Rock has reached Hunter level 82.", 24, 35, -1);
 
 		final Dimension with = splitSize(hunter, sentence);
@@ -346,6 +561,133 @@ public class CardPainterTest
 	private static boolean isColour(BufferedImage image, int x, int y, Color colour)
 	{
 		return (image.getRGB(x, y) & 0xFFFFFF) == (colour.getRGB() & 0xFFFFFF);
+	}
+
+	/** Where the cards of {@link #aWikiPictureCardHasTheBigBox} are painted: their top-left corner. */
+	private static final int LEFT = 10;
+	private static final int TOP = 7;
+	private static final String ZILYANA_LINE = "Klar received a drop: Dragon claws (121,453,000 coins) from Commander Zilyana.";
+
+	/** The Commander Zilyana card: two facts, no notes; a wiki picture card, or the plain 8-argument card. */
+	private static InfoCard zilyana(boolean wikiPicture)
+	{
+		final List<HoverCard.Pair> facts = Arrays.asList(new HoverCard.Pair("Combat", "596", ""),
+			new HoverCard.Pair("Hitpoints", "255", ""));
+		final int start = ZILYANA_LINE.indexOf("Commander Zilyana");
+		final int end = start + "Commander Zilyana".length();
+		return wikiPicture
+			? new InfoCard("Commander Zilyana", facts, Collections.<String>emptyList(), "Commander_Zilyana", ZILYANA_LINE,
+				start, end, -1, -1, false, true)
+			: new InfoCard("Commander Zilyana", facts, Collections.<String>emptyList(), "Commander_Zilyana", ZILYANA_LINE,
+				start, end, -1);
+	}
+
+	/** A solid red picture of {@code width} x {@code height}. */
+	private static BufferedImage redPicture(int width, int height)
+	{
+		final BufferedImage picture = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = picture.createGraphics();
+		g.setColor(Color.RED);
+		g.fillRect(0, 0, width, height);
+		g.dispose();
+		return picture;
+	}
+
+	/** The split card at ({@link #LEFT}, {@link #TOP}) of a black image at 16 px, no description: the image and the size. */
+	private static Object[] paintedWith(HoverCard card, BufferedImage picture)
+	{
+		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
+		final Graphics2D g = image.createGraphics();
+		final Dimension size = CardPainter.paintSplit(g, card, picture, 16, LEFT, TOP, NONE, 480, 3);
+		g.dispose();
+		return new Object[]{image, size};
+	}
+
+	/** The bounding box of the image's pure red pixels, or null when it has none. */
+	private static Rectangle redBox(BufferedImage image)
+	{
+		int left = Integer.MAX_VALUE;
+		int top = Integer.MAX_VALUE;
+		int right = -1;
+		int bottom = -1;
+		for (int y = 0; y < image.getHeight(); y++)
+		{
+			for (int x = 0; x < image.getWidth(); x++)
+			{
+				if (isColour(image, x, y, Color.RED))
+				{
+					left = Math.min(left, x);
+					top = Math.min(top, y);
+					right = Math.max(right, x);
+					bottom = Math.max(bottom, y);
+				}
+			}
+		}
+		return right < 0 ? null : new Rectangle(left, top, right - left + 1, bottom - top + 1);
+	}
+
+	/** The x of the leftmost pure white pixel in the rows {@code fromY} up to {@code toY}, or -1 when there is none. */
+	private static int leftmostWhite(BufferedImage image, int fromY, int toY)
+	{
+		for (int x = 0; x < image.getWidth(); x++)
+		{
+			for (int y = fromY; y < toY; y++)
+			{
+				if (isColour(image, x, y, Color.WHITE))
+				{
+					return x;
+				}
+			}
+		}
+		return -1;
+	}
+
+	@Test
+	public void aWikiPictureCardHasTheBigBox()
+	{
+		final Object[] wikiPainted = paintedWith(zilyana(true), redPicture(64, 31));
+		final Object[] plainPainted = paintedWith(zilyana(false), redPicture(36, 32));
+		final BufferedImage wikiImage = (BufferedImage) wikiPainted[0];
+		final BufferedImage plainImage = (BufferedImage) plainPainted[0];
+		final Dimension wikiSize = (Dimension) wikiPainted[1];
+		final Dimension plainSize = (Dimension) plainPainted[1];
+
+		assertEquals("the 64 box against the 32: exactly 32 px taller", 32, wikiSize.height - plainSize.height);
+		final int plainWhite = leftmostWhite(plainImage, TOP + CardPainter.INSET, TOP + CardPainter.INSET + 32);
+		final int wikiWhite = leftmostWhite(wikiImage, TOP + CardPainter.INSET, TOP + CardPainter.INSET + 64);
+		assertTrue("the plain card has a white pixel in its header: " + plainWhite, plainWhite > 0);
+		assertEquals("the text starts 28 px further right: the 64 box and its gap against the 36 and its gap", 28,
+			wikiWhite - plainWhite);
+
+		// A 64 x 31 picture is centred in the box: 9 is the inset, 25 is 9 + (64 - 31) / 2.
+		final Rectangle flat = redBox(wikiImage);
+		assertEquals("the flat picture's left", LEFT + 9, flat.x);
+		assertEquals("its right", LEFT + 72, flat.x + flat.width - 1);
+		assertEquals("its top", TOP + 25, flat.y);
+		assertEquals("its bottom", TOP + 55, flat.y + flat.height - 1);
+
+		// A 21 x 64 picture: 30 is 9 + (64 - 21) / 2.
+		final Rectangle tall = redBox((BufferedImage) paintedWith(zilyana(true), redPicture(21, 64))[0]);
+		assertEquals("the tall picture's left", LEFT + 30, tall.x);
+		assertEquals("its right", LEFT + 50, tall.x + tall.width - 1);
+		assertEquals("its top", TOP + 9, tall.y);
+		assertEquals("its bottom", TOP + 72, tall.y + tall.height - 1);
+
+		// No picture: the same size, nothing red.
+		final Object[] none = paintedWith(zilyana(true), null);
+		assertEquals("the same size with no picture", wikiSize, none[1]);
+		assertTrue("and nothing red", redBox((BufferedImage) none[0]) == null);
+
+		// The plain card draws its 36 x 32 picture from its corner, as before.
+		final Rectangle sprite = redBox(plainImage);
+		assertEquals("the sprite's left", LEFT + 9, sprite.x);
+		assertEquals("its right", LEFT + 44, sprite.x + sprite.width - 1);
+		assertEquals("its top", TOP + 9, sprite.y);
+		assertEquals("its bottom", TOP + 40, sprite.y + sprite.height - 1);
+
+		// A picture bigger than the box is drawn scaled down to fit it (a guard: the overlay hands fitted pictures).
+		final Rectangle big = redBox((BufferedImage) paintedWith(zilyana(true), redPicture(128, 64))[0]);
+		assertTrue("a 128 x 64 picture fits the 64 box: " + big, big.width <= 64 && big.height <= 64 && big.width >= 62);
 	}
 
 	@Test

@@ -21,9 +21,10 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 
 /**
  * Draws the card while the mouse is on the card's words in a chat line, and, while the mouse is anywhere on a line that
- * holds cards, underlines the words of every card on it in the hover colour (the hover-reveal; the quiet level, total level
- * and XP phrases show themselves this way). With "Always underline level-ups" on, those quiet phrases carry a line in
- * the always-underline colour on every visible chat line, mouse or no mouse. The "Card place" setting says where: the split card centred above the cursor, or the wide card as wide as
+ * holds cards, underlines the words of every quiet card on it in the hover colour (the hover-reveal; the quiet level, total
+ * level and XP phrases, the kill count and personal best answers and the boss of a drop line show themselves this way; a
+ * blue word is its own signal and carries no underline). With "Underline level-ups" on, those quiet phrases carry a line in
+ * the underline colour on every visible chat line, mouse or no mouse. The "Card place" setting says where: the split card centred above the cursor, or the wide card as wide as
  * the chatbox and pinned above its frame. It finds the line by walking the chatbox's line widgets for the one under the mouse
  * whose plain text holds a line the plugin has cards for, and a card shows only while the mouse is on that card's own
  * words, not elsewhere on the row. A line the game wrapped into rows is one widget, so it is read row by row
@@ -38,7 +39,9 @@ import net.runelite.client.ui.overlay.OverlayPosition;
  * while "Wiki descriptions" is on, and asks for it again if it has not come yet. A line RuneLite rewrites after it arrives
  * (the Chat Commands plugin's kill count and personal best answers, which no chat event ever carries) is read as drawn
  * when the mouse reaches it ({@link ChatCommandReader}), and from then on it is a stored line like any other, so the
- * always-underline reaches it only after that. It never changes the chat text.
+ * always-underline reaches it only after that. The card of a boss, monster, raid or chest shows the wiki's own picture of
+ * its page in its big picture box while "Wiki pictures" is on, asked for as the card is hovered if the line's arrival
+ * has not asked yet, with the card's own item or sprite in the box until the picture comes. It never changes the chat text.
  * Everything here runs on the client thread, in the draw call.
  */
 public class ChatCardOverlay extends Overlay
@@ -70,6 +73,20 @@ public class ChatCardOverlay extends Overlay
 	 * <p>Choice: volatile, because start-up writes it on a thread other than the client thread that reads it.
 	 */
 	private volatile WikiSummaries summaries;
+	/**
+	 * The wiki's pictures of the boss, monster, raid and chest pages, handed over by the plugin at start-up; null means the
+	 * cards show their own icon.
+	 *
+	 * <p>Choice: volatile, like {@link #summaries}.
+	 */
+	private volatile WikiPictures pictures;
+	/**
+	 * The bosses' facts, handed over by the plugin at start-up, for the cards of the Chat Commands answers.
+	 *
+	 * <p>Choice: a table of its own that has not loaded until the plugin hands over its own, so an answer read before then
+	 * gives its card without facts and the overlay never meets null; volatile, like {@link #summaries}.
+	 */
+	private volatile CardTables tables = new CardTables();
 	/** The card under the mouse, for the menu; null when the mouse is off a card line. */
 	private volatile HoverCard hovered;
 	/** Where the line widgets were last walked from, and what the walk found. */
@@ -118,6 +135,24 @@ public class ChatCardOverlay extends Overlay
 	void summaries(WikiSummaries summaries)
 	{
 		this.summaries = summaries;
+	}
+
+	/**
+	 * Hands the overlay the wiki's pictures, which the cards of a boss, monster, raid or chest show in their big picture box
+	 * while "Wiki pictures" is on; null for none: called when the plugin starts, beside {@link #summaries}.
+	 */
+	void pictures(WikiPictures pictures)
+	{
+		this.pictures = pictures;
+	}
+
+	/**
+	 * Hands the overlay the bosses' table, whose facts the cards of the Chat Commands answers carry: called when
+	 * the plugin starts, beside {@link #attach} and {@link #summaries}.
+	 */
+	void tables(CardTables tables)
+	{
+		this.tables = tables;
 	}
 
 	/** The card under the mouse as of the last frame, or null; what the menu reads. */
@@ -200,12 +235,16 @@ public class ChatCardOverlay extends Overlay
 		}
 		hovered = hitCard;
 		// Choice: the hover-reveal, before the gate: the mouse anywhere on a line that holds cards underlines the words of
-		// every card on it, whatever the show mode and the delay say about the card.
+		// every quiet card on it, whatever the show mode and the delay say about the card. A marked card's words are
+		// already coloured in the chat, so they carry no underline of their own while the colouring is on.
 		if (rowLine != null)
 		{
 			for (final HoverCard card : rowMatch.cards)
 			{
-				underline(g, rowLine, card, rowMatch.offset, metrics, config.hoverColour());
+				if (!card.marked() || !config.colourHoverables())
+				{
+					underline(g, rowLine, card, rowMatch.offset, metrics, config.hoverColour());
+				}
 			}
 		}
 		final boolean clicked = hitCard != null && hitCard == clickedCard;
@@ -234,11 +273,13 @@ public class ChatCardOverlay extends Overlay
 			return null;
 		}
 		final String description = descriptionOf(hitCard);
-		final Dimension size = CardPainter.paintSplit(measure, hitCard, picture, fontSize, 0, 0, description);
+		final ClanHubConfig.CardWidth width = config.cardWidth();
+		final Dimension size = CardPainter.paintSplit(measure, hitCard, picture, fontSize, 0, 0, description, width.cap,
+			width.lines);
 		measure.dispose();
 		final Rectangle at = CardPainter.placeCentred(new Point(mouseX, mouseY), size,
 			new Dimension(client.getCanvasWidth(), client.getCanvasHeight()));
-		CardPainter.paintSplit(g, hitCard, picture, fontSize, at.x, at.y, description);
+		CardPainter.paintSplit(g, hitCard, picture, fontSize, at.x, at.y, description, width.cap, width.lines);
 		return null;
 	}
 
@@ -258,16 +299,22 @@ public class ChatCardOverlay extends Overlay
 	}
 
 	/**
-	 * The text of the card's description, which the painter wraps to the card: the card's own notes joined with a single
-	 * space when it has any, else the first paragraph of its wiki page, else "". "" for the paragraph when the "Wiki
-	 * descriptions" setting is off, when no summaries were handed over, and when it has not come yet, in which case it is
-	 * asked for again, which does nothing while the first call is still waiting.
+	 * The text of the card's description, which the painter lays out in the card: the card's own notes when it has any,
+	 * else the first paragraph of its wiki page, else "". One note is the text alone, a paragraph; two or more are joined
+	 * with a line break, which the painter sets as a numbered list, one note to an item. "" for the paragraph when the
+	 * "Wiki descriptions" setting is off, when no summaries were handed over, and when it has not come yet, in which case
+	 * it is asked for again, which does nothing while the first call is still waiting.
 	 */
 	private String descriptionOf(HoverCard card)
 	{
-		if (!card.notes().isEmpty())
+		final List<String> notes = card.notes();
+		if (notes.size() == 1)
 		{
-			return String.join(" ", card.notes());
+			return notes.get(0);
+		}
+		if (notes.size() > 1)
+		{
+			return String.join("\n", notes);
 		}
 		final WikiSummaries asked = summaries;
 		if (asked == null || !config.wikiDescriptions())
@@ -283,9 +330,23 @@ public class ChatCardOverlay extends Overlay
 		return paragraph;
 	}
 
-	/** The card's picture: the item's sprite, else the game's own sprite, else none. */
+	/**
+	 * The card's picture: for a card that wants the wiki's own, while "Wiki pictures" is on, the one kept for its page, and
+	 * when none is kept the page is asked for again, which does nothing while the first call is waiting or the page is
+	 * known to have none; then the item's sprite, else the game's own sprite, else none.
+	 */
 	private BufferedImage pictureOf(HoverCard card)
 	{
+		final WikiPictures asked = pictures;
+		if (card.wikiPicture() && asked != null && config.wikiPictures())
+		{
+			final BufferedImage wiki = asked.pictureOf(card.wikiTitle());
+			if (wiki != null)
+			{
+				return wiki;
+			}
+			asked.fetch(card.wikiTitle());
+		}
 		if (card.itemId() >= 0)
 		{
 			return itemManager.getImage(card.itemId(), card.quantity(), card.quantity() > 1);
@@ -440,7 +501,7 @@ public class ChatCardOverlay extends Overlay
 	 */
 	private CardStore.Match readLate(String plain)
 	{
-		final List<HoverCard> cards = ChatCommandReader.read(plain);
+		final List<HoverCard> cards = ChatCommandReader.read(plain, tables);
 		if (cards.isEmpty())
 		{
 			return null;

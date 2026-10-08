@@ -31,21 +31,23 @@ final class DemoLines
 		}
 	}
 
-	/** The four item broadcasts: a drop, a stacked drop, a clue item and a collection log item. */
+	/** The five item broadcasts: a drop, a stacked drop, a clue item, a collection log item and a drop that says where it came from. */
 	static final List<Line> ITEMS = Collections.unmodifiableList(Arrays.asList(
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar received a drop: Dragon claws (121,453,000 coins)."),
 		new Line(ChatMessageType.FRIENDSCHATNOTIFICATION, "",
 			"Iron Pete received a drop: 10 x Black knife (460 coins)."),
 		new Line(ChatMessageType.CLAN_GUEST_MESSAGE, "", "Klar received a clue item: Ranger boots (25,296,193 coins)."),
 		new Line(ChatMessageType.CLAN_GIM_MESSAGE, "",
-			"Mossy Rock received a new collection log item: Abyssal whip (1/484).")));
+			"Mossy Rock received a new collection log item: Abyssal whip (1/484)."),
+		new Line(ChatMessageType.CLAN_MESSAGE, "",
+			"N o r s received a drop: 45 x Runite ore (456,345 coins) from Duke Sucellus.")));
 
 	/** Two of the player's own game lines: a valuable drop and a new collection log item. */
 	static final List<Line> OWN = Collections.unmodifiableList(Arrays.asList(
 		new Line(ChatMessageType.GAMEMESSAGE, "", "Valuable drop: Dragon claws (121,453,000 coins)"),
 		new Line(ChatMessageType.GAMEMESSAGE, "", "New item added to your collection log: Abyssal whip")));
 
-	/** Nine clan broadcasts that are not about an item: a quest, a combat task, a pet, three levels, XP, a diary and a best. */
+	/** Seven clan broadcasts that are not about an item: a quest, a combat task, a pet, a level, XP, a diary and a best. */
 	static final List<Line> KINDS = Collections.unmodifiableList(Arrays.asList(
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar has completed a quest: Dragon Slayer II"),
 		new Line(ChatMessageType.CLAN_MESSAGE, "",
@@ -53,8 +55,6 @@ final class DemoLines
 		new Line(ChatMessageType.CLAN_MESSAGE, "",
 			"Iron Pete has a funny feeling like he's being followed: Pet snakeling at 2,678 killcount."),
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar has reached Defence level 70."),
-		new Line(ChatMessageType.CLAN_MESSAGE, "", "Mossy Rock has reached combat level 104."),
-		new Line(ChatMessageType.CLAN_MESSAGE, "", "Iron Pete has reached a total level of 2225."),
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar has reached 200,000,000 XP in Cooking."),
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Mossy Rock has completed the Elite Ardougne diary."),
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Iron Pete has achieved a new Vorkath personal best: 2:28")));

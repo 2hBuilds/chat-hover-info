@@ -61,6 +61,38 @@ public interface ClanHubConfig extends Config
 		}
 	}
 
+	/**
+	 * How wide the card at the cursor may grow, and how many lines its paragraph may take: {@link #cap} is its greatest
+	 * width at the 16 px text size (scaled with the text size), {@link #lines} the most paragraph lines. Short cards size
+	 * to their content in every choice.
+	 */
+	enum CardWidth
+	{
+		WIDE("Wide", 480, 3),
+		MEDIUM("Medium", 409, 5),
+		NARROW("Narrow", 391, 5);
+
+		private final String text;
+		/** The card's greatest width at the 16 px text size, in px. */
+		final int cap;
+		/** The most lines the paragraph takes. */
+		final int lines;
+
+		CardWidth(String text, int cap, int lines)
+		{
+			this.text = text;
+			this.cap = cap;
+			this.lines = lines;
+		}
+
+		/** The words the settings show for the choice. */
+		@Override
+		public String toString()
+		{
+			return text;
+		}
+	}
+
 	/** Whether the item card shows when the mouse is on a recognised chat line. */
 	@ConfigItem(
 		keyName = "showCards",
@@ -160,24 +192,60 @@ public interface ClanHubConfig extends Config
 		return true;
 	}
 
+	/** Whether the card of a boss, monster, raid or chest shows the wiki's own picture of it, which asks the wiki for it. */
+	@ConfigItem(
+		keyName = "wikiPictures",
+		name = "Wiki pictures",
+		description = "Show the wiki's own picture of a boss, monster, raid or chest on its card. Sends only the thing's name to oldschool.runescape.wiki, then fetches the picture the wiki names.",
+		position = 9
+	)
+	default boolean wikiPictures()
+	{
+		return true;
+	}
+
+	/** Whether a drop line that says where the drop came from gives the boss, monster, raid or chest a card of its own. */
+	@ConfigItem(
+		keyName = "bossCards",
+		name = "Boss cards",
+		description = "On a drop line that says where the drop came from, give the boss, monster, raid or chest its own card, with the wiki's first paragraph.",
+		position = 10
+	)
+	default boolean bossCards()
+	{
+		return true;
+	}
+
 	/** Where a card opens. */
 	@ConfigItem(
 		keyName = "cardPlace",
 		name = "Card place",
 		description = "Where a card opens: centred above the cursor, or as wide as the chatbox and pinned above it.",
-		position = 9
+		position = 11
 	)
 	default CardPlace cardPlace()
 	{
 		return CardPlace.CURSOR;
 	}
 
-	/** Whether the level, total level and XP phrases that have a card carry a line under them at all times. */
+	/** How wide the card at the cursor may grow. */
+	@ConfigItem(
+		keyName = "cardWidth",
+		name = "Card width",
+		description = "How wide the card at the cursor may grow: wide, or two narrower widths that give the paragraph up to five lines.",
+		position = 12
+	)
+	default CardWidth cardWidth()
+	{
+		return CardWidth.MEDIUM;
+	}
+
+	/** Whether the level and XP phrases that have a card carry a line under them at all times. */
 	@ConfigItem(
 		keyName = "alwaysUnderlineLevels",
-		name = "Always underline level-ups",
-		description = "Keep a line under the level, total level and XP phrases that have a card, whether or not the mouse is on them.",
-		position = 10
+		name = "Underline level-ups",
+		description = "Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them.",
+		position = 13
 	)
 	default boolean alwaysUnderlineLevels()
 	{
@@ -187,9 +255,9 @@ public interface ClanHubConfig extends Config
 	/** The colour of the line kept under the quiet phrases. */
 	@ConfigItem(
 		keyName = "alwaysUnderlineColour",
-		name = "Always underline colour",
+		name = "Underline colour",
 		description = "The colour of that line.",
-		position = 11
+		position = 14
 	)
 	default Color alwaysUnderlineColour()
 	{

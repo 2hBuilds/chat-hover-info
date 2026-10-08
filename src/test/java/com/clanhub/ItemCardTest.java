@@ -12,6 +12,7 @@ import net.runelite.http.api.item.ItemPrice;
 import org.junit.Test;
 import org.mockito.Mockito;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.when;
 
 /** {@link ItemCard}: the card's texts in stack sizes, the stack's total and each, the dash, and the wiki address. */
@@ -37,6 +38,8 @@ public class ItemCardTest
 	public void wikiTitleIsTheNameOrThePage()
 	{
 		assertEquals("Dragon claws", claws().wikiTitle());
+		// Re-aimed by the lead, 2026-10-08 (lot 8U): an item card shows its own sprite, never the wiki's picture.
+		assertFalse("an item card has no wiki picture", claws().wikiPicture());
 	}
 
 	@Test

@@ -2,6 +2,7 @@ package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
+import com.clanhub.ClanHubConfig.CardWidth;
 import java.awt.Color;
 import net.runelite.client.config.Keybind;
 import org.junit.Test;
@@ -49,6 +50,26 @@ public class ClanHubConfigTest
 	}
 
 	@Test
+	public void wikiPicturesAreOnByDefault()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertTrue("the wiki's own picture shows on a boss, monster, raid or chest card", config.wikiPictures());
+	}
+
+	@Test
+	public void bossCardsAreOnByDefault()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertTrue("a drop line's boss gets its own card", config.bossCards());
+	}
+
+	@Test
 	public void theAlwaysUnderlineIsOffAndGrey()
 	{
 		final ClanHubConfig config = new ClanHubConfig()
@@ -71,6 +92,27 @@ public class ClanHubConfigTest
 			new CardPlace[] {CardPlace.CURSOR, CardPlace.CHAT}, CardPlace.values());
 		assertEquals("Above the cursor", CardPlace.CURSOR.toString());
 		assertEquals("Above the chat", CardPlace.CHAT.toString());
+	}
+
+	@Test
+	public void theCardWidthIsMediumByDefault()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertEquals("the card is medium by default", CardWidth.MEDIUM, config.cardWidth());
+		assertEquals("wide caps at 480 px", 480, CardWidth.WIDE.cap);
+		assertEquals("wide gives the paragraph three lines", 3, CardWidth.WIDE.lines);
+		assertEquals("medium caps at 409 px", 409, CardWidth.MEDIUM.cap);
+		assertEquals("medium gives the paragraph five lines", 5, CardWidth.MEDIUM.lines);
+		assertEquals("narrow caps at 391 px", 391, CardWidth.NARROW.cap);
+		assertEquals("narrow gives the paragraph five lines", 5, CardWidth.NARROW.lines);
+		assertArrayEquals("wide, medium, narrow, in that order",
+			new CardWidth[] {CardWidth.WIDE, CardWidth.MEDIUM, CardWidth.NARROW}, CardWidth.values());
+		assertEquals("Wide", CardWidth.WIDE.toString());
+		assertEquals("Medium", CardWidth.MEDIUM.toString());
+		assertEquals("Narrow", CardWidth.NARROW.toString());
 	}
 
 	@Test
