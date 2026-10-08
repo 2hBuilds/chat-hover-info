@@ -1,0 +1,85 @@
+package com.clanhub;
+
+import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTrigger;
+import java.awt.Color;
+import net.runelite.client.config.Keybind;
+import org.junit.Test;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+/** {@link ClanHubConfig}: what a player who has never opened the settings gets. */
+public class ClanHubConfigTest
+{
+	@Test
+	public void theDefaultsAreOnAndSixteen()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertTrue("the cards are on", config.showCards());
+		assertEquals("the card's text is 16 px", 16, config.cardFontSize());
+	}
+
+	@Test
+	public void theNewDefaults()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertTrue("the words are coloured", config.colourHoverables());
+		assertEquals("the colour is blue", new Color(59, 130, 246), config.hoverColour());
+		assertEquals("a card opens on hover", CardTrigger.HOVER, config.cardTrigger());
+		assertEquals("the card key is Alt", Keybind.ALT, config.cardKey());
+		assertEquals("no delay", 0, config.cardDelayMs());
+	}
+
+	@Test
+	public void theWikiDescriptionsAreOn()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertTrue("the wiki's first paragraph shows on the cards", config.wikiDescriptions());
+	}
+
+	@Test
+	public void theAlwaysUnderlineIsOffAndGrey()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertFalse("the quiet phrases are not underlined at all times", config.alwaysUnderlineLevels());
+		assertEquals("the line is grey", new Color(150, 150, 150), config.alwaysUnderlineColour());
+	}
+
+	@Test
+	public void theCardPlaceIsAboveTheCursor()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertEquals("a card opens above the cursor", CardPlace.CURSOR, config.cardPlace());
+		assertArrayEquals("above the cursor, above the chat, in that order",
+			new CardPlace[] {CardPlace.CURSOR, CardPlace.CHAT}, CardPlace.values());
+		assertEquals("Above the cursor", CardPlace.CURSOR.toString());
+		assertEquals("Above the chat", CardPlace.CHAT.toString());
+	}
+
+	@Test
+	public void theShowModesAreThree()
+	{
+		assertArrayEquals("on hover, while holding a key, on click, in that order",
+			new CardTrigger[] {CardTrigger.HOVER, CardTrigger.HOLD_KEY, CardTrigger.CLICK}, CardTrigger.values());
+		assertEquals("On hover", CardTrigger.HOVER.toString());
+		assertEquals("While holding a key", CardTrigger.HOLD_KEY.toString());
+		assertEquals("On click", CardTrigger.CLICK.toString());
+	}
+}

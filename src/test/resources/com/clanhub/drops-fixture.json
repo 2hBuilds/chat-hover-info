@@ -1,0 +1,6 @@
+{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki",
+ "fetched": "2026-10-07",
+ "items": {"Abyssal whip": [{"from": "Abyssal demon", "rate": "1/512", "wiki": "Abyssal_demon"},
+                            {"from": "Greater abyssal demon", "rate": "1/256", "wiki": "Greater_abyssal_demon"}],
+           "Dragon claws": [{"from": "Chambers of Xeric", "rate": "1/171.6", "wiki": "Chambers_of_Xeric"}],
+           "Pet Snakeling": [{"from": "Zulrah", "rate": "1/4000", "wiki": "Zulrah"}]}}

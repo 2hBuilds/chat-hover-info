@@ -1,0 +1,7 @@
+{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki",
+ "fetched": "2026-10-07",
+ "quests": [{"name": "Dragon Slayer II", "difficulty": "Grandmaster", "length": "Very Long", "members": true, "points": 5, "wiki": "Dragon_Slayer_II"}],
+ "achievements": [{"name": "Perfect Zulrah", "tier": "Master", "points": 5, "monster": "Zulrah", "type": "Perfection", "description": "Kill Zulrah whilst taking no damage from the following: Snakelings, Venom Clouds, Zulrah's Green or Crimson phase.", "wiki": "Perfect_Zulrah"}],
+ "pets": [{"name": "Pet Snakeling", "source": "Zulrah", "wiki": "Pet_Snakeling", "item": 12921}],
+ "diaries": [{"name": "Ardougne", "wiki": "Ardougne_Diary"}],
+ "unlocks": {"Defence": {"70": ["Wear Barrows armour", "Wear Bandos armour", "Wear Armadyl armour", "Wield the dragonfire shield"], "1": ["Wear bronze armour"]}}}
