@@ -101,7 +101,7 @@ public class ItemCardTest
 	}
 
 	@Test
-	public void fourDropRowsInTheTablesOrderThenMore()
+	public void everyDropRowInTheTablesOrder()
 	{
 		final DropRates.DropSource unsired = new DropRates.DropSource("Unsired", "1/10.7", "Unsired");
 		final DropRates.DropSource greater = new DropRates.DropSource("Greater abyssal demon", "1/170.7",
@@ -116,7 +116,7 @@ public class ItemCardTest
 			Arrays.asList(unsired, greater, demon));
 		final List<List<HoverCard.Pair>> rows = whip.rows();
 		assertEquals("the price row and three drop rows", 4, rows.size());
-		// Re-aimed by the lead, 2026-10-08 (lot 8k): the table's order stands, four rows, then "and N more".
+		// Re-aimed by the lead, 2026-10-08 (lot 8X): every source the table holds, no "and N more" row.
 		assertEquals("Unsired", rows.get(1).get(0).label);
 		assertEquals("1/10.7", rows.get(1).get(0).value);
 		assertEquals("Greater abyssal demon", rows.get(2).get(0).label);
@@ -127,18 +127,27 @@ public class ItemCardTest
 		final ItemCard four = new ItemCard(4151, "Abyssal whip", 1, 1_500_000L, 72_000, line, 22, 34,
 			Arrays.asList(unsired, greater, demon, fourth));
 		final List<List<HoverCard.Pair>> fourRows = four.rows();
-		assertEquals("four sources: the price row and four drop rows, no more row", 5, fourRows.size());
+		assertEquals("four sources: the price row and four drop rows", 5, fourRows.size());
 		assertEquals("the fourth source is the last row", "Fourth source", fourRows.get(4).get(0).label);
 
 		final ItemCard six = new ItemCard(4151, "Abyssal whip", 1, 1_500_000L, 72_000, line, 22, 34,
 			Arrays.asList(unsired, greater, demon, fourth, fifth, sixth));
 		final List<List<HoverCard.Pair>> sixRows = six.rows();
-		assertEquals("six sources: the price row, four drop rows and the more row", 6, sixRows.size());
-		assertEquals("the fourth row is the table's fourth", "Fourth source", sixRows.get(4).get(0).label);
-		assertEquals("the more row is one pair", 1, sixRows.get(5).size());
-		assertEquals("and 2 more", sixRows.get(5).get(0).label);
-		assertEquals("the more row has no rate", "", sixRows.get(5).get(0).value);
-		assertEquals("", sixRows.get(5).get(0).note);
+		assertEquals("six sources: the price row and six drop rows", 7, sixRows.size());
+		final DropRates.DropSource[] inOrder = {unsired, greater, demon, fourth, fifth, sixth};
+		for (int i = 0; i < inOrder.length; i++)
+		{
+			assertEquals("drop row " + (i + 1) + " is the table's source " + (i + 1), inOrder[i].from,
+				sixRows.get(i + 1).get(0).label);
+			assertEquals("and its rate", inOrder[i].rate, sixRows.get(i + 1).get(0).value);
+			assertEquals("one pair a row", 1, sixRows.get(i + 1).size());
+		}
+		assertEquals("the sixth source is the last row", "Sixth source", sixRows.get(6).get(0).label);
+		assertEquals("1/3000", sixRows.get(6).get(0).value);
+		for (final List<HoverCard.Pair> row : sixRows)
+		{
+			assertFalse("no row says 'and N more': " + row.get(0).label, row.get(0).label.startsWith("and "));
+		}
 
 		final ItemManager itemManager = Mockito.mock(ItemManager.class);
 		final ItemPrice found = new ItemPrice();
@@ -156,7 +165,7 @@ public class ItemCardTest
 			+ "{\"from\": \"Fourth source\", \"rate\": \"1/1000\", \"wiki\": \"Fourth_source\"},"
 			+ "{\"from\": \"Fifth source\", \"rate\": \"1/2000\", \"wiki\": \"Fifth_source\"},"
 			+ "{\"from\": \"Sixth source\", \"rate\": \"1/3000\", \"wiki\": \"Sixth_source\"}]}}"), new Gson());
-		assertEquals("six sources in the table, five drop rows on the card (four and the more row)", 6,
+		assertEquals("six sources in the table, six drop rows on the card and the price row", 7,
 			new ItemCards(itemManager, rates).forName("Abyssal whip", 1, line, 22, 34).rows().size());
 	}
 }

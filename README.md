@@ -22,7 +22,8 @@
 2. **Open the wiki.** Right-click the line and pick "Open wiki", or "Copy" to copy the name.
 3. **Place the card.** Above the cursor, or as a wide card pinned above the chatbox: "Card place" in the settings. "Card width" sets how wide it may grow.
 4. **Show it your way.** On hover, while a key is held, or on click, with a delay if you like, and your own text size.
-5. **Quiet it down.** Turn the blue words off, the wiki paragraphs, the pictures or the boss cards, in the settings menu: the settings icon on the sidebar panel.
+5. **Quiet it down.** Turn the blue words off, the wiki paragraphs, the pictures or the boss cards, and pick your two colours, in the settings menu: the settings icon on the sidebar panel.
+6. **Read in peace.** If a new line shifts the chat while a card is open, the card stays until you move the mouse or turn the wheel.
 
 ## Good to know
 

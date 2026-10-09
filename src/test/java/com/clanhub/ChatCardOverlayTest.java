@@ -486,6 +486,29 @@ public class ChatCardOverlayTest
 	}
 
 	@Test
+	public void aLineWithAStringVariableHitsOnTheDrawnWords()
+	{
+		final String plain = "Small Za has completed a quest: King's Ransom";
+		final String raw = "<img=2> <str_quest_name_0=King's Ransom>Small Za has completed a quest: "
+			+ "<str_quest_name_0>";
+		final int start = plain.indexOf("King's");
+		final InfoCard quest = new InfoCard("King's Ransom", Collections.singletonList(
+			new HoverCard.Pair("Quest completed", "", "")), Collections.<String>emptyList(), "King's_Ransom", plain, start,
+			plain.length(), SkillSprites.QUEST);
+		final CardStore store = new CardStore();
+		store.put(plain, Collections.<HoverCard>singletonList(quest));
+		overlay.attach(store);
+		final Widget drawn = lineSaying(raw, new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {drawn});
+
+		final int completed = plain.indexOf("completed");
+		assertSame("the mouse over the drawn quest name", quest, frameAt(wordsX(plain, start, start + 6, 0), 407));
+		assertTrue("and the card painted", painted());
+		assertNull("the mouse over \"completed\"", frameAt(wordsX(plain, completed, completed + 9, 0), 407));
+		assertFalse("and nothing painted", painted());
+	}
+
+	@Test
 	public void aSmallMoveOffTheWordsDropsTheCard()
 	{
 		final Widget visible = line(new Rectangle(0, 400, 500, 14));
@@ -666,5 +689,115 @@ public class ChatCardOverlayTest
 			frameAt(wordsX(other, other.indexOf("Zulrah"), other.length() - 1, 0), 427));
 		assertNotNull(paintedBox(434));
 		verify(factory, times(2)).newCall(any(Request.class));
+	}
+
+	/**
+	 * The chat moves a row: the claws line {@code visible} rises to y 386 and a new line, which has no card, sits where the
+	 * mouse was (y 400 to 414); the area answers both, the new one last.
+	 */
+	private void theChatMovesUp(Widget visible)
+	{
+		when(visible.getBounds()).thenReturn(new Rectangle(0, 386, 500, 14));
+		final Widget fresh = lineSaying("Someone: hello there", new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible, fresh});
+	}
+
+	@Test
+	public void theCardHoldsWhileTheMouseIsStillWhenTheChatMoves()
+	{
+		final Widget visible = line(new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, 0);
+
+		assertSame("on the words", claws, frameAt(words, 407));
+		assertTrue("the card painted", painted());
+
+		theChatMovesUp(visible);
+		assertSame("the chat moved, the mouse did not: the card stays", claws, frameAt(words, 407));
+		assertTrue("the held card painted", painted());
+		assertSame("and on the next frame", claws, frameAt(words, 407));
+		assertTrue("still painted", painted());
+		assertSame("two pixels off, within the jitter", claws, frameAt(words + 2, 407));
+		assertTrue("still painted within the jitter", painted());
+		assertNull("three pixels from where it rested ends the hold", frameAt(words + 3, 407));
+		assertFalse("nothing painted", painted());
+		assertNull("back at the rested spot the hold is over, and the new line has no card", frameAt(words, 407));
+		assertFalse("nothing painted back at the rested spot", painted());
+	}
+
+	@Test
+	public void aWheelTurnEndsTheHold()
+	{
+		final Widget visible = line(new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, 0);
+
+		assertSame("on the words", claws, frameAt(words, 407));
+		theChatMovesUp(visible);
+		assertSame("the card is held", claws, frameAt(words, 407));
+		assertTrue("the held card painted", painted());
+
+		overlay.wheeled();
+		assertNull("the wheel turned: the hold ends", frameAt(words, 407));
+		assertFalse("nothing painted", painted());
+		assertNull("and the wheel does not need turning again", frameAt(words, 407));
+		assertFalse("still nothing painted", painted());
+	}
+
+	@Test
+	public void leavingTheChatEndsTheHold()
+	{
+		final Widget visible = line(new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, 0);
+
+		assertSame("on the words", claws, frameAt(words, 407));
+		theChatMovesUp(visible);
+		assertSame("the card is held", claws, frameAt(words, 407));
+
+		assertNull("outside the area", frameAt(100, 207));
+		assertFalse("nothing painted outside the area", painted());
+		assertNull("back at the rested point the hold is over", frameAt(words, 407));
+		assertFalse("nothing painted", painted());
+	}
+
+	@Test
+	public void aClickedCardHoldsThroughTheShiftToo()
+	{
+		when(config.cardTrigger()).thenReturn(ClanHubConfig.CardTrigger.CLICK);
+		final Widget visible = line(new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, 0);
+
+		overlay.clicked();
+		frameAt(words, 407);
+		assertTrue("the click opens the card", painted());
+
+		theChatMovesUp(visible);
+		frameAt(words, 407);
+		assertTrue("the clicked card holds through the shift", painted());
+		frameAt(words, 407);
+		assertTrue("and on the next frame", painted());
+
+		overlay.wheeled();
+		frameAt(words, 407);
+		assertFalse("the wheel turned: the card is gone", painted());
+		frameAt(words, 407);
+		assertFalse("and it needs a new click to come back", painted());
+	}
+
+	@Test
+	public void theHoldDoesNotStartOnAMove()
+	{
+		final Widget visible = line(new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, 0);
+
+		assertSame("on the words", claws, frameAt(words, 407));
+		assertTrue("the card painted", painted());
+
+		theChatMovesUp(visible);
+		assertNull("the shift came with a move of a pixel: no hold", frameAt(words + 1, 407));
+		assertFalse("nothing painted", painted());
 	}
 }

@@ -6,8 +6,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import okhttp3.Call;
@@ -29,7 +31,8 @@ import org.slf4j.LoggerFactory;
  * no text, is remembered as empty and not asked again. When the wiki says there is no page of that title, its own search
  * is asked once for the name (the name only, the first hit wanted) and the first hit's page is read instead, the
  * paragraph kept under the name the card asked by ("Jubbly Jive Shark" shows the paragraph of "Jubbly Jive Barracuda
- * Trial"); the hit's title goes only into the query of that second page call, never into a host or a path. The asking is
+ * Trial"), and the hit's page is read only when its title shares a word with the name (see {@link #nearEnough}); the
+ * hit's title goes only into the query of that second page call, never into a host or a path. The asking is
  * capped (10 titles at a time, 60 calls a minute, a search counting as a call), and the answers kept are the 500 asked
  * for last.
  *
@@ -52,6 +55,8 @@ final class WikiSummaries
 	private static final int MAX_PER_MINUTE = 60;
 	/** A minute, in {@link System#nanoTime} terms. */
 	private static final long MINUTE_NANOS = 60_000_000_000L;
+	/** The words {@link #nearEnough} does not count: they would match nearly any two titles. */
+	private static final Set<String> FILLER = new HashSet<>(Arrays.asList("the", "and", "of", "for", "with"));
 
 	private final Call.Factory calls;
 	private final Gson gson;
@@ -147,6 +152,50 @@ final class WikiSummaries
 			return null;
 		}
 		return title.getAsString().trim();
+	}
+
+	/**
+	 * Whether the wiki's search hit is near enough to the name asked for to be trusted: the two titles share at least one
+	 * word. The words are the lower-cased runs of letters and digits in each title; a word shorter than 3 letters and the
+	 * words "the", "and", "of", "for" and "with" are not counted; a title with no words left shares none. The examples:
+	 * ("Tempor Tantrum Marlin", "The Tempor Tantrum") shares two, so true; ("Jubbly Jive Shark", "Jubbly Jive Barracuda
+	 * Trial") true; ("Brutus", "Brutus (Ides of Milk)") true; ("Pandemonium", "Chambers of Xeric") false; ("The", "Of")
+	 * false. A hit that is not near enough gives the card nothing, so it never shows another page's words or picture.
+	 * {@link WikiPictures} asks it too.
+	 */
+	static boolean nearEnough(String asked, String hit)
+	{
+		final Set<String> askedWords = wordsOf(asked);
+		if (askedWords.isEmpty())
+		{
+			return false;
+		}
+		for (final String word : wordsOf(hit))
+		{
+			if (askedWords.contains(word))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** The counted words of a title, lower-cased; see {@link #nearEnough}. */
+	private static Set<String> wordsOf(String title)
+	{
+		final Set<String> words = new HashSet<>();
+		if (title == null)
+		{
+			return words;
+		}
+		for (final String word : title.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
+		{
+			if (word.length() >= 3 && !FILLER.contains(word))
+			{
+				words.add(word);
+			}
+		}
+		return words;
 	}
 
 	/**
@@ -309,7 +358,7 @@ final class WikiSummaries
 	/**
 	 * Reads a 200 answer for the step it was asked in and keeps an empty text for any other answer; the answer is always
 	 * closed. A page answer that says the page is missing goes on to the search; a search answer with a hit that is
-	 * another title goes on to that page; any other answer ends the chain.
+	 * another title and shares a word with the name goes on to that page; any other answer ends the chain.
 	 */
 	private void answered(String title, Step step, Response response)
 	{
@@ -329,7 +378,7 @@ final class WikiSummaries
 			else if (step == Step.SEARCH)
 			{
 				final String nearest = firstSearchTitle(json, gson);
-				if (nearest == null || nearest.equals(title))
+				if (nearest == null || nearest.equals(title) || !nearEnough(title, nearest))
 				{
 					finish(title, "");
 				}

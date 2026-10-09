@@ -12,6 +12,7 @@ import okhttp3.ResponseBody;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -217,5 +218,45 @@ public class WikiSummariesTest
 		verify(factory, times(4)).newCall(any(Request.class));
 		summaries.fetch("Another nonsense");
 		verify(factory, times(4)).newCall(any(Request.class));
+	}
+
+	/** The wiki's search answer with one hit of the given title. */
+	private static String searchHit(String title)
+	{
+		return "{\"batchcomplete\": true, \"query\": {\"searchinfo\": {\"totalhits\": 3}, \"search\": [{\"ns\": 0, "
+			+ "\"title\": \"" + title + "\", \"pageid\": 9}]}}";
+	}
+
+	@Test
+	public void theNearestPageMustShareAWord() throws Exception
+	{
+		assertTrue(WikiSummaries.nearEnough("Tempor Tantrum Marlin", "The Tempor Tantrum"));
+		assertTrue(WikiSummaries.nearEnough("Jubbly Jive Shark", "Jubbly Jive Barracuda Trial"));
+		assertTrue(WikiSummaries.nearEnough("Brutus", "Brutus (Ides of Milk)"));
+		assertFalse(WikiSummaries.nearEnough("Pandemonium", "Chambers of Xeric"));
+		assertFalse(WikiSummaries.nearEnough("The", "Of"));
+		assertTrue("case does not matter", WikiSummaries.nearEnough("Zulrah", "zulrah"));
+		assertFalse("no words of 3 letters", WikiSummaries.nearEnough("A B", "C"));
+
+		final Call.Factory factory = mock(Call.Factory.class);
+		final Call call = mock(Call.class);
+		when(factory.newCall(any(Request.class))).thenReturn(call);
+		final WikiSummaries summaries = new WikiSummaries(factory, gson);
+
+		summaries.fetch("Pandemonium");
+		final ArgumentCaptor<Callback> first = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(1)).enqueue(first.capture());
+		first.getValue().onResponse(call, ok(missingPage("Pandemonium")));
+		final ArgumentCaptor<Request> second = ArgumentCaptor.forClass(Request.class);
+		verify(factory, times(2)).newCall(second.capture());
+		assertEquals(WikiSummaries.requestForSearch("Pandemonium").url(), second.getValue().url());
+		final ArgumentCaptor<Callback> search = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(2)).enqueue(search.capture());
+		search.getValue().onResponse(call, ok(searchHit("Chambers of Xeric")));
+
+		verify(factory, times(2)).newCall(any(Request.class));
+		assertEquals("asked and empty, not null", "", summaries.summaryOf("Pandemonium"));
+		summaries.fetch("Pandemonium");
+		verify(factory, times(2)).newCall(any(Request.class));
 	}
 }

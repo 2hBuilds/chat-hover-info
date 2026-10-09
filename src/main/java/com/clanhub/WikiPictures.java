@@ -34,9 +34,12 @@ import org.slf4j.LoggerFactory;
  * shown by the client, so they are never fetched). The picture is decoded with the AWT toolkit's own decoder and
  * scaled down to fit a {@value #BOX} px square, its longer side {@value #BOX} and nothing cropped, on the HTTP client's
  * thread, never the client thread; a picture already that small is kept as it is. A title is asked for once: a page that
- * failed, or has no picture, is remembered as having none and not asked again. The asking is capped (10 titles at a time,
- * 60 calls a minute, the page and the picture each counting as a call, 1 MB read of a picture), and the pictures kept are
- * the 200 asked for last.
+ * failed, or has no picture, is remembered as having none and not asked again. When the wiki says there is no page of
+ * that title, its own search is asked once for the name and the first hit's picture is used instead, as the
+ * summaries do for the paragraph, but only when the hit's title shares a word with the name
+ * ({@link WikiSummaries#nearEnough}); otherwise the card keeps its icon. The asking is capped (10 titles at a time, 60
+ * calls a minute, each page, search and picture call counting, 1 MB read of a picture), and the pictures kept are the
+ * 200 asked for last.
  *
  * <p>Choice: a failed call is never retried in the same run; one warning is logged the first time a call fails, and the
  * later ones go to the debug log, so a wiki that is down does not fill the log.
@@ -76,7 +79,7 @@ final class WikiPictures
 			return size() > MAX_CACHED;
 		}
 	};
-	/** The titles whose chain of calls (page, then picture) has not ended yet. */
+	/** The titles whose chain of calls (page, search, nearest page, picture) has not ended yet. */
 	private final Set<String> inFlight = new HashSet<>();
 	/** When the current minute began, in {@link System#nanoTime} terms, and how many calls it has started. */
 	private long windowStart = System.nanoTime();
@@ -211,7 +214,9 @@ final class WikiPictures
 	 * client can show ends the chain with none, and a page with one leads to a second call for the picture's own address,
 	 * whose body is read up to 1 MB, decoded, fitted and kept. A picture that is too long, cannot be read, or whose call
 	 * failed is kept as none. Each of the two calls counts in the minute; when the minute is full before the second, the
-	 * title is let go unkept and the next hover asks again.
+	 * title is let go unkept and the next hover asks again. A page the wiki says is missing leads to one search call and,
+	 * on a hit whose title shares a word with the title asked for, to the hit's page and its picture (a hit's page that is
+	 * itself missing ends the chain with none, with no second search); the picture is kept under the title asked for.
 	 */
 	void fetch(String title)
 	{
@@ -279,8 +284,10 @@ final class WikiPictures
 
 	/**
 	 * Reads a 200 answer for the step it was asked in and keeps none for any other answer; the answer is always closed. A
-	 * page answer whose thumbnail can be shown goes on to the picture; a page answer without one ends the chain with none;
-	 * a picture answer is read, decoded and fitted here, on the HTTP client's thread, and kept.
+	 * page answer that says the page is missing goes on to the search; a search answer with a hit that is another title and
+	 * shares a word with the name goes on to that page; a page answer (the title's own or the hit's) whose thumbnail can be
+	 * shown goes on to the picture, and one without ends the chain with none; a picture answer is read, decoded and fitted
+	 * here, on the HTTP client's thread, and kept.
 	 */
 	private void answered(String title, Step step, Response response)
 	{
@@ -292,9 +299,28 @@ final class WikiPictures
 				failed(title, "HTTP " + answer.code());
 				return;
 			}
-			if (step == Step.PAGE)
+			if (step == Step.SEARCH)
 			{
-				final HttpUrl address = thumbnailUrl(body.string(), gson);
+				final String nearest = WikiSummaries.firstSearchTitle(body.string(), gson);
+				if (nearest == null || nearest.equals(title) || !WikiSummaries.nearEnough(title, nearest))
+				{
+					finish(title, null);
+				}
+				else
+				{
+					next(title, requestFor(nearest), Step.NEAREST);
+				}
+				return;
+			}
+			if (step == Step.PAGE || step == Step.NEAREST)
+			{
+				final String json = body.string();
+				if (step == Step.PAGE && WikiSummaries.isMissing(json, gson))
+				{
+					next(title, WikiSummaries.requestForSearch(title), Step.SEARCH);
+					return;
+				}
+				final HttpUrl address = thumbnailUrl(json, gson);
 				if (address == null)
 				{
 					finish(title, null);
@@ -375,6 +401,10 @@ final class WikiPictures
 	{
 		/** The title's own page, asked for its thumbnail. */
 		PAGE,
+		/** The wiki's search for the title, after its page was missing. */
+		SEARCH,
+		/** The page the search ranked first, asked for its thumbnail. */
+		NEAREST,
 		/** The thumbnail's own address. */
 		PICTURE
 	}

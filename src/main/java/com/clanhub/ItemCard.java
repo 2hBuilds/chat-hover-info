@@ -22,8 +22,6 @@ final class ItemCard implements HoverCard
 	private static final String WIKI_LOOKUP = "https://oldschool.runescape.wiki/w/Special:Lookup?type=item&id=";
 	/** What a price or an alch value of nothing reads as. */
 	private static final String NONE = "-";
-	/** How many drop sources a card shows at most; the rest are counted in the "and N more" row. */
-	private static final int MAX_DROPS = 4;
 
 	/** The item's id. */
 	final int id;
@@ -41,10 +39,8 @@ final class ItemCard implements HoverCard
 	final int start;
 	/** Just past the name's last character in {@link #line}. */
 	final int end;
-	/** The drop sources the card shows, the table's first four in its order; empty when the table has none. */
+	/** The drop sources the card shows, every one the table holds (at most its six) in its order; empty when the table has none. */
 	private final List<DropRates.DropSource> drops;
-	/** How many sources the table holds beyond the ones shown. */
-	private final int more;
 
 	ItemCard(int id, String name, int quantity, long price, int alch, String line, int start, int end)
 	{
@@ -55,15 +51,13 @@ final class ItemCard implements HoverCard
 	 * The card with the item's drop sources in the table's order (the monsters first, the best rate first), or an empty
 	 * list for none.
 	 *
-	 * <p>Choice: the card shows the table's first four sources in the table's order, none reversed, so the best monster
-	 * leads; when the table holds more, {@link #rows} ends in one more row, "and N more" with N the count beyond four,
-	 * a row with no rate, so either painter draws it as a grey line of its own.
+	 * <p>Choice: the card shows every source the table holds for the item (the table keeps at most six) in the table's
+	 * order, none reversed, so the best monster leads; the card does not cut the list and says nothing of a rest.
 	 */
 	ItemCard(int id, String name, int quantity, long price, int alch, String line, int start, int end,
 		List<DropRates.DropSource> drops)
 	{
-		this.drops = Collections.unmodifiableList(new ArrayList<>(drops.subList(0, Math.min(MAX_DROPS, drops.size()))));
-		this.more = drops.size() - this.drops.size();
+		this.drops = Collections.unmodifiableList(new ArrayList<>(drops));
 		this.id = id;
 		this.name = name;
 		this.quantity = quantity;
@@ -83,10 +77,10 @@ final class ItemCard implements HoverCard
 
 	/**
 	 * The card's rows of label and value pairs: the price and the high alch value, and under them one row for each drop
-	 * source (at most four), each a single pair with the source's name as its label and the rate as its value
-	 * ("Abyssal demon", "1/512"), so a painter can set the name at the left and the rate at the right; when the table
-	 * holds more sources, a last row of one pair with "and 2 more" as its label and no value. For a stack the
-	 * price is the total with the price of one after it, and the alch value is the total; a price of nothing reads "-".
+	 * source the table holds, at most its six, each a single pair with the source's name as its label and the rate as
+	 * its value ("Abyssal demon", "1/512"), so a painter can set the name at the left and the rate at the right. For a
+	 * stack the price is the total with the price of one after it, and the alch value is the total; a price of nothing
+	 * reads "-".
 	 */
 	@Override
 	public List<List<Pair>> rows()
@@ -99,10 +93,6 @@ final class ItemCard implements HoverCard
 		for (final DropRates.DropSource source : drops)
 		{
 			rows.add(Collections.singletonList(new Pair(source.from, source.rate, "")));
-		}
-		if (more > 0)
-		{
-			rows.add(Collections.singletonList(new Pair("and " + more + " more", "", "")));
 		}
 		return rows;
 	}

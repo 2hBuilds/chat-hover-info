@@ -281,4 +281,114 @@ public class WikiPicturesTest
 		pictures.fetch("Boss 10");
 		verify(factory, times(11)).newCall(any(Request.class));
 	}
+
+	/** The wiki's page answer for a title that has no page. */
+	private static String missingPage(String title)
+	{
+		return "{\"query\":{\"pages\":[{\"title\":\"" + title + "\",\"missing\":true}]}}";
+	}
+
+	/** The wiki's search answer with one hit of the given title. */
+	private static String searchHit(String title)
+	{
+		return "{\"batchcomplete\":true,\"query\":{\"searchinfo\":{\"totalhits\":3},\"search\":[{\"ns\":0,"
+			+ "\"title\":\"" + title + "\",\"pageid\":9}]}}";
+	}
+
+	/** The wiki's page answer for the title, with a PNG thumbnail on the wiki's own host. */
+	private static String pageWithPicture(String title)
+	{
+		return "{\"query\":{\"pages\":[{\"pageid\":9,\"ns\":0,\"title\":\"" + title + "\",\"thumbnail\":{\"source\":"
+			+ "\"https://oldschool.runescape.wiki/images/thumb/Tempor_Tantrum.png/128px-Tempor_Tantrum.png?fghij\","
+			+ "\"width\":128,\"height\":40}}]}}";
+	}
+
+	@Test
+	public void aMissingPageTakesTheNearestPagesPicture() throws Exception
+	{
+		final Call.Factory factory = mock(Call.Factory.class);
+		final Call call = mock(Call.class);
+		when(factory.newCall(any(Request.class))).thenReturn(call);
+		final WikiPictures pictures = new WikiPictures(factory, gson);
+
+		pictures.fetch("Tempor Tantrum Marlin");
+		final ArgumentCaptor<Request> first = ArgumentCaptor.forClass(Request.class);
+		verify(factory, times(1)).newCall(first.capture());
+		assertEquals(WikiPictures.requestFor("Tempor Tantrum Marlin").url(), first.getValue().url());
+		final ArgumentCaptor<Callback> page = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(1)).enqueue(page.capture());
+		page.getValue().onResponse(call, ok(missingPage("Tempor Tantrum Marlin")));
+
+		final ArgumentCaptor<Request> second = ArgumentCaptor.forClass(Request.class);
+		verify(factory, times(2)).newCall(second.capture());
+		final String search = second.getValue().url().toString();
+		assertTrue("the second call is the search: " + search, search.contains("list=search"));
+		assertEquals("Tempor Tantrum Marlin", second.getValue().url().queryParameter("srsearch"));
+		assertNull("not kept while the chain runs", pictures.pictureOf("Tempor Tantrum Marlin"));
+		final ArgumentCaptor<Callback> hit = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(2)).enqueue(hit.capture());
+		hit.getValue().onResponse(call, ok(searchHit("The Tempor Tantrum")));
+
+		final ArgumentCaptor<Request> third = ArgumentCaptor.forClass(Request.class);
+		verify(factory, times(3)).newCall(third.capture());
+		assertEquals(WikiPictures.requestFor("The Tempor Tantrum").url(), third.getValue().url());
+		final ArgumentCaptor<Callback> nearest = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(3)).enqueue(nearest.capture());
+		final String nearestAnswer = pageWithPicture("The Tempor Tantrum");
+		nearest.getValue().onResponse(call, ok(nearestAnswer));
+
+		final ArgumentCaptor<Request> fourth = ArgumentCaptor.forClass(Request.class);
+		verify(factory, times(4)).newCall(fourth.capture());
+		assertEquals("the fourth call is the thumbnail's own address", WikiPictures.thumbnailUrl(nearestAnswer, gson),
+			fourth.getValue().url());
+		assertEquals("oldschool.runescape.wiki", fourth.getValue().url().host());
+		assertNull("not kept while the chain runs", pictures.pictureOf("Tempor Tantrum Marlin"));
+		final ArgumentCaptor<Callback> thumb = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(4)).enqueue(thumb.capture());
+		thumb.getValue().onResponse(call, picture());
+
+		final BufferedImage kept = pictures.pictureOf("Tempor Tantrum Marlin");
+		assertNotNull("the nearest page's picture is kept under the name asked", kept);
+		assertEquals(64, kept.getWidth());
+		assertTrue("19 to 21 tall: " + kept.getHeight(), kept.getHeight() >= 19 && kept.getHeight() <= 21);
+		assertNull("kept under the asked name only", pictures.pictureOf("The Tempor Tantrum"));
+
+		pictures.fetch("Tempor Tantrum Marlin");
+		verify(factory, times(4)).newCall(any(Request.class));
+	}
+
+	@Test
+	public void aSearchHitThatSharesNoWordGivesNoPicture() throws Exception
+	{
+		final Call.Factory factory = mock(Call.Factory.class);
+		final Call call = mock(Call.class);
+		when(factory.newCall(any(Request.class))).thenReturn(call);
+		final WikiPictures pictures = new WikiPictures(factory, gson);
+
+		pictures.fetch("Pandemonium");
+		final ArgumentCaptor<Callback> page = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(1)).enqueue(page.capture());
+		page.getValue().onResponse(call, ok(missingPage("Pandemonium")));
+		verify(factory, times(2)).newCall(any(Request.class));
+		final ArgumentCaptor<Callback> search = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(2)).enqueue(search.capture());
+		search.getValue().onResponse(call, ok(searchHit("Chambers of Xeric")));
+		verify(factory, times(2)).newCall(any(Request.class));
+		assertNull("no word in common, no picture", pictures.pictureOf("Pandemonium"));
+		pictures.fetch("Pandemonium");
+		verify(factory, times(2)).newCall(any(Request.class));
+
+		pictures.fetch("Nonsense title");
+		final ArgumentCaptor<Callback> again = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(3)).enqueue(again.capture());
+		again.getValue().onResponse(call, ok(missingPage("Nonsense title")));
+		verify(factory, times(4)).newCall(any(Request.class));
+		final ArgumentCaptor<Callback> none = ArgumentCaptor.forClass(Callback.class);
+		verify(call, times(4)).enqueue(none.capture());
+		none.getValue().onResponse(call, ok("{\"batchcomplete\":true,\"query\":{\"search\":[]}}"));
+		verify(factory, times(4)).newCall(any(Request.class));
+		assertNull("a search with no hit", pictures.pictureOf("Nonsense title"));
+		pictures.fetch("Nonsense title");
+		verify(factory, times(4)).newCall(any(Request.class));
+	}
 }

@@ -25,6 +25,54 @@ public class ChatTextTest
 		return shown;
 	}
 
+	/** A quest broadcast as the game now sends it: the quest's name is a string variable, defined first, drawn by a reference. */
+	private static final String RAW =
+		"<img=2> <str_quest_name_0=King's Ransom>Small Za has completed a quest: <str_quest_name_0>";
+	private static final String PLAIN = "Small Za has completed a quest: King's Ransom";
+
+	@Test
+	public void plainExpandsTheGamesStringVariables()
+	{
+		assertEquals("<img=2> Small Za has completed a quest: King's Ransom", ChatText.expand(RAW));
+		assertEquals(PLAIN, ChatText.plain(RAW));
+
+		assertEquals("x Two=2 One", ChatText.plain("<str_a=One> <str_b=Two=2> x <str_b> <str_a>"));
+		assertEquals("a later definition replaces the earlier", "Two Two",
+			ChatText.plain("<str_a=One><str_a=Two><str_a> <str_a>"));
+		assertEquals("a reference never defined is nothing", "a  b", ChatText.plain("a <str_nothing> b"));
+		assertEquals("a tag that is no variable is an ordinary tag", "Klar: gz",
+			ChatText.plain("<col=ff0000>Klar</col>: <str a>gz"));
+
+		final String untouched = "<col=0000a0>Klar received a drop: Dragon claws (1 coins).</col>";
+		assertEquals("no variables, no change", untouched, ChatText.expand(untouched));
+		assertEquals("", ChatText.expand(null));
+	}
+
+	@Test
+	public void coloursASpanOverAStringVariable()
+	{
+		final int start = PLAIN.indexOf("King's");
+		assertEquals("<img=2> <str_quest_name_0=King's Ransom>Small Za has completed a quest: "
+			+ "<col=3b82f6><str_quest_name_0><colNORMAL>",
+			ChatText.colourSpans(RAW, Collections.singletonList(new int[] {start, PLAIN.length()}), BLUE));
+
+		assertEquals("a span over the literal words leaves both variable tags where they are",
+			"<img=2> <str_quest_name_0=King's Ransom><col=3b82f6>Small Za<colNORMAL> has completed a quest: "
+			+ "<str_quest_name_0>",
+			ChatText.colourSpans(RAW, Collections.singletonList(new int[] {0, 8}), BLUE));
+
+		assertEquals("a span that starts and ends inside the value takes the reference whole",
+			"<img=2> <str_quest_name_0=King's Ransom>Small Za has completed a quest: "
+			+ "<col=3b82f6><str_quest_name_0><colNORMAL>",
+			ChatText.colourSpans(RAW, Collections.singletonList(new int[] {start + 7, start + 10}), BLUE));
+
+		assertEquals("two spans over one variable colour it once",
+			"<img=2> <str_quest_name_0=King's Ransom>Small Za has completed a quest: "
+			+ "<col=3b82f6><str_quest_name_0><colNORMAL>",
+			ChatText.colourSpans(RAW, Arrays.asList(new int[] {start, start + 4}, new int[] {start + 6, PLAIN.length()}),
+				BLUE));
+	}
+
 	@Test
 	public void plainStripsTagsAndTheAchievementPrefix()
 	{

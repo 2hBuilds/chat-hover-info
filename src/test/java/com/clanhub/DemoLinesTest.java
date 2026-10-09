@@ -51,7 +51,8 @@ public class DemoLinesTest
 		assertEquals("the own lines follow the items", DemoLines.OWN, all.subList(items, items + 2));
 		// Re-aimed by the lead, 2026-10-08 (lot 8R): the fifth item line makes 16 in all.
 		// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card, so 14 in all.
-		assertEquals("14 lines in all", 14, all.size());
+		// Re-aimed by the lead, 2026-10-09 (lot 9E): a second quest line, in the game's string-variable form.
+		assertEquals("15 lines in all", 15, all.size());
 
 		final ItemCards itemCards = Mockito.mock(ItemCards.class);
 		when(itemCards.forName(anyString(), anyInt(), anyString(), anyInt(), anyInt())).thenAnswer(call ->
@@ -71,14 +72,15 @@ public class DemoLinesTest
 	public void theKindSamplesEndTheList() throws Exception
 	{
 		// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card, so seven kinds.
-		assertEquals(7, DemoLines.KINDS.size());
+		// Re-aimed by the lead, 2026-10-09 (lot 9E): a second quest line, in the game's string-variable form.
+		assertEquals(8, DemoLines.KINDS.size());
 		for (final DemoLines.Line line : DemoLines.KINDS)
 		{
 			assertEquals(ChatMessageType.CLAN_MESSAGE, line.type);
 			assertEquals("a broadcast has no speaker", "", line.name);
 		}
 		final List<DemoLines.Line> all = DemoLines.lines();
-		assertEquals("lines() ends with the kinds", DemoLines.KINDS, all.subList(all.size() - 7, all.size()));
+		assertEquals("lines() ends with the kinds", DemoLines.KINDS, all.subList(all.size() - 8, all.size()));
 
 		final CardTables tables;
 		try (Reader in = new InputStreamReader(DemoLinesTest.class.getResourceAsStream("/com/clanhub/cards-fixture.json"),

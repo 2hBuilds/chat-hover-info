@@ -5,9 +5,11 @@ import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,6 +18,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.swing.SwingUtilities;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.ChatMessage;
@@ -29,12 +32,14 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseAdapter;
 import net.runelite.client.input.MouseManager;
+import net.runelite.client.input.MouseWheelListener;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
+import net.runelite.client.ui.components.colorpicker.RuneliteColorPicker;
 import net.runelite.client.ui.overlay.OverlayManager;
-import net.runelite.client.util.HotkeyListener;
 import net.runelite.client.util.LinkBrowser;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
@@ -72,6 +77,10 @@ public class ClanHubPlugin extends Plugin
 
 	@Inject
 	private ConfigManager configManager;
+
+	/** RuneLite's colour picker maker, which the sidebar menu's two colour swatches open the picker through. */
+	@Inject
+	private ColorPickerManager colorPickerManager;
 
 	@Inject
 	private Client client;
@@ -112,6 +121,14 @@ public class ClanHubPlugin extends Plugin
 	@Inject
 	@Named("developerMode")
 	private boolean developerMode;
+
+	/**
+	 * Whether {@code ::hoverinfo trace} has switched the developer trace on: while it is, each clan, friends or game chat
+	 * event writes INFO lines to the client log. It starts ON in developer mode and off everywhere else.
+	 *
+	 * <p>Choice: volatile, because the command is read on one thread and the chat events on another.
+	 */
+	private volatile boolean tracing;
 
 	/** The cards by plain chat line; it is safe to use from any thread. */
 	private final CardStore store = new CardStore();
@@ -160,11 +177,17 @@ public class ClanHubPlugin extends Plugin
 
 	private NavigationButton navButton;
 
-	/** The listener of the card key, registered in {@link #startUp} and taken away in {@link #shutDown}. */
-	private HotkeyListener cardKeyListener;
+	/**
+	 * The listener of the card key, registered in {@link #startUp} and taken away in {@link #shutDown}. It takes the key
+	 * from the game only over a card in the "While holding a key" mode, so a letter set as the card key still types.
+	 */
+	private CardKeyListener cardKeyListener;
 
 	/** The listener of left clicks, registered in {@link #startUp} and taken away in {@link #shutDown}. */
 	private MouseAdapter clickListener;
+
+	/** The listener of mouse wheel turns, registered in {@link #startUp} and taken away in {@link #shutDown}. */
+	private MouseWheelListener wheelListener;
 
 	@Provides
 	ClanHubConfig provideConfig(ConfigManager configManager)
@@ -175,6 +198,9 @@ public class ClanHubPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		// In developer mode the trace is on from the start, so a restart between lots never loses the next quest line;
+		// ::hoverinfo trace still toggles it. A Hub build has no developer mode, so it starts off and stays off.
+		tracing = developerMode;
 		dropRates = new DropRates();
 		dropRates.loadInBackground(executor, gson);
 		tables = new CardTables();
@@ -192,20 +218,8 @@ public class ClanHubPlugin extends Plugin
 		overlay.tables(tables);
 		overlay.attach(store);
 		overlayManager.add(overlay);
-		cardKeyListener = new HotkeyListener(config::cardKey)
-		{
-			@Override
-			public void hotkeyPressed()
-			{
-				overlay.keyHeld(true);
-			}
-
-			@Override
-			public void hotkeyReleased()
-			{
-				overlay.keyHeld(false);
-			}
-		};
+		cardKeyListener = new CardKeyListener(config::cardKey, config::cardTrigger, config::showCards, overlay::hovered,
+			overlay::keyHeld);
 		keyManager.registerKeyListener(cardKeyListener);
 		clickListener = new MouseAdapter()
 		{
@@ -221,6 +235,17 @@ public class ClanHubPlugin extends Plugin
 			}
 		};
 		mouseManager.registerMouseListener(clickListener);
+		wheelListener = new MouseWheelListener()
+		{
+			/** Tells the overlay the wheel turned, which ends a held card; the event is passed on untouched. */
+			@Override
+			public MouseWheelEvent mouseWheelMoved(MouseWheelEvent e)
+			{
+				overlay.wheeled();
+				return e;
+			}
+		};
+		mouseManager.registerMouseWheelListener(wheelListener);
 		final ClanHubPanel panel = new ClanHubPanel(this::resetSettings, new PanelSettings()
 		{
 			@Override
@@ -296,6 +321,30 @@ public class ClanHubPlugin extends Plugin
 			}
 
 			@Override
+			public Color hoverColour()
+			{
+				return config.hoverColour();
+			}
+
+			@Override
+			public void setHoverColour(Color colour)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "hoverColour", colour);
+			}
+
+			@Override
+			public Color alwaysUnderlineColour()
+			{
+				return config.alwaysUnderlineColour();
+			}
+
+			@Override
+			public void setAlwaysUnderlineColour(Color colour)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineColour", colour);
+			}
+
+			@Override
 			public CardTrigger cardTrigger()
 			{
 				return config.cardTrigger();
@@ -354,6 +403,12 @@ public class ClanHubPlugin extends Plugin
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "cardFontSize", size);
 			}
+		}, (parent, title, current, onChange, onClose) ->
+		{
+			final RuneliteColorPicker colourPicker = colorPickerManager.create(parent, current, title, true);
+			colourPicker.setOnColorChange(onChange);
+			colourPicker.setOnClose(onClose);
+			colourPicker.setVisible(true);
 		});
 		navButton = NavigationButton.builder()
 			.tooltip("2h Chat Hover Info")
@@ -370,6 +425,7 @@ public class ClanHubPlugin extends Plugin
 	{
 		keyManager.unregisterKeyListener(cardKeyListener);
 		mouseManager.unregisterMouseListener(clickListener);
+		mouseManager.unregisterMouseWheelListener(wheelListener);
 		overlayManager.remove(overlay);
 		if (navButton != null)
 		{
@@ -384,7 +440,8 @@ public class ClanHubPlugin extends Plugin
 	 * text (the text without its tags and a combat achievement's id). A line no reader finds a card in is not kept. When
 	 * "Colour hoverable words" is on and the line holds marked cards, the message's text gets colour tags around each of
 	 * their words, and nothing else changes in it (a line whose cards are all quiet is not touched); the store's key is the
-	 * plain text, which the tags do not change.
+	 * plain text, which the tags do not change. In developer mode, {@code ::hoverinfo trace} toggles an INFO line per chat
+	 * event in the client log, for reading why a line gave no card.
 	 *
 	 * <p>Choice: a message that is null is skipped.
 	 */
@@ -396,10 +453,25 @@ public class ClanHubPlugin extends Plugin
 		{
 			return;
 		}
+		final boolean traced = tracing && isTraced(event.getType());
+		if (traced)
+		{
+			log.info("hoverinfo trace: type={} name={} sender={} raw={} plain={}", event.getType(),
+				quoted(event.getName()), quoted(event.getSender()), quoted(message), quoted(ChatText.plain(message)));
+		}
 		final List<HoverCard> cards = new ArrayList<>();
 		for (final LineReader reader : readers)
 		{
 			cards.addAll(reader.read(event.getType(), message));
+		}
+		if (traced)
+		{
+			final StringBuilder titles = new StringBuilder();
+			for (final HoverCard card : cards)
+			{
+				titles.append(titles.length() == 0 ? "" : ", ").append(card.title());
+			}
+			log.info("hoverinfo trace: {} card(s): {}", cards.size(), cards.isEmpty() ? "-" : titles);
 		}
 		store.put(ChatText.plain(message), cards);
 		if (cards.isEmpty())
@@ -421,6 +493,22 @@ public class ClanHubPlugin extends Plugin
 			// The closes are RuneLite's "<colNORMAL>" marker; the chat manager fills it in from this format message.
 			event.getMessageNode().setRuneLiteFormatMessage(coloured);
 		}
+	}
+
+	/**
+	 * Whether the trace writes a line for a chat event of this type: every type the client has. It was the clan, friends
+	 * and game types until a real clan quest broadcast arrived under none of them (2026-10-09, 'Small Za has completed a
+	 * quest: Making History' came and went untraced), which is the very thing the trace is for finding.
+	 */
+	private static boolean isTraced(ChatMessageType type)
+	{
+		return type != null;
+	}
+
+	/** The text in single quotes for the trace's log line, or {@code null} for a text that is null. */
+	private static String quoted(String text)
+	{
+		return text == null ? "null" : "'" + text + "'";
 	}
 
 	/**
@@ -479,7 +567,9 @@ public class ClanHubPlugin extends Plugin
 	}
 
 	/**
-	 * A command typed in the chat, in developer mode only: {@code ::hoverinfo demo} posts the sample lines.
+	 * A command typed in the chat, in developer mode only: {@code ::hoverinfo demo} posts the sample lines, and
+	 * {@code ::hoverinfo trace} toggles an INFO line per chat event in the client log, for reading why a line gave no
+	 * card (one game message says whether the trace is now on or off).
 	 */
 	@Subscribe
 	public void onCommandExecuted(CommandExecuted event)
@@ -488,6 +578,12 @@ public class ClanHubPlugin extends Plugin
 		if (posted != 0)
 		{
 			log.debug("Posted {} demo lines", posted);
+		}
+		if (DemoCommand.isTrace(developerMode, event))
+		{
+			tracing = !tracing;
+			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
+				tracing ? "2h Chat Hover Info: trace on, see client.log" : "2h Chat Hover Info: trace off", null);
 		}
 	}
 

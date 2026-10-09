@@ -6,22 +6,36 @@ import com.clanhub.ClanHubConfig.CardWidth;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JSpinner;
+import javax.swing.MenuElement;
+import javax.swing.MenuSelectionManager;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 import net.runelite.client.ui.ColorScheme;
@@ -31,10 +45,11 @@ import net.runelite.client.util.LinkBrowser;
 
 /**
  * The sidebar panel: one message card (a bold line and a grey line, centred) whose top row ends with the support
- * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the six switches, the five
- * editable rows (when a card opens, its delay, where it opens, how wide it grows, its text size), then the OK row. The colour and the key are set in
- * RuneLite's own settings panel, not here. The plugin replaces the card with its own views; the pair, the menu and the
- * type sizes stay.
+ * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the six switches, the three
+ * choice submenus and the two number boxes (when a card opens, its delay, where it opens, how wide it grows, its text
+ * size), the two colour rows (the hover colour and the underline colour, each a swatch that opens RuneLite's colour
+ * picker), then the OK row. The card key is set in RuneLite's own settings panel, not here. The plugin replaces the
+ * card with its own views; the pair, the menu and the type sizes stay.
  */
 public class ClanHubPanel extends PluginPanel
 {
@@ -55,6 +70,8 @@ public class ClanHubPanel extends PluginPanel
 	static final String CARD_PLACE_TEXT = "Card place";
 	static final String CARD_WIDTH_TEXT = "Card width";
 	static final String CARD_SIZE_TEXT = "Card text size";
+	static final String HOVER_COLOUR_TEXT = "Hover colour";
+	static final String UNDERLINE_COLOUR_TEXT = "Underline colour";
 
 	/** The card text size's smallest, default and largest, in px: the setting's own range. */
 	static final int MIN_CARD_SIZE = 8;
@@ -73,9 +90,12 @@ public class ClanHubPanel extends PluginPanel
 	private static final int ICON_SIZE = 12;
 	/** A press on the settings icon this soon after the menu closed is the press that closed it, not a new open. */
 	private static final long REOPEN_GUARD_NANOS = 250_000_000L;
+	/** A colour swatch's side, in px. */
+	private static final int SWATCH_SIZE = 16;
 
 	private final Runnable resetToDefault;
 	private final PanelSettings settings;
+	private final ColourPicker picker;
 	private final SupportLinks support;
 	private final JCheckBoxMenuItem showCheck;
 	private final JCheckBoxMenuItem colourCheck;
@@ -83,12 +103,18 @@ public class ClanHubPanel extends PluginPanel
 	private final JCheckBoxMenuItem picturesCheck;
 	private final JCheckBoxMenuItem bossCheck;
 	private final JCheckBoxMenuItem underlineCheck;
-	private final JComboBox<CardTrigger> triggerCombo;
-	private final JComboBox<CardPlace> placeCombo;
-	private final JComboBox<CardWidth> widthCombo;
+	private final JMenu triggerMenu;
+	private final JMenu placeMenu;
+	private final JMenu widthMenu;
 	private final JSpinner delaySpinner;
 	private final JSpinner sizeSpinner;
 	private final JPopupMenu menu;
+	/** What sets each choice submenu from its setting: selects the current choice's item and retitles the submenu. */
+	private final List<Runnable> choiceSyncs = new ArrayList<>();
+	/** What sets each colour swatch from its setting. */
+	private final List<Runnable> swatchSyncs = new ArrayList<>();
+	/** The settings icon the menu was last opened under, which a colour picker's closing shows it under again. */
+	private JLabel menuAnchor;
 	private long closedAtNanos = System.nanoTime() - 2 * REOPEN_GUARD_NANOS;
 	/** True while the menu's controls are being set from the settings, so that setting them writes nothing back. */
 	private boolean syncing;
@@ -97,12 +123,14 @@ public class ClanHubPanel extends PluginPanel
 	 * @param resetToDefault what "Reset to default" does: puts the plugin's settings back to their defaults
 	 * @param settings the settings the menu's controls show, read each time the menu opens and after "Reset to default",
 	 *        and written when a control changes
+	 * @param picker opens the colour picker a colour swatch asks for
 	 */
-	ClanHubPanel(Runnable resetToDefault, PanelSettings settings)
+	ClanHubPanel(Runnable resetToDefault, PanelSettings settings, ColourPicker picker)
 	{
 		super();
 		this.resetToDefault = resetToDefault;
 		this.settings = settings;
+		this.picker = picker;
 		this.support = new SupportLinks("2h Chat Hover Info", Version.CURRENT, GITHUB_URL, LinkBrowser::browse, this::closeMenu);
 		this.showCheck = check(SHOW_CARDS_TEXT, settings::setShowCards);
 		this.colourCheck = check(COLOUR_TEXT, settings::setColourHoverables);
@@ -110,9 +138,9 @@ public class ClanHubPanel extends PluginPanel
 		this.picturesCheck = check(PICTURES_TEXT, settings::setWikiPictures);
 		this.bossCheck = check(BOSS_TEXT, settings::setBossCards);
 		this.underlineCheck = check(ALWAYS_UNDERLINE_TEXT, settings::setAlwaysUnderlineLevels);
-		this.triggerCombo = triggerCombo();
-		this.placeCombo = placeCombo();
-		this.widthCombo = widthCombo();
+		this.triggerMenu = choices(CARD_TRIGGER_TEXT, CardTrigger.values(), settings::cardTrigger, settings::setCardTrigger);
+		this.placeMenu = choices(CARD_PLACE_TEXT, CardPlace.values(), settings::cardPlace, settings::setCardPlace);
+		this.widthMenu = choices(CARD_WIDTH_TEXT, CardWidth.values(), settings::cardWidth, settings::setCardWidth);
 		this.delaySpinner = spinner(0, 0, MAX_CARD_DELAY, CARD_DELAY_STEP, 4, settings::setCardDelayMs);
 		this.sizeSpinner = spinner(DEFAULT_CARD_SIZE, MIN_CARD_SIZE, MAX_CARD_SIZE, 1, 2, settings::setCardFontSize);
 		this.menu = buildMenu();
@@ -173,6 +201,22 @@ public class ClanHubPanel extends PluginPanel
 		{
 			return;
 		}
+		menuAnchor = anchor;
+		menu.show(anchor, 0, anchor.getHeight());
+	}
+
+	/**
+	 * Shows the menu again under the settings icon it was last opened under, once a colour picker has closed. The reopen
+	 * guard is not asked: it is for the icon press that closed the menu, and a picker closing seconds later is not that
+	 * press. Nothing shows if the icon is gone from the screen or the menu is already up.
+	 */
+	private void reopenMenu()
+	{
+		final JLabel anchor = menuAnchor;
+		if (anchor == null || !anchor.isShowing() || menu.isVisible())
+		{
+			return;
+		}
 		menu.show(anchor, 0, anchor.getHeight());
 	}
 
@@ -183,8 +227,9 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * The settings menu, in STANDARD A5's order: the header, a rule, the six switches, a rule, the five editable rows
-	 * (when a card opens, the delay, where it opens, how wide it grows, the text size), a rule, then the OK row.
+	 * The settings menu, in STANDARD A5's order: the header, a rule, the six switches, a rule, the three choice submenus
+	 * and the two number rows (when a card opens, the delay, where it opens, how wide it grows, the text size) and the
+	 * two colour rows (the hover colour, the underline colour), a rule, then the OK row.
 	 */
 	private JPopupMenu buildMenu()
 	{
@@ -199,11 +244,14 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(bossCheck);
 		popup.add(underlineCheck);
 		popup.addSeparator();
-		popup.add(row(CARD_TRIGGER_TEXT, triggerCombo));
+		popup.add(triggerMenu);
 		popup.add(row(CARD_DELAY_TEXT, delaySpinner));
-		popup.add(row(CARD_PLACE_TEXT, placeCombo));
-		popup.add(row(CARD_WIDTH_TEXT, widthCombo));
+		popup.add(placeMenu);
+		popup.add(widthMenu);
 		popup.add(row(CARD_SIZE_TEXT, sizeSpinner));
+		popup.add(colourRow(HOVER_COLOUR_TEXT, settings::hoverColour, settings::setHoverColour, HOVER_COLOUR_TEXT));
+		popup.add(colourRow(UNDERLINE_COLOUR_TEXT, settings::alwaysUnderlineColour, settings::setAlwaysUnderlineColour,
+			UNDERLINE_COLOUR_TEXT));
 		popup.addSeparator();
 		popup.add(okRow());
 		popup.addPopupMenuListener(new PopupMenuListener()
@@ -229,62 +277,139 @@ public class ClanHubPanel extends PluginPanel
 		return popup;
 	}
 
-	/** A switch: a check in the menu's 12 px type, white on the menu's own ground, writing its state when clicked. */
+	/**
+	 * A switch: a check in the menu's 12 px type, white on the menu's own ground, writing its state when clicked.
+	 *
+	 * <p>Choice: the release is taken over because Swing's menu item UI would clear the menu's selection path on it and
+	 * close the menu; the user wants to flip several switches in one visit. The keyboard's activation of a focused item
+	 * still closes the menu, as Swing does; the menu is a mouse menu.
+	 */
 	private static JCheckBoxMenuItem check(String text, Consumer<Boolean> write)
 	{
-		final JCheckBoxMenuItem check = new JCheckBoxMenuItem(text);
+		final JCheckBoxMenuItem check = new JCheckBoxMenuItem(text)
+		{
+			@Override
+			protected void processMouseEvent(MouseEvent e)
+			{
+				if (!takeRelease(this, e, true))
+				{
+					super.processMouseEvent(e);
+				}
+			}
+		};
 		check.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
 		check.setForeground(Color.WHITE);
 		check.addActionListener(e -> write.accept(check.isSelected()));
 		return check;
 	}
 
-	/** The "Show a card" dropdown, in the menu's 12 px type and no wider than its longest choice. */
-	private JComboBox<CardTrigger> triggerCombo()
+	/**
+	 * Takes over a left release inside {@code item}: clicks it, consumes the event, and tells the caller not to pass it
+	 * to Swing's menu item UI. Both the switches and the choice items use it, so that a click never takes the menu down.
+	 *
+	 * @param rearm whether the item is armed again after the click, to keep its hover highlight while the mouse stays on
+	 *        it; a choice item is not, since its submenu closes with the click
+	 * @return whether the event was a left release inside the item and has been taken
+	 */
+	private static boolean takeRelease(JMenuItem item, MouseEvent e, boolean rearm)
 	{
-		final JComboBox<CardTrigger> combo = new JComboBox<>(CardTrigger.values());
-		combo.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
-		combo.setMaximumSize(combo.getPreferredSize());
-		combo.addActionListener(e ->
+		if (e.getID() != MouseEvent.MOUSE_RELEASED || !SwingUtilities.isLeftMouseButton(e) || !item.contains(e.getPoint()))
 		{
-			if (!syncing && combo.getSelectedItem() != null)
-			{
-				settings.setCardTrigger((CardTrigger) combo.getSelectedItem());
-			}
-		});
-		return combo;
+			return false;
+		}
+		item.doClick(0);
+		if (rearm)
+		{
+			// The click leaves the item un-armed; re-arming keeps its hover highlight while the mouse stays on it.
+			item.getModel().setArmed(true);
+		}
+		e.consume();
+		return true;
 	}
 
-	/** The "Card place" dropdown, in the menu's 12 px type and no wider than its longest choice. */
-	private JComboBox<CardPlace> placeCombo()
+	/**
+	 * A choice row: a submenu titled with the caption and the current choice, holding one radio item per choice in the
+	 * order of {@code values}. Picking one writes it, retitles the submenu and closes the submenu alone; the main menu
+	 * stays open, as it does for the switches. {@link #syncControls} sets the radio and the title from {@code read}.
+	 *
+	 * <p>Choice: submenus and not drop-downs, because a drop-down's list is a popup of its own, outside the menu's
+	 * selection path, and Swing's menu machinery reads a click on it as a click outside and takes the whole menu down
+	 * before the list can show. The submenu is as wide as its longest title, so that retitling never clips it. Each
+	 * radio item is an anonymous subclass taking the release over through {@link #takeRelease}, as the switches are.
+	 *
+	 * @param caption the row's name, shown before the colon
+	 * @param values the choices, shown in this order with their {@code toString} words
+	 * @param read the setting's current choice
+	 * @param write what picking a choice does: writes the setting
+	 */
+	private <T> JMenu choices(String caption, T[] values, Supplier<T> read, Consumer<T> write)
 	{
-		final JComboBox<CardPlace> combo = new JComboBox<>(CardPlace.values());
-		combo.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
-		combo.setMaximumSize(combo.getPreferredSize());
-		combo.addActionListener(e ->
+		final Font font = FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE);
+		final JMenu submenu = new JMenu();
+		submenu.setFont(font);
+		submenu.setForeground(Color.WHITE);
+		final ButtonGroup group = new ButtonGroup();
+		final List<JRadioButtonMenuItem> items = new ArrayList<>();
+		for (final T value : values)
 		{
-			if (!syncing && combo.getSelectedItem() != null)
+			final JRadioButtonMenuItem item = new JRadioButtonMenuItem(String.valueOf(value))
 			{
-				settings.setCardPlace((CardPlace) combo.getSelectedItem());
+				@Override
+				protected void processMouseEvent(MouseEvent e)
+				{
+					if (!takeRelease(this, e, false))
+					{
+						super.processMouseEvent(e);
+					}
+				}
+			};
+			item.setFont(font);
+			item.setForeground(Color.WHITE);
+			item.addActionListener(e ->
+			{
+				if (!syncing)
+				{
+					write.accept(value);
+					submenu.setText(title(caption, value));
+					// Only the submenu goes: the path ends at the main menu, which stays up.
+					MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
+				}
+			});
+			group.add(item);
+			submenu.add(item);
+			items.add(item);
+		}
+		int width = 0;
+		int height = 0;
+		for (final T value : values)
+		{
+			submenu.setText(title(caption, value));
+			final Dimension size = submenu.getPreferredSize();
+			width = Math.max(width, size.width);
+			height = Math.max(height, size.height);
+		}
+		submenu.setPreferredSize(new Dimension(width, height));
+		submenu.setText(title(caption, values[0]));
+		final List<T> choices = Arrays.asList(values);
+		choiceSyncs.add(() ->
+		{
+			final T current = read.get();
+			final int index = choices.indexOf(current);
+			if (index < 0)
+			{
+				group.clearSelection();
+				return;
 			}
+			items.get(index).setSelected(true);
+			submenu.setText(title(caption, current));
 		});
-		return combo;
+		return submenu;
 	}
 
-	/** The "Card width" dropdown, in the menu's 12 px type and no wider than its longest choice. */
-	private JComboBox<CardWidth> widthCombo()
+	/** A choice submenu's title: the caption, a colon, and the current choice's words. */
+	private static String title(String caption, Object choice)
 	{
-		final JComboBox<CardWidth> combo = new JComboBox<>(CardWidth.values());
-		combo.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
-		combo.setMaximumSize(combo.getPreferredSize());
-		combo.addActionListener(e ->
-		{
-			if (!syncing && combo.getSelectedItem() != null)
-			{
-				settings.setCardWidth((CardWidth) combo.getSelectedItem());
-			}
-		});
-		return combo;
+		return caption + ": " + choice;
 	}
 
 	/**
@@ -327,7 +452,57 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * Sets the checks, the dropdown and the spinners from the settings, without writing anything back.
+	 * A colour row: the caption at its left, a swatch of the setting's colour at its right. A press on the swatch takes
+	 * the menu down, opens the colour picker on that colour, writes each colour the picker settles on (the swatch
+	 * follows), and brings the menu back under the settings icon when the picker closes.
+	 *
+	 * <p>Choice: the menu goes while the picker is open because the picker is a window of its own; a menu left up under
+	 * a dialog is a menu nobody can use, and Swing would take it down on the first click in the dialog anyway.
+	 * {@link #syncControls} sets the swatch from {@code read}, which also happens when the menu comes back.
+	 *
+	 * @param caption the row's name
+	 * @param read the setting's current colour
+	 * @param write what a new colour does: writes the setting
+	 * @param pickerTitle the picker window's title
+	 */
+	private JPanel colourRow(String caption, Supplier<Color> read, Consumer<Color> write, String pickerTitle)
+	{
+		final JButton swatch = new JButton()
+		{
+			/** Fills the whole button with its background, whatever look and feel is on. */
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				g.setColor(getBackground());
+				g.fillRect(0, 0, getWidth(), getHeight());
+			}
+		};
+		swatch.setFocusable(false);
+		swatch.setContentAreaFilled(false);
+		swatch.setOpaque(true);
+		swatch.setBorder(new LineBorder(ColorScheme.LIGHT_GRAY_COLOR, 1));
+		final Dimension size = new Dimension(SWATCH_SIZE, SWATCH_SIZE);
+		swatch.setPreferredSize(size);
+		swatch.setMinimumSize(size);
+		swatch.setMaximumSize(size);
+		swatch.setToolTipText(caption);
+		swatch.setBackground(read.get());
+		swatch.addActionListener(e ->
+		{
+			closeMenu();
+			picker.pick(this, pickerTitle, read.get(), colour ->
+			{
+				write.accept(colour);
+				swatch.setBackground(colour);
+			}, colour -> reopenMenu());
+		});
+		swatchSyncs.add(() -> swatch.setBackground(read.get()));
+		return row(caption, swatch);
+	}
+
+	/**
+	 * Sets the checks, the choice submenus, the spinners and the colour swatches from the settings, without writing
+	 * anything back.
 	 *
 	 * <p>Choice: a stored size outside 8 to 24 shows as the nearest end of the range, and a stored delay outside 0 to 1000
 	 * likewise.
@@ -343,9 +518,8 @@ public class ClanHubPanel extends PluginPanel
 			picturesCheck.setSelected(settings.wikiPictures());
 			bossCheck.setSelected(settings.bossCards());
 			underlineCheck.setSelected(settings.alwaysUnderlineLevels());
-			triggerCombo.setSelectedItem(settings.cardTrigger());
-			placeCombo.setSelectedItem(settings.cardPlace());
-			widthCombo.setSelectedItem(settings.cardWidth());
+			choiceSyncs.forEach(Runnable::run);
+			swatchSyncs.forEach(Runnable::run);
 			delaySpinner.setValue(Math.max(0, Math.min(MAX_CARD_DELAY, settings.cardDelayMs())));
 			sizeSpinner.setValue(Math.max(MIN_CARD_SIZE, Math.min(MAX_CARD_SIZE, settings.cardFontSize())));
 		}

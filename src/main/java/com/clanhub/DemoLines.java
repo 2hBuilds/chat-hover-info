@@ -47,9 +47,14 @@ final class DemoLines
 		new Line(ChatMessageType.GAMEMESSAGE, "", "Valuable drop: Dragon claws (121,453,000 coins)"),
 		new Line(ChatMessageType.GAMEMESSAGE, "", "New item added to your collection log: Abyssal whip")));
 
-	/** Seven clan broadcasts that are not about an item: a quest, a combat task, a pet, a level, XP, a diary and a best. */
+	/**
+	 * Eight clan broadcasts that are not about an item: two quests, one in the game's string-variable form, a combat
+	 * task, a pet, a level, XP, a diary and a best.
+	 */
 	static final List<Line> KINDS = Collections.unmodifiableList(Arrays.asList(
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar has completed a quest: Dragon Slayer II"),
+		new Line(ChatMessageType.CLAN_MESSAGE, "",
+			"<str_quest_name_0=King's Ransom>Iron Pete has completed a quest: <str_quest_name_0>"),
 		new Line(ChatMessageType.CLAN_MESSAGE, "",
 			"CA_ID:279|Mossy Rock has completed a Master combat task: Perfect Zulrah (5 points)."),
 		new Line(ChatMessageType.CLAN_MESSAGE, "",

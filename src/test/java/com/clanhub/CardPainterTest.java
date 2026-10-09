@@ -557,6 +557,33 @@ public class CardPainterTest
 			"Klar received a drop: Abyssal whip (1,500,000 coins).", 22, 34, sources);
 	}
 
+	/** The whip card with the first {@code count} of six sources, "Source one" ("1/10") to "Source six" ("1/60"). */
+	private static ItemCard whipWithNamed(int count)
+	{
+		final String[] numbers = {"one", "two", "three", "four", "five", "six"};
+		final List<DropRates.DropSource> sources = new ArrayList<>();
+		for (int i = 0; i < count; i++)
+		{
+			sources.add(new DropRates.DropSource("Source " + numbers[i], "1/" + 10 * (i + 1), "Source_" + numbers[i]));
+		}
+		return new ItemCard(4151, "Abyssal whip", 1, 1_500_000L, 72_000,
+			"Klar received a drop: Abyssal whip (1,500,000 coins).", 22, 34, sources);
+	}
+
+	@Test
+	public void sixDropsFlowOntoMoreLines()
+	{
+		final int bodyHeight = bodyMetrics().getAscent() + bodyMetrics().getDescent() + 2;
+		final ItemCard three = whipWithNamed(3);
+		final ItemCard six = whipWithNamed(6);
+		assertEquals("the six-source card has the price row and six drop rows", 7, six.rows().size());
+
+		final Dimension threeSize = splitSized(three, NONE, 409, 5);
+		final Dimension sixSize = splitSized(six, NONE, 409, 5);
+		assertTrue("six sources take at least one body line more than three: " + sixSize.height + " vs " + threeSize.height,
+			sixSize.height >= threeSize.height + bodyHeight);
+	}
+
 	/** Whether the pixel is exactly {@code colour}, its alpha ignored. */
 	private static boolean isColour(BufferedImage image, int x, int y, Color colour)
 	{

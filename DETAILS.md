@@ -43,10 +43,9 @@ special loot, whether a clan mate's broadcast or one of your own lines. The card
 **High alch** value, both from RuneLite's item manager, written the way the game writes a stack (*121M*, *25.2M*,
 *123K*, *4,600*); an item with no price or no alch value reads *-*. A stack shows *x10* after the name, the price and
 the alch value for the whole stack, and the price of one in grey after the price (*460 each*). Then come the **drop
-sources**: up to six are bundled for an item, the monsters first and containers such as reward caskets after them,
-the better rate first. The card shows the first four, each as the source's name and its rate as the wiki writes it
-(*1/512*), and a grey *and 2 more* for the rest. An item the table has no source for shows no drop line. The item
-must be one RuneLite knows by that exact name (capitals do not matter), or there is no card. An item the Grand
+sources**. The card shows them all, each as the source's name and its rate as the wiki writes it (*1/512*), the better
+rate first; the bundled table keeps up to six sources an item, monsters before containers. An item the table has no
+source for shows no drop line. The item must be one RuneLite knows by that exact name (capitals do not matter), or there is no card. An item the Grand
 Exchange does not list is found through an index of every item name that the plugin builds in the first twenty
 seconds or so after you log in, so such a card may take that long to appear. A drop line that says where the drop
 came from (*"... received a drop: 45 x Runite ore (456,345 coins) from Duke Sucellus."*) also gives the boss, monster,
@@ -102,7 +101,8 @@ the drawn words, it cannot tell the answer from someone typing the same words by
 
 When a bundled table is missing or has not loaded yet (they load a second or two after start-up), a quest, task, pet
 or diary card shows what the line alone says, an item card shows no drop line, and a boss card shows no facts. In RuneLite's developer mode only,
-the command `::hoverinfo demo` posts sample lines to hover; in a normal client it does nothing.
+the command `::hoverinfo demo` posts sample lines to hover, and `::hoverinfo trace` writes one line per
+chat event to RuneLite's log for the developer; in a normal client they do nothing.
 
 ## Where the card opens and when
 
@@ -143,6 +143,11 @@ limit grows and shrinks with it.
 name, the phrase *"Defence level 70"* - and not elsewhere on the row. A line the game wrapped onto two rows is read
 row by row, so the words are found on the row they fall on. Nothing happens outside the chat's scroll area, and a
 line scrolled out of view does nothing. Only the newest 200 lines that have a card can open one.
+
+**When the chat moves under the pointer.** If the chat moves under a still mouse (a new line arrives and the rows shift
+up), the card stays where it is until you move the mouse 3 px or more, turn the mouse wheel, or leave the chat. Moving
+the pointer off the words yourself closes it at once, as always. The plugin listens to the wheel only to know it turned;
+it reads nothing else from it and passes it on untouched.
 
 **Wiki paragraph.** With *Wiki descriptions* on, a card shows the first paragraph of its wiki page; until the wiki
 has answered, it opens without one and asks again on the next hover. A task and a level with unlocks have their own text.
@@ -191,8 +196,8 @@ words of a card. With *Show hover cards* off there are none.
 
 ## Settings
 
-Fourteen settings, in the order of RuneLite's settings page. Eleven are also controls in the sidebar's settings menu
-(below); *Hover colour*, *Card key* and *Underline colour* are set on RuneLite's settings page only.
+Fourteen settings, in the order of RuneLite's settings page. Thirteen are also controls in the sidebar's settings menu
+(below); *Card key* is set on RuneLite's settings page only.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -201,7 +206,7 @@ Fourteen settings, in the order of RuneLite's settings page. Eleven are also con
 | Colour hoverable words | On | Colour the item, quest, achievement and pet names the cards are about in the chat. |
 | Hover colour | Blue (#3B82F6) | The colour of the words a card is about, and of the underline under the ones you hover. |
 | Show a card | On hover | When a card opens: as soon as you hover, only while you hold the key below, or when you click the words. Choices: *On hover*, *While holding a key*, *On click*. |
-| Card key | Alt | The key to hold when 'Show a card' is 'While holding a key'. |
+| Card key | Alt | The key to hold when 'Show a card' is 'While holding a key'. It is taken from the game only while the mouse is on a card in that mode; everywhere else it types as usual. |
 | Card delay | 0 ms | How long the mouse rests on the words before the card opens. From 0 to 1,000 ms. |
 | Wiki descriptions | On | Show the first paragraph of the wiki page on each card. Sends only the thing's name to oldschool.runescape.wiki. |
 | Wiki pictures | On | Show the wiki's own picture of a boss, monster, raid or chest on its card. Sends only the thing's name to oldschool.runescape.wiki, then fetches the picture the wiki names. |
@@ -224,12 +229,15 @@ again and it closes. The menu has:
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - six **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
   *Underline level-ups*;
-- five **rows**: *Show a card* (a drop-down), *Card delay (ms)* (a number box, stepping by 100), *Card place* (a
-  drop-down), *Card width* (a drop-down) and *Card text size* (a number box);
+- three **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*;
+  two **rows**: *Card delay (ms)* and *Card text size* (number boxes, the delay stepping by 100);
+- two **colours**: *Hover colour* and *Underline colour*, each a swatch; press it and the menu closes, RuneLite's colour
+  picker opens on that colour, and the menu comes back when the picker closes;
 - at the bottom, **Reset to default** on the left, which puts all fourteen settings back to their defaults, and **OK**
   on the right, which closes the menu.
 
-Everything in the menu saves itself as you set it, and it is the same setting as on RuneLite's settings page.
+Everything in the menu saves itself as you set it, and the menu stays open while you work through the switches; OK,
+a link, or a click anywhere outside it closes it. Each is the same setting as on RuneLite's settings page.
 
 ## Data and credit
 
@@ -281,12 +289,14 @@ request they reach the wiki from your IP address.
   failed or has no text is kept as empty too, so it is not asked again.
 - **A missing page.** If the wiki says the page does not exist, the plugin asks the wiki's search for that same name
   once and, if the first hit is another page, makes one more request for that page's paragraph, kept under the name
-  the card asked by. The title in that last request is the one the wiki itself gave back.
+  the card asked by. The title in that last request is the one the wiki itself gave back, and the hit is used only
+  when its title shares a word with the name asked for; otherwise the card shows no paragraph.
 - **Pictures.** A picture is asked for the same way: as the line arrives, once per name, the answer kept in memory, the
   200 asked for last; a page with no picture, or whose picture is a WebP file, is kept as having none and not asked
-  again. At most 1 MB of a picture is read, and a longer one is dropped.
+  again. At most 1 MB of a picture is read, and a longer one is dropped. A missing page is handled the same way: one
+  search, the first hit's picture when its title shares a word with the name, otherwise the game's icon.
 - **Capped.** At most 10 names wait for an answer at once, and at most 60 requests start in a minute (the page request
-  and the picture request each count); a name let go because of the cap is asked for again by a later hover.
+  the search and the picture request each count); a name let go because of the cap is asked for again by a later hover.
 - **Turn it off** with *Wiki descriptions* and *Wiki pictures*, on RuneLite's settings page or in the sidebar menu, and
   nothing is sent for what each one covers. The cards then show without a paragraph (apart from a task's and a level's
   own bundled text), and with the game's icon in place of a picture. With *Show hover cards* off nothing is sent

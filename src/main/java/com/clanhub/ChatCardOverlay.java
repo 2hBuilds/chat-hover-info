@@ -27,7 +27,9 @@ import net.runelite.client.ui.overlay.OverlayPosition;
  * the underline colour on every visible chat line, mouse or no mouse. The "Card place" setting says where: the split card centred above the cursor, or the wide card as wide as
  * the chatbox and pinned above its frame. It finds the line by walking the chatbox's line widgets for the one under the mouse
  * whose plain text holds a line the plugin has cards for, and a card shows only while the mouse is on that card's own
- * words, not elsewhere on the row. A line the game wrapped into rows is one widget, so it is read row by row
+ * words, not elsewhere on the row, with one exception, the hold: when the chat moves under a mouse that has not moved
+ * (a new line arrives and the rows shift up) the card stays where it is until the mouse moves more than {@link #HOLD_JITTER}
+ * px from where it rested, the mouse wheel turns, or the mouse leaves the chat's area. A line the game wrapped into rows is one widget, so it is read row by row
  * ({@link ChatRows}): a card's words are hit and underlined on the row they fall on, a card whose words break across
  * the rows gets a piece on each. Only while the mouse is inside the chat's scroll area: a line scrolled out of the
  * chat is not hidden, its rectangle sits over the game world, so outside the area the card and the hover-reveal are off
@@ -52,6 +54,8 @@ public class ChatCardOverlay extends Overlay
 	private static final int MOVE_THRESHOLD = 3;
 	/** A place the mouse never is, so the first frame always walks. */
 	private static final int NOWHERE = -1000;
+	/** A held card lets the mouse drift this many px, on either axis, from where it rested, before the hold ends. */
+	private static final int HOLD_JITTER = 2;
 
 	private final Client client;
 	private final ClanHubConfig config;
@@ -106,6 +110,24 @@ public class ChatCardOverlay extends Overlay
 	private volatile boolean clickPending;
 	/** The card whose words were clicked last, kept while the mouse stays on them; null when nothing is clicked open. */
 	private HoverCard clickedCard;
+	/** Where the mouse was at the previous frame inside the chat's area, {@link #NOWHERE} when it was outside or off. */
+	private int lastX = NOWHERE;
+	private int lastY = NOWHERE;
+	/** The card shown at the last frame that showed one, null when the mouse has been off every card since. */
+	private HoverCard held;
+	/** When the mouse came onto the held card's words, as {@link #hitSince} counts it. */
+	private long heldSince;
+	/** Where the mouse was when the held card was last hit on its words. */
+	private int heldX;
+	private int heldY;
+	/** Whether the card the last frame showed was the held one, the chat having moved off its words under a still mouse. */
+	private boolean holding;
+	/**
+	 * Whether the mouse wheel has turned since the last frame, set from the wheel listener's thread.
+	 *
+	 * <p>Choice: volatile, because the listener writes it on a thread other than the client thread that reads it.
+	 */
+	private volatile boolean wheelTurned;
 
 	@Inject
 	ChatCardOverlay(Client client, ClanHubConfig config, ItemManager itemManager, SpriteManager spriteManager)
@@ -161,7 +183,7 @@ public class ChatCardOverlay extends Overlay
 		return hovered;
 	}
 
-	/** Tells the overlay whether the card key is held: the plugin's hotkey listener calls it on press and release. */
+	/** Tells the overlay whether the card key is held: the plugin's card key listener calls it on press and release, and when the window loses focus. */
 	void keyHeld(boolean held)
 	{
 		keyHeld = held;
@@ -171,6 +193,15 @@ public class ChatCardOverlay extends Overlay
 	void clicked()
 	{
 		clickPending = true;
+	}
+
+	/**
+	 * Tells the overlay the mouse wheel turned, anywhere: the plugin's wheel listener calls it, and the next frame ends the
+	 * hold of a card, a wheel turn counting as a move of the mouse.
+	 */
+	void wheeled()
+	{
+		wheelTurned = true;
 	}
 
 	@Override
@@ -229,11 +260,46 @@ public class ChatCardOverlay extends Overlay
 			clickPending = false;
 			clickedCard = hitCard;
 		}
-		if (clickedCard != hitCard)
+		// Choice: the hold. When the card is lost to the chat moving under a mouse that has not moved at all since the
+		// frame before (a new line arrives and the rows shift up), the card shown stays the held one while the hand rests:
+		// within HOLD_JITTER px of where it rested, no wheel turn. A move off the words is the player's doing and drops the
+		// card, even by a pixel, so the hold begins only on an unmoved mouse; the chat shifting is not. The walk's own
+		// result (hitCard, hitSince and the row) is left as it is, so the walk keeps its bookkeeping and the hover-reveal
+		// keeps following the line under the pointer; the card shown is a local.
+		HoverCard shown = hitCard;
+		long shownSince = hitSince;
+		final boolean still = mouseX == lastX && mouseY == lastY;
+		final boolean near = Math.abs(mouseX - heldX) <= HOLD_JITTER && Math.abs(mouseY - heldY) <= HOLD_JITTER;
+		if (held != null && shown != held && !wheelTurned && (holding ? near : still))
+		{
+			shown = held;
+			shownSince = heldSince;
+			holding = true;
+		}
+		else
+		{
+			holding = false;
+			if (shown != null)
+			{
+				held = shown;
+				heldSince = shownSince;
+				heldX = mouseX;
+				heldY = mouseY;
+			}
+			else
+			{
+				held = null;
+			}
+		}
+		wheelTurned = false;
+		lastX = mouseX;
+		lastY = mouseY;
+		// The clicked card stays clicked while it is the card shown, held or hit.
+		if (clickedCard != shown)
 		{
 			clickedCard = null;
 		}
-		hovered = hitCard;
+		hovered = shown;
 		// Choice: the hover-reveal, before the gate: the mouse anywhere on a line that holds cards underlines the words of
 		// every quiet card on it, whatever the show mode and the delay say about the card. A marked card's words are
 		// already coloured in the chat, so they carry no underline of their own while the colouring is on.
@@ -247,14 +313,14 @@ public class ChatCardOverlay extends Overlay
 				}
 			}
 		}
-		final boolean clicked = hitCard != null && hitCard == clickedCard;
-		if (hitCard == null
-			|| !CardGate.shows(config.cardTrigger(), keyHeld, clicked, hitSince, System.nanoTime(), config.cardDelayMs()))
+		final boolean clicked = shown != null && shown == clickedCard;
+		if (shown == null
+			|| !CardGate.shows(config.cardTrigger(), keyHeld, clicked, shownSince, System.nanoTime(), config.cardDelayMs()))
 		{
 			return null;
 		}
 
-		final BufferedImage picture = pictureOf(hitCard);
+		final BufferedImage picture = pictureOf(shown);
 		final int fontSize = config.cardFontSize();
 		final Graphics2D measure = scratch.createGraphics();
 		measure.setRenderingHints(g.getRenderingHints());
@@ -263,23 +329,23 @@ public class ChatCardOverlay extends Overlay
 			// Choice: the chatbox's whole frame sets the wide card's width and place, the scroll area's bounds when the
 			// frame is not shown.
 			final Rectangle chat = chatFrame(areaBounds);
-			final String description = descriptionOf(hitCard);
+			final String description = descriptionOf(shown);
 			final Color accent = config.hoverColour();
-			final Dimension size = CardPainter.paintWide(measure, hitCard, picture, fontSize, chat.width, 0, 0, description,
+			final Dimension size = CardPainter.paintWide(measure, shown, picture, fontSize, chat.width, 0, 0, description,
 				accent);
 			measure.dispose();
 			final Rectangle at = CardPainter.placeAboveChat(chat, size);
-			CardPainter.paintWide(g, hitCard, picture, fontSize, chat.width, at.x, at.y, description, accent);
+			CardPainter.paintWide(g, shown, picture, fontSize, chat.width, at.x, at.y, description, accent);
 			return null;
 		}
-		final String description = descriptionOf(hitCard);
+		final String description = descriptionOf(shown);
 		final ClanHubConfig.CardWidth width = config.cardWidth();
-		final Dimension size = CardPainter.paintSplit(measure, hitCard, picture, fontSize, 0, 0, description, width.cap,
+		final Dimension size = CardPainter.paintSplit(measure, shown, picture, fontSize, 0, 0, description, width.cap,
 			width.lines);
 		measure.dispose();
 		final Rectangle at = CardPainter.placeCentred(new Point(mouseX, mouseY), size,
 			new Dimension(client.getCanvasWidth(), client.getCanvasHeight()));
-		CardPainter.paintSplit(g, hitCard, picture, fontSize, at.x, at.y, description, width.cap, width.lines);
+		CardPainter.paintSplit(g, shown, picture, fontSize, at.x, at.y, description, width.cap, width.lines);
 		return null;
 	}
 
@@ -361,12 +427,17 @@ public class ChatCardOverlay extends Overlay
 	/**
 	 * Lets go of the last hit, and of a click not yet read or a card opened by one: a click that lands while the mouse is
 	 * outside the chat's scroll area, or the cards are off, counts as a click elsewhere and must not open a card later.
+	 * It lets go of the held card too, and of where the mouse was, so the first frame back is never a still one.
 	 */
 	private void forget()
 	{
 		clearHit();
 		clickPending = false;
 		clickedCard = null;
+		held = null;
+		holding = false;
+		lastX = NOWHERE;
+		lastY = NOWHERE;
 	}
 
 	/** Lets go of the last hit alone: the walk starts from here, and a click's card is kept while the mouse stays on it. */

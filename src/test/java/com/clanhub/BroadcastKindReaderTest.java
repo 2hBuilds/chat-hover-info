@@ -115,6 +115,27 @@ public class BroadcastKindReaderTest
 	}
 
 	@Test
+	public void aQuestLineWithAStringVariableGivesTheQuestCard() throws Exception
+	{
+		final BroadcastKindReader reader = reader(Mockito.mock(ItemCards.class));
+		final String plain = "Small Za has completed a quest: King's Ransom";
+		final String raw = "<img=2> <str_quest_name_0=King's Ransom>Small Za has completed a quest: "
+			+ "<str_quest_name_0>";
+
+		final HoverCard quest = theCard(reader, ChatMessageType.CLAN_MESSAGE, raw);
+		assertEquals(plain, quest.plainLine());
+		assertEquals("King's Ransom", quest.plainLine().substring(quest.start(), quest.end()));
+		assertTrue("a quest name is coloured in the chat", quest.marked());
+
+		final HoverCard literal = theCard(reader, ChatMessageType.CLAN_MESSAGE, plain);
+		assertEquals("King's Ransom", quest.title());
+		assertEquals("the card of the quest written out", literal.title(), quest.title());
+		assertEquals(rowOf(literal), rowOf(quest));
+		assertEquals(literal.spriteId(), quest.spriteId());
+		assertEquals(literal.wikiUrl(), quest.wikiUrl());
+	}
+
+	@Test
 	public void petLevelTotalXpDiaryAndPersonalBestLines() throws Exception
 	{
 		final BroadcastKindReader reader = reader(Mockito.mock(ItemCards.class));

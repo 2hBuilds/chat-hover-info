@@ -5,10 +5,11 @@ import net.runelite.api.Client;
 import net.runelite.api.events.CommandExecuted;
 
 /**
- * The developer-mode command {@code ::hoverinfo demo}: it posts {@link DemoLines}' sample lines into the player's own
- * chatbox as clan and friends chat lines, so the cards can be hovered at once. It does nothing in a Hub build, where
- * developer mode is off. The lines go through {@code Client.addChatMessage} and so reach the plugin's chat reader the
- * way a real line does; nothing is sent to the game's servers.
+ * The developer-mode commands {@code ::hoverinfo demo} and {@code ::hoverinfo trace}. The first posts {@link DemoLines}' sample lines into the player's own
+ * chatbox as clan and friends chat lines, so the cards can be hovered at once. The second only names itself here
+ * ({@link #isTrace}); the plugin keeps the switch it flips. Both do nothing in a Hub build, where developer mode is
+ * off. The demo lines go through {@code Client.addChatMessage} and so reach the plugin's chat reader the way a real
+ * line does; nothing is sent to the game's servers.
  */
 final class DemoCommand
 {
@@ -16,6 +17,8 @@ final class DemoCommand
 	private static final String COMMAND = "hoverinfo";
 	/** The command's first argument. */
 	private static final String DEMO = "demo";
+	/** The command's other first argument, which toggles the plugin's chat trace. */
+	private static final String TRACE = "trace";
 	/** What the client shows as the channel's name on a clan or friends chat line. */
 	private static final String SENDER = "2h Chat Hover Info";
 
@@ -50,6 +53,20 @@ final class DemoCommand
 			posted++;
 		}
 		return posted;
+	}
+
+	/**
+	 * Whether {@code event} is {@code ::hoverinfo trace} typed with {@code developerMode} on (both words in any case):
+	 * true then, false for anything else, a bare {@code ::hoverinfo} and {@code ::hoverinfo demo} included.
+	 */
+	static boolean isTrace(boolean developerMode, CommandExecuted event)
+	{
+		if (!developerMode || !COMMAND.equalsIgnoreCase(event.getCommand()))
+		{
+			return false;
+		}
+		final String[] arguments = event.getArguments();
+		return arguments != null && arguments.length != 0 && TRACE.equalsIgnoreCase(arguments[0]);
 	}
 
 	/** "2h Chat Hover Info" for a clan or friends chat type, empty for any other. */

@@ -6,6 +6,7 @@ import net.runelite.api.events.CommandExecuted;
 import org.junit.Test;
 import org.mockito.Mockito;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -43,5 +44,21 @@ public class DemoCommandTest
 		final Client other = Mockito.mock(Client.class);
 		assertEquals(0, DemoCommand.run(other, true, command("hoverinfo", "show")));
 		verifyNoInteractions(other);
+	}
+
+	/** Lot 8Y: {@code ::hoverinfo trace} is read in developer mode only, in any case, and posts no sample line. */
+	@Test
+	public void theTraceWordIsReadOnlyInDeveloperMode()
+	{
+		assertTrue(DemoCommand.isTrace(true, command("hoverinfo", "trace")));
+		assertTrue("any case", DemoCommand.isTrace(true, command("HoverInfo", "TRACE")));
+		assertFalse("a Hub build", DemoCommand.isTrace(false, command("hoverinfo", "trace")));
+		assertFalse("the demo word", DemoCommand.isTrace(true, command("hoverinfo", "demo")));
+		assertFalse("no arguments", DemoCommand.isTrace(true, command("hoverinfo")));
+		assertFalse("another command", DemoCommand.isTrace(true, command("other", "trace")));
+
+		final Client client = Mockito.mock(Client.class);
+		assertEquals("the trace word posts no sample line", 0, DemoCommand.run(client, true, command("hoverinfo", "trace")));
+		verifyNoInteractions(client);
 	}
 }

@@ -3,6 +3,7 @@ package com.clanhub;
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
+import java.awt.Color;
 
 /**
  * The settings the panel's menu shows and writes: what it reads when it opens, and what it writes when a control
@@ -63,6 +64,18 @@ interface PanelSettings
 
 	/** Writes whether the level and XP phrases that have a card carry a line under them at all times. */
 	void setAlwaysUnderlineLevels(boolean on);
+
+	/** The colour of the words a card is about, and of the underline under the ones hovered. */
+	Color hoverColour();
+
+	/** Writes the colour of the words a card is about, and of the underline under the ones hovered. */
+	void setHoverColour(Color colour);
+
+	/** The colour of the line kept under the quiet phrases. */
+	Color alwaysUnderlineColour();
+
+	/** Writes the colour of the line kept under the quiet phrases. */
+	void setAlwaysUnderlineColour(Color colour);
 
 	/** How long the mouse rests on the words before the card opens, in milliseconds. */
 	int cardDelayMs();
