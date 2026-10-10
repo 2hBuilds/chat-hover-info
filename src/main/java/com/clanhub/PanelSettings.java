@@ -4,6 +4,7 @@ import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import java.awt.Color;
+import net.runelite.client.config.Keybind;
 
 /**
  * The settings the panel's menu shows and writes: what it reads when it opens, and what it writes when a control
@@ -46,6 +47,12 @@ interface PanelSettings
 
 	/** Writes when a card opens. */
 	void setCardTrigger(CardTrigger trigger);
+
+	/** The key to hold when a card opens only while a key is held. */
+	Keybind cardKey();
+
+	/** Writes the key to hold when a card opens only while a key is held. */
+	void setCardKey(Keybind key);
 
 	/** Where a card opens. */
 	CardPlace cardPlace();

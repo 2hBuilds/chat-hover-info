@@ -7,6 +7,11 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Window;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.ArrayList;
@@ -15,6 +20,7 @@ import java.util.function.Consumer;
 import javax.swing.AbstractButton;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -22,9 +28,11 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JSpinner;
+import javax.swing.LayoutFocusTraversalPolicy;
 import javax.swing.MenuElement;
 import javax.swing.MenuSelectionManager;
 import javax.swing.SwingUtilities;
+import net.runelite.client.config.Keybind;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -45,12 +53,17 @@ public class ClanHubPanelTest
 	private final List<Boolean> bosses = new ArrayList<>();
 	private final List<Boolean> underlines = new ArrayList<>();
 	private final List<CardTrigger> triggers = new ArrayList<>();
+	private final List<Keybind> keys = new ArrayList<>();
 	private final List<CardPlace> places = new ArrayList<>();
 	private final List<CardWidth> widths = new ArrayList<>();
 	private final List<Integer> delays = new ArrayList<>();
 	private final List<Integer> sizes = new ArrayList<>();
 	private final List<Color> hoverColours = new ArrayList<>();
 	private final List<Color> underlineColours = new ArrayList<>();
+
+	/** The key and the show mode the settings stub answers: a test may set them before the menu opens. */
+	private Keybind cardKey = Keybind.ALT;
+	private CardTrigger trigger = CardTrigger.HOVER;
 
 	/** What the picker stub was asked: the parent, the title and the starting colour of each call. */
 	private final List<Object[]> pickerCalls = new ArrayList<>();
@@ -167,13 +180,25 @@ public class ClanHubPanelTest
 		@Override
 		public CardTrigger cardTrigger()
 		{
-			return CardTrigger.HOVER;
+			return trigger;
 		}
 
 		@Override
 		public void setCardTrigger(CardTrigger trigger)
 		{
 			triggers.add(trigger);
+		}
+
+		@Override
+		public Keybind cardKey()
+		{
+			return cardKey;
+		}
+
+		@Override
+		public void setCardKey(Keybind key)
+		{
+			keys.add(key);
 		}
 
 		@Override
@@ -252,8 +277,9 @@ public class ClanHubPanelTest
 				// Re-aimed by the lead, 2026-10-08 (lot 8U): a sixth check, "Wiki pictures".
 				// Re-aimed by the lead, 2026-10-09 (lot 9B): the choice rows are submenus with radio items.
 				// Re-aimed by the lead, 2026-10-09 (lot 9D): two colour rows after the number boxes.
-				assertEquals("header, rule, six checks, rule, three submenus and two rows, two colour rows, rule, OK row", 18,
-					parts.length);
+				// Re-aimed by the lead, 2026-10-09 (lot 9F): the card key row after the show submenu.
+				assertEquals("header, rule, six checks, rule, the show submenu, the key row, the delay row, two submenus,"
+					+ " the size row, two colour rows, rule, OK row", 19, parts.length);
 				assertTrue("the header is the support header's one panel", parts[0] instanceof JPanel);
 				assertEquals("the header's title, version and links", 3, ((JPanel) parts[0]).getComponentCount());
 				assertTrue("a rule", parts[1] instanceof JPopupMenu.Separator);
@@ -265,14 +291,15 @@ public class ClanHubPanelTest
 				assertTrue("the sixth check", parts[7] instanceof JCheckBoxMenuItem);
 				assertTrue("a rule", parts[8] instanceof JPopupMenu.Separator);
 				assertTrue("the show submenu", parts[9] instanceof JMenu);
-				assertTrue("the delay row", parts[10] instanceof JPanel);
-				assertTrue("the place submenu", parts[11] instanceof JMenu);
-				assertTrue("the width submenu", parts[12] instanceof JMenu);
-				assertTrue("the size row", parts[13] instanceof JPanel);
-				assertTrue("the hover colour row", parts[14] instanceof JPanel);
-				assertTrue("the underline colour row", parts[15] instanceof JPanel);
-				assertTrue("a rule", parts[16] instanceof JPopupMenu.Separator);
-				assertTrue("the OK row", parts[17] instanceof JPanel);
+				assertTrue("the key row", parts[10] instanceof JPanel);
+				assertTrue("the delay row", parts[11] instanceof JPanel);
+				assertTrue("the place submenu", parts[12] instanceof JMenu);
+				assertTrue("the width submenu", parts[13] instanceof JMenu);
+				assertTrue("the size row", parts[14] instanceof JPanel);
+				assertTrue("the hover colour row", parts[15] instanceof JPanel);
+				assertTrue("the underline colour row", parts[16] instanceof JPanel);
+				assertTrue("a rule", parts[17] instanceof JPopupMenu.Separator);
+				assertTrue("the OK row", parts[18] instanceof JPanel);
 
 				final JCheckBoxMenuItem showCheck = (JCheckBoxMenuItem) parts[2];
 				assertEquals("Show hover cards", showCheck.getText());
@@ -297,22 +324,28 @@ public class ClanHubPanelTest
 				assertEquals("Show a card: On hover", showMenu.getText());
 				assertRadios(showMenu, CardTrigger.values(), CardTrigger.HOVER);
 
-				final JPanel delayRow = (JPanel) parts[10];
+				final JPanel keyRow = (JPanel) parts[10];
+				assertEquals("Card key", ((JLabel) keyRow.getComponent(0)).getText());
+				assertTrue("the key row ends in a button", lastOf(keyRow) instanceof JButton);
+				assertEquals("Alt", ((JButton) lastOf(keyRow)).getText());
+				assertFalse("greyed unless the show mode is 'While holding a key'", lastOf(keyRow).isEnabled());
+
+				final JPanel delayRow = (JPanel) parts[11];
 				assertEquals("Card delay (ms)", ((JLabel) delayRow.getComponent(0)).getText());
 				final JSpinner delaySpinner = (JSpinner) lastOf(delayRow);
 				assertEquals(0, delaySpinner.getValue());
 				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) delaySpinner.getEditor())
 					.getTextField().getColumns() <= 4);
 
-				final JMenu placeMenu = (JMenu) parts[11];
+				final JMenu placeMenu = (JMenu) parts[12];
 				assertEquals("Card place: Above the cursor", placeMenu.getText());
 				assertRadios(placeMenu, CardPlace.values(), CardPlace.CURSOR);
 
-				final JMenu widthMenu = (JMenu) parts[12];
+				final JMenu widthMenu = (JMenu) parts[13];
 				assertEquals("Card width: Wide", widthMenu.getText());
 				assertRadios(widthMenu, CardWidth.values(), CardWidth.WIDE);
 
-				final JPanel sizeRow = (JPanel) parts[13];
+				final JPanel sizeRow = (JPanel) parts[14];
 				assertFalse("see-through", sizeRow.isOpaque());
 				assertEquals("Card text size", ((JLabel) sizeRow.getComponent(0)).getText());
 				final JSpinner sizeSpinner = (JSpinner) lastOf(sizeRow);
@@ -320,17 +353,17 @@ public class ClanHubPanelTest
 				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) sizeSpinner.getEditor())
 					.getTextField().getColumns() <= 4);
 
-				final JPanel hoverRow = (JPanel) parts[14];
+				final JPanel hoverRow = (JPanel) parts[15];
 				assertEquals("Hover colour", ((JLabel) hoverRow.getComponent(0)).getText());
 				assertTrue("the hover colour row ends in a swatch", lastOf(hoverRow) instanceof JButton);
 				assertEquals(new Color(59, 130, 246), lastOf(hoverRow).getBackground());
-				final JPanel underlineRow = (JPanel) parts[15];
+				final JPanel underlineRow = (JPanel) parts[16];
 				assertEquals("Underline colour", ((JLabel) underlineRow.getComponent(0)).getText());
 				assertTrue("the underline colour row ends in a swatch", lastOf(underlineRow) instanceof JButton);
 				assertEquals(new Color(150, 150, 150), lastOf(underlineRow).getBackground());
 
 				final List<String> okRow = new ArrayList<>();
-				for (final Component part : ((JPanel) parts[17]).getComponents())
+				for (final Component part : ((JPanel) parts[18]).getComponents())
 				{
 					if (part instanceof JButton)
 					{
@@ -340,8 +373,8 @@ public class ClanHubPanelTest
 				assertEquals("the OK row is last: Reset to default, then OK", List.of("Reset to default", "OK"), okRow);
 
 				assertTrue("opening the menu writes nothing back", shown.isEmpty() && coloured.isEmpty() && wiki.isEmpty()
-					&& pictures.isEmpty() && bosses.isEmpty() && underlines.isEmpty() && triggers.isEmpty() && places.isEmpty() && widths.isEmpty() && delays.isEmpty() && sizes.isEmpty()
-					&& hoverColours.isEmpty() && underlineColours.isEmpty());
+					&& pictures.isEmpty() && bosses.isEmpty() && underlines.isEmpty() && triggers.isEmpty() && keys.isEmpty() && places.isEmpty() && widths.isEmpty() && delays.isEmpty()
+					&& sizes.isEmpty() && hoverColours.isEmpty() && underlineColours.isEmpty());
 				colourCheck.doClick(0);
 				assertEquals("un-ticking the colour check says false", List.of(false), coloured);
 				assertTrue("and writes nothing to the wiki check", wiki.isEmpty());
@@ -365,6 +398,7 @@ public class ClanHubPanelTest
 				radio(showMenu, 1).doClick(0);
 				assertEquals("choosing 'While holding a key' says so", List.of(CardTrigger.HOLD_KEY), triggers);
 				assertEquals("and the submenu says so", "Show a card: While holding a key", showMenu.getText());
+				assertTrue("and the key box is enabled", lastOf(keyRow).isEnabled());
 				radio(placeMenu, 1).doClick(0);
 				assertEquals("choosing 'Above the chat' says so, once", List.of(CardPlace.CHAT), places);
 				assertEquals("and the trigger was not touched again", List.of(CardTrigger.HOLD_KEY), triggers);
@@ -420,7 +454,7 @@ public class ClanHubPanelTest
 				assertEquals("a second write, ticked again", List.of(false, true), coloured);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[17]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[18]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -479,7 +513,7 @@ public class ClanHubPanelTest
 				assertEquals("one write, 'On click'", List.of(CardTrigger.CLICK), triggers);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[17]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[18]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -520,7 +554,7 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[14]);
+				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[15]);
 				assertEquals(new Color(59, 130, 246), hoverSwatch.getBackground());
 				hoverSwatch.doClick(0);
 				assertFalse("the menu goes while the picker is open", menu.isVisible());
@@ -534,7 +568,7 @@ public class ClanHubPanelTest
 				pickerOnClose.accept(new Color(1, 2, 3));
 				assertTrue("the menu comes back when the picker closes", menu.isVisible());
 
-				final JButton underlineSwatch = (JButton) lastOf((JPanel) menu.getComponents()[15]);
+				final JButton underlineSwatch = (JButton) lastOf((JPanel) menu.getComponents()[16]);
 				assertEquals(new Color(150, 150, 150), underlineSwatch.getBackground());
 				underlineSwatch.doClick(0);
 				assertFalse("the menu goes again", menu.isVisible());
@@ -553,6 +587,222 @@ public class ClanHubPanelTest
 				frame.dispose();
 			}
 		});
+	}
+
+	/**
+	 * Lot 9F: the card key box waits for a press, takes the next key (Escape keeps the old one, Backspace clears it, a
+	 * modifier alone is a key), and holds the keyboard only while it waits.
+	 */
+	@Test
+	public void theKeyBoxTakesTheNextKey() throws Exception
+	{
+		trigger = CardTrigger.HOLD_KEY;
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final JFrame frame = new JFrame();
+			frame.setFocusableWindowState(false);
+			frame.add(panel);
+			frame.setBounds(100, 100, 500, 600);
+			frame.setVisible(true);
+			try
+			{
+				frame.validate();
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				assertTrue("the menu is up", menu.isVisible());
+
+				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[10]);
+				assertEquals("Alt", box.getText());
+				assertTrue("enabled in the key mode", box.isEnabled());
+				assertFalse("not focusable at rest", box.isFocusable());
+
+				box.doClick(0);
+				assertEquals("Press a key", box.getText());
+				assertTrue("focusable while it waits", box.isFocusable());
+
+				final KeyEvent g = keyPress(box, KeyEvent.VK_G, 0);
+				for (final KeyListener listener : box.getKeyListeners())
+				{
+					listener.keyPressed(g);
+				}
+				assertEquals("G is written", List.of(new Keybind(KeyEvent.VK_G, 0)), keys);
+				assertEquals("and shown", "G", box.getText());
+				assertFalse("the keyboard is let go", box.isFocusable());
+				assertTrue("the key press is consumed", g.isConsumed());
+				assertTrue("the menu stays up", menu.isVisible());
+
+				box.doClick(0);
+				assertEquals("Press a key", box.getText());
+				final KeyEvent escape = keyPress(box, KeyEvent.VK_ESCAPE, 0);
+				for (final KeyListener listener : box.getKeyListeners())
+				{
+					listener.keyPressed(escape);
+				}
+				assertEquals("Escape writes nothing", 1, keys.size());
+				assertEquals("and the old key is back", "G", box.getText());
+				assertFalse("the keyboard is let go", box.isFocusable());
+				assertTrue("the menu stays up", menu.isVisible());
+
+				box.doClick(0);
+				final KeyEvent backspace = keyPress(box, KeyEvent.VK_BACK_SPACE, 0);
+				for (final KeyListener listener : box.getKeyListeners())
+				{
+					listener.keyPressed(backspace);
+				}
+				assertEquals("Backspace clears the key", List.of(new Keybind(KeyEvent.VK_G, 0), Keybind.NOT_SET), keys);
+				assertEquals("Not set", box.getText());
+
+				box.doClick(0);
+				final KeyEvent control = keyPress(box, KeyEvent.VK_CONTROL, InputEvent.CTRL_DOWN_MASK);
+				for (final KeyListener listener : box.getKeyListeners())
+				{
+					listener.keyPressed(control);
+				}
+				assertEquals("Ctrl alone is a key", 3, keys.size());
+				assertEquals(Keybind.CTRL, keys.get(2));
+				assertEquals("Ctrl", box.getText());
+
+				box.doClick(0);
+				assertEquals("Press a key", box.getText());
+				for (final FocusListener listener : box.getFocusListeners())
+				{
+					listener.focusLost(new FocusEvent(box, FocusEvent.FOCUS_LOST));
+				}
+				assertEquals("losing the keyboard writes nothing", 3, keys.size());
+				assertEquals("and the old key is back", "Ctrl", box.getText());
+				assertFalse("and the box is unfocusable again", box.isFocusable());
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 9F: no number box takes the keyboard when the menu opens (a blinking caret in the delay box was the fault); a
+	 * left press gives it the keyboard, losing the keyboard takes it away again, and a typed number applies as it is typed.
+	 */
+	@Test
+	public void theNumberBoxesTakeTheKeyboardOnlyWhenPressedAndWriteAsYouType() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final JFrame frame = new JFrame();
+			frame.setFocusableWindowState(false);
+			frame.add(panel);
+			frame.setBounds(100, 100, 500, 600);
+			frame.setVisible(true);
+			try
+			{
+				frame.validate();
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				assertTrue("the menu is up", menu.isVisible());
+
+				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[11]);
+				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[14]);
+				final JFormattedTextField delayField = ((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField();
+				final JFormattedTextField sizeField = ((JSpinner.DefaultEditor) sizeSpinner.getEditor()).getTextField();
+				assertFalse("the delay box is not focusable at rest", delayField.isFocusable());
+				assertFalse("the size box is not focusable at rest", sizeField.isFocusable());
+
+				delayField.dispatchEvent(new MouseEvent(delayField, MouseEvent.MOUSE_PRESSED, System.currentTimeMillis(),
+					InputEvent.BUTTON1_DOWN_MASK, 1, 1, 1, false, MouseEvent.BUTTON1));
+				assertTrue("a left press makes it focusable", delayField.isFocusable());
+				assertFalse("and not the other box", sizeField.isFocusable());
+				for (final FocusListener listener : delayField.getFocusListeners())
+				{
+					listener.focusLost(new FocusEvent(delayField, FocusEvent.FOCUS_LOST));
+				}
+				assertFalse("losing the keyboard makes it unfocusable again", delayField.isFocusable());
+
+				delayField.setText("300");
+				assertEquals("a typed number applies without Enter", List.of(300), delays);
+				delayField.setText("5000");
+				assertEquals("a number out of range is not written", List.of(300), delays);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 9G: the menu's header is the one focusable part at rest, so the menu's window takes the keyboard when the menu
+	 * opens and the boxes can take it from the window on a press; the boxes stay unfocusable at rest.
+	 */
+	@Test
+	public void theHeaderHoldsTheKeyboardWhenTheMenuOpens() throws Exception
+	{
+		trigger = CardTrigger.HOLD_KEY;
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final JFrame frame = new JFrame();
+			frame.setFocusableWindowState(false);
+			frame.add(panel);
+			frame.setBounds(100, 100, 500, 600);
+			frame.setVisible(true);
+			try
+			{
+				frame.validate();
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				assertTrue("the menu is up", menu.isVisible());
+
+				final Component header = menu.getComponents()[0];
+				assertTrue("the header is a panel", header instanceof JPanel);
+				assertTrue("the header is focusable", header.isFocusable());
+				assertEquals("the part the window gives the keyboard to is the header", header,
+					new LayoutFocusTraversalPolicy().getFirstComponent(SwingUtilities.getWindowAncestor(menu)));
+
+				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[11]);
+				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[14]);
+				assertFalse("the delay box is not focusable at rest",
+					((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField().isFocusable());
+				assertFalse("the size box is not focusable at rest",
+					((JSpinner.DefaultEditor) sizeSpinner.getEditor()).getTextField().isFocusable());
+				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[10]);
+				assertFalse("the key box is not focusable at rest", box.isFocusable());
+
+				box.doClick(0);
+				assertEquals("Press a key", box.getText());
+				assertTrue("the key box is focusable while it waits", box.isFocusable());
+				final KeyEvent g = keyPress(box, KeyEvent.VK_G, 0);
+				for (final KeyListener listener : box.getKeyListeners())
+				{
+					listener.keyPressed(g);
+				}
+				assertEquals("G is written", List.of(new Keybind(KeyEvent.VK_G, 0)), keys);
+				assertFalse("the key box is unfocusable again", box.isFocusable());
+				assertTrue("and the header is still focusable", header.isFocusable());
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/** A key press on {@code source}, answering the extended key code as the AWT toolkit does, which {@link Keybind} reads. */
+	private static KeyEvent keyPress(Component source, int keyCode, int modifiers)
+	{
+		return new KeyEvent(source, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), modifiers, keyCode,
+			KeyEvent.CHAR_UNDEFINED)
+		{
+			@Override
+			public int getExtendedKeyCode()
+			{
+				return getKeyCode();
+			}
+		};
 	}
 
 	/** The submenu's {@code index}th choice. */

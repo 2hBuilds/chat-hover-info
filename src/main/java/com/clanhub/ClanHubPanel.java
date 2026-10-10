@@ -8,7 +8,13 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +44,8 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
+import javax.swing.text.DefaultFormatter;
+import net.runelite.client.config.Keybind;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
@@ -46,10 +54,10 @@ import net.runelite.client.util.LinkBrowser;
 /**
  * The sidebar panel: one message card (a bold line and a grey line, centred) whose top row ends with the support
  * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the six switches, the three
- * choice submenus and the two number boxes (when a card opens, its delay, where it opens, how wide it grows, its text
- * size), the two colour rows (the hover colour and the underline colour, each a swatch that opens RuneLite's colour
- * picker), then the OK row. The card key is set in RuneLite's own settings panel, not here. The plugin replaces the
- * card with its own views; the pair, the menu and the type sizes stay.
+ * choice submenus, the card key box and the two number boxes (when a card opens, the key that opens it, its delay,
+ * where it opens, how wide it grows, its text size), the two colour rows (the hover colour and the underline colour,
+ * each a swatch that opens RuneLite's colour picker), then the OK row. The plugin replaces the card with its own views;
+ * the pair, the menu and the type sizes stay.
  */
 public class ClanHubPanel extends PluginPanel
 {
@@ -66,6 +74,8 @@ public class ClanHubPanel extends PluginPanel
 	static final String BOSS_TEXT = "Boss cards";
 	static final String ALWAYS_UNDERLINE_TEXT = "Underline level-ups";
 	static final String CARD_TRIGGER_TEXT = "Show a card";
+	static final String CARD_KEY_TEXT = "Card key";
+	static final String CARD_KEY_TIP = "Press, then the key to hold";
 	static final String CARD_DELAY_TEXT = "Card delay (ms)";
 	static final String CARD_PLACE_TEXT = "Card place";
 	static final String CARD_WIDTH_TEXT = "Card width";
@@ -92,6 +102,8 @@ public class ClanHubPanel extends PluginPanel
 	private static final long REOPEN_GUARD_NANOS = 250_000_000L;
 	/** A colour swatch's side, in px. */
 	private static final int SWATCH_SIZE = 16;
+	/** What the card key box says while it waits for the key. */
+	private static final String KEY_PROMPT = "Press a key";
 
 	private final Runnable resetToDefault;
 	private final PanelSettings settings;
@@ -103,6 +115,7 @@ public class ClanHubPanel extends PluginPanel
 	private final JCheckBoxMenuItem picturesCheck;
 	private final JCheckBoxMenuItem bossCheck;
 	private final JCheckBoxMenuItem underlineCheck;
+	private final JButton keyBox;
 	private final JMenu triggerMenu;
 	private final JMenu placeMenu;
 	private final JMenu widthMenu;
@@ -118,6 +131,10 @@ public class ClanHubPanel extends PluginPanel
 	private long closedAtNanos = System.nanoTime() - 2 * REOPEN_GUARD_NANOS;
 	/** True while the menu's controls are being set from the settings, so that setting them writes nothing back. */
 	private boolean syncing;
+	/** The key the card key box shows when it is not waiting: the setting's, or the one just taken. */
+	private Keybind shownKey = Keybind.NOT_SET;
+	/** True while the card key box waits for the key to take. */
+	private boolean keyArmed;
 
 	/**
 	 * @param resetToDefault what "Reset to default" does: puts the plugin's settings back to their defaults
@@ -138,7 +155,12 @@ public class ClanHubPanel extends PluginPanel
 		this.picturesCheck = check(PICTURES_TEXT, settings::setWikiPictures);
 		this.bossCheck = check(BOSS_TEXT, settings::setBossCards);
 		this.underlineCheck = check(ALWAYS_UNDERLINE_TEXT, settings::setAlwaysUnderlineLevels);
-		this.triggerMenu = choices(CARD_TRIGGER_TEXT, CardTrigger.values(), settings::cardTrigger, settings::setCardTrigger);
+		this.keyBox = buildKeyBox();
+		this.triggerMenu = choices(CARD_TRIGGER_TEXT, CardTrigger.values(), settings::cardTrigger, trigger ->
+		{
+			settings.setCardTrigger(trigger);
+			keyBoxEnabled(trigger == CardTrigger.HOLD_KEY);
+		});
 		this.placeMenu = choices(CARD_PLACE_TEXT, CardPlace.values(), settings::cardPlace, settings::setCardPlace);
 		this.widthMenu = choices(CARD_WIDTH_TEXT, CardWidth.values(), settings::cardWidth, settings::setCardWidth);
 		this.delaySpinner = spinner(0, 0, MAX_CARD_DELAY, CARD_DELAY_STEP, 4, settings::setCardDelayMs);
@@ -228,14 +250,18 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * The settings menu, in STANDARD A5's order: the header, a rule, the six switches, a rule, the three choice submenus
-	 * and the two number rows (when a card opens, the delay, where it opens, how wide it grows, the text size) and the
-	 * two colour rows (the hover colour, the underline colour), a rule, then the OK row.
+	 * and the card key and the two number rows (when a card opens, the key that opens it, the delay, where it opens, how
+	 * wide it grows, the text size) and the two colour rows (the hover colour, the underline colour), a rule, then the OK
+	 * row. The header is focusable, so the menu's window takes the keyboard when the menu opens and gives it to the
+	 * header, which shows no caret; no box is focusable at rest, and a press moves the keyboard to the box pressed.
 	 */
 	private JPopupMenu buildMenu()
 	{
 		final JPopupMenu popup = new JPopupMenu();
 		popup.setBorder(new EmptyBorder(5, 5, 5, 5));
-		popup.add(support.header());
+		final JPanel header = support.header();
+		header.setFocusable(true);
+		popup.add(header);
 		popup.addSeparator();
 		popup.add(showCheck);
 		popup.add(colourCheck);
@@ -245,6 +271,7 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(underlineCheck);
 		popup.addSeparator();
 		popup.add(triggerMenu);
+		popup.add(row(CARD_KEY_TEXT, keyBox));
 		popup.add(row(CARD_DELAY_TEXT, delaySpinner));
 		popup.add(placeMenu);
 		popup.add(widthMenu);
@@ -413,6 +440,167 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
+	 * The card key box: a small button in the menu's 12 px type showing the key's words. A press arms it, and the next key
+	 * pressed is the card key: Escape keeps the old one, Backspace or Delete clears it, any other key (a modifier alone
+	 * included) is taken. The box is greyed unless "Show a card" is "While holding a key"; {@link #syncControls} sets it
+	 * from the setting.
+	 */
+	private JButton buildKeyBox()
+	{
+		final JButton box = new JButton();
+		box.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
+		box.setFocusPainted(false);
+		box.setToolTipText(CARD_KEY_TIP);
+		typesOnPress(box);
+		fitKeyBox(box, shownKey.toString());
+		box.addActionListener(e -> armKey());
+		box.addKeyListener(new KeyAdapter()
+		{
+			@Override
+			public void keyPressed(KeyEvent e)
+			{
+				if (keyArmed)
+				{
+					takeKey(e);
+				}
+			}
+		});
+		box.addFocusListener(new FocusAdapter()
+		{
+			@Override
+			public void focusLost(FocusEvent e)
+			{
+				if (keyArmed)
+				{
+					cancelKey();
+				}
+			}
+		});
+		return box;
+	}
+
+	/** Puts {@code words} on the key box, as wide as the wider of them and "Press a key", so the box never jumps. */
+	private static void fitKeyBox(JButton box, String words)
+	{
+		box.setText(words);
+		box.setPreferredSize(null);
+		box.setMinimumSize(null);
+		box.setMaximumSize(null);
+		final Dimension natural = box.getPreferredSize();
+		final FontMetrics metrics = box.getFontMetrics(box.getFont());
+		final int extra = Math.max(0, metrics.stringWidth(KEY_PROMPT) - metrics.stringWidth(words));
+		final Dimension size = new Dimension(natural.width + extra, natural.height);
+		box.setPreferredSize(size);
+		box.setMinimumSize(size);
+		box.setMaximumSize(size);
+		box.revalidate();
+	}
+
+	/** A press on the key box: it says "Press a key" and takes the keyboard. */
+	private void armKey()
+	{
+		if (!keyArmed)
+		{
+			keyArmed = true;
+			fitKeyBox(keyBox, KEY_PROMPT);
+		}
+		takeKeyboard(keyBox);
+	}
+
+	/** The key press an armed key box has been waiting for, consumed so that nothing else reads it. */
+	private void takeKey(KeyEvent e)
+	{
+		e.consume();
+		final int code = e.getKeyCode();
+		if (code == KeyEvent.VK_ESCAPE)
+		{
+			cancelKey();
+		}
+		else if (code == KeyEvent.VK_BACK_SPACE || code == KeyEvent.VK_DELETE)
+		{
+			setKey(Keybind.NOT_SET);
+		}
+		else
+		{
+			setKey(new Keybind(e));
+		}
+	}
+
+	/** Writes the card key and shows it; the key box stops waiting and lets the keyboard go. */
+	private void setKey(Keybind key)
+	{
+		settings.setCardKey(key);
+		showKey(key);
+	}
+
+	/** The key box stops waiting, writes nothing, and shows the key it showed before. */
+	private void cancelKey()
+	{
+		showKey(shownKey);
+	}
+
+	/** Shows {@code key} on the key box, not waiting and not holding the keyboard. */
+	private void showKey(Keybind key)
+	{
+		keyArmed = false;
+		shownKey = key;
+		fitKeyBox(keyBox, key.toString());
+		keyBox.setFocusable(false);
+	}
+
+	/** Enables the key box, or greys it (and stops it waiting, if it was) when the card does not open on a key. */
+	private void keyBoxEnabled(boolean on)
+	{
+		if (!on && keyArmed)
+		{
+			cancelKey();
+		}
+		keyBox.setEnabled(on);
+	}
+
+	/**
+	 * Keeps a typing part of the menu out of the keyboard's reach until it is pressed: it is not focusable at rest, a
+	 * left press on it makes it focusable and asks for the keyboard, and losing the keyboard makes it unfocusable again.
+	 *
+	 * <p>Choice: RuneLite's menu is a heavyweight window, and a window hands the keyboard to its first focusable part
+	 * when it opens, which was the delay box's text field, with its caret blinking and the game's keys going nowhere.
+	 * With no box focusable at rest, none holds a caret when the menu opens. The window takes the keyboard when it is
+	 * shown only if it holds a focusable part then, which the header is, so the window has the keyboard and a press can
+	 * move it to a box. The window may not be the focused one yet when a part is pressed, so {@code requestFocus} is
+	 * asked, not {@code requestFocusInWindow}, which would fail.
+	 */
+	private static void typesOnPress(JComponent part)
+	{
+		part.setFocusable(false);
+		part.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				if (SwingUtilities.isLeftMouseButton(e))
+				{
+					takeKeyboard(part);
+				}
+			}
+		});
+		part.addFocusListener(new FocusAdapter()
+		{
+			@Override
+			public void focusLost(FocusEvent e)
+			{
+				part.setFocusable(false);
+			}
+		});
+	}
+
+	/** Makes the typing part focusable and asks for the keyboard for it. */
+	private static void takeKeyboard(JComponent part)
+	{
+		part.setFocusable(true);
+		part.requestFocus();
+	}
+
+	/**
 	 * A number spinner from {@code min} to {@code max} in steps of {@code step}, in the menu's 12 px type and
 	 * {@code columns} characters wide, writing its value when it changes.
 	 */
@@ -424,6 +612,12 @@ public class ClanHubPanel extends PluginPanel
 		final JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) spinner.getEditor();
 		editor.getTextField().setFont(font);
 		editor.getTextField().setColumns(columns);
+		if (editor.getTextField().getFormatter() instanceof DefaultFormatter)
+		{
+			// A typed number applies as it is typed; a number out of range, or not a number, is never committed.
+			((DefaultFormatter) editor.getTextField().getFormatter()).setCommitsOnValidEdit(true);
+		}
+		typesOnPress(editor.getTextField());
 		spinner.setMaximumSize(spinner.getPreferredSize());
 		spinner.addChangeListener(e ->
 		{
@@ -501,8 +695,8 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * Sets the checks, the choice submenus, the spinners and the colour swatches from the settings, without writing
-	 * anything back.
+	 * Sets the checks, the choice submenus, the card key box, the spinners and the colour swatches from the settings,
+	 * without writing anything back.
 	 *
 	 * <p>Choice: a stored size outside 8 to 24 shows as the nearest end of the range, and a stored delay outside 0 to 1000
 	 * likewise.
@@ -520,6 +714,8 @@ public class ClanHubPanel extends PluginPanel
 			underlineCheck.setSelected(settings.alwaysUnderlineLevels());
 			choiceSyncs.forEach(Runnable::run);
 			swatchSyncs.forEach(Runnable::run);
+			showKey(settings.cardKey());
+			keyBoxEnabled(settings.cardTrigger() == CardTrigger.HOLD_KEY);
 			delaySpinner.setValue(Math.max(0, Math.min(MAX_CARD_DELAY, settings.cardDelayMs())));
 			sizeSpinner.setValue(Math.max(MIN_CARD_SIZE, Math.min(MAX_CARD_SIZE, settings.cardFontSize())));
 		}

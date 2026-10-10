@@ -196,8 +196,8 @@ words of a card. With *Show hover cards* off there are none.
 
 ## Settings
 
-Fourteen settings, in the order of RuneLite's settings page. Thirteen are also controls in the sidebar's settings menu
-(below); *Card key* is set on RuneLite's settings page only.
+Fourteen settings, in the order of RuneLite's settings page. All fourteen are also controls in the sidebar's settings
+menu (below).
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -225,12 +225,16 @@ else, in this version: a short card reading *Nothing here yet*, with the Discord
 top-right corner. Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it; press it
 again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.2*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 0.0.3*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - six **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
   *Underline level-ups*;
 - three **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*;
-  two **rows**: *Card delay (ms)* and *Card text size* (number boxes, the delay stepping by 100);
+- the **card key** box, right under *Show a card*: press it, then press the key to hold; Backspace or Delete clears the
+  key, Escape keeps the old one. It is greyed unless *Show a card* is *While holding a key*;
+- two **rows**: *Card delay (ms)* and *Card text size* (number boxes, the delay stepping by 100); a number applies as you
+  type it, and a number out of range is ignored. No box takes the keyboard until it is pressed, so nothing in the menu
+  blinks a caret when it opens;
 - two **colours**: *Hover colour* and *Underline colour*, each a swatch; press it and the menu closes, RuneLite's colour
   picker opens on that colour, and the menu comes back when the picker closes;
 - at the bottom, **Reset to default** on the left, which puts all fourteen settings back to their defaults, and **OK**

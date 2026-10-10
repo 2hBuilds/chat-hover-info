@@ -27,6 +27,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.client.RuneLiteProperties;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.input.KeyManager;
@@ -354,6 +355,18 @@ public class ClanHubPlugin extends Plugin
 			public void setCardTrigger(CardTrigger trigger)
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "cardTrigger", trigger);
+			}
+
+			@Override
+			public Keybind cardKey()
+			{
+				return config.cardKey();
+			}
+
+			@Override
+			public void setCardKey(Keybind key)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "cardKey", key);
 			}
 
 			@Override
