@@ -3,6 +3,7 @@ package com.clanhub;
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
+import com.clanhub.ClanHubConfig.ExamineLine;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -53,9 +54,9 @@ import net.runelite.client.util.LinkBrowser;
 
 /**
  * The sidebar panel: one message card (a bold line and a grey line, centred) whose top row ends with the support
- * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the six switches, the three
+ * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the four
  * choice submenus, the card key box and the two number boxes (when a card opens, the key that opens it, its delay,
- * where it opens, how wide it grows, its text size), the two colour rows (the hover colour and the underline colour,
+ * where it opens, how wide it grows, how an examine line reads, its text size), the two colour rows (the hover colour and the underline colour,
  * each a swatch that opens RuneLite's colour picker), then the OK row. The plugin replaces the card with its own views;
  * the pair, the menu and the type sizes stay.
  */
@@ -73,12 +74,14 @@ public class ClanHubPanel extends PluginPanel
 	static final String PICTURES_TEXT = "Wiki pictures";
 	static final String BOSS_TEXT = "Boss cards";
 	static final String ALWAYS_UNDERLINE_TEXT = "Underline level-ups";
+	static final String EXAMINE_TEXT = "Examine cards";
 	static final String CARD_TRIGGER_TEXT = "Show a card";
 	static final String CARD_KEY_TEXT = "Card key";
 	static final String CARD_KEY_TIP = "Press, then the key to hold";
 	static final String CARD_DELAY_TEXT = "Card delay (ms)";
 	static final String CARD_PLACE_TEXT = "Card place";
 	static final String CARD_WIDTH_TEXT = "Card width";
+	static final String EXAMINE_LINE_TEXT = "Examine line";
 	static final String CARD_SIZE_TEXT = "Card text size";
 	static final String HOVER_COLOUR_TEXT = "Hover colour";
 	static final String UNDERLINE_COLOUR_TEXT = "Underline colour";
@@ -115,10 +118,12 @@ public class ClanHubPanel extends PluginPanel
 	private final JCheckBoxMenuItem picturesCheck;
 	private final JCheckBoxMenuItem bossCheck;
 	private final JCheckBoxMenuItem underlineCheck;
+	private final JCheckBoxMenuItem examineCheck;
 	private final JButton keyBox;
 	private final JMenu triggerMenu;
 	private final JMenu placeMenu;
 	private final JMenu widthMenu;
+	private final JMenu examineLineMenu;
 	private final JSpinner delaySpinner;
 	private final JSpinner sizeSpinner;
 	private final JPopupMenu menu;
@@ -155,6 +160,7 @@ public class ClanHubPanel extends PluginPanel
 		this.picturesCheck = check(PICTURES_TEXT, settings::setWikiPictures);
 		this.bossCheck = check(BOSS_TEXT, settings::setBossCards);
 		this.underlineCheck = check(ALWAYS_UNDERLINE_TEXT, settings::setAlwaysUnderlineLevels);
+		this.examineCheck = check(EXAMINE_TEXT, settings::setExamineCards);
 		this.keyBox = buildKeyBox();
 		this.triggerMenu = choices(CARD_TRIGGER_TEXT, CardTrigger.values(), settings::cardTrigger, trigger ->
 		{
@@ -163,6 +169,8 @@ public class ClanHubPanel extends PluginPanel
 		});
 		this.placeMenu = choices(CARD_PLACE_TEXT, CardPlace.values(), settings::cardPlace, settings::setCardPlace);
 		this.widthMenu = choices(CARD_WIDTH_TEXT, CardWidth.values(), settings::cardWidth, settings::setCardWidth);
+		this.examineLineMenu = choices(EXAMINE_LINE_TEXT, ExamineLine.values(), settings::examineLine,
+			settings::setExamineLine);
 		this.delaySpinner = spinner(0, 0, MAX_CARD_DELAY, CARD_DELAY_STEP, 4, settings::setCardDelayMs);
 		this.sizeSpinner = spinner(DEFAULT_CARD_SIZE, MIN_CARD_SIZE, MAX_CARD_SIZE, 1, 2, settings::setCardFontSize);
 		this.menu = buildMenu();
@@ -249,9 +257,9 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * The settings menu, in STANDARD A5's order: the header, a rule, the six switches, a rule, the three choice submenus
+	 * The settings menu, in STANDARD A5's order: the header, a rule, the seven switches, a rule, the four choice submenus
 	 * and the card key and the two number rows (when a card opens, the key that opens it, the delay, where it opens, how
-	 * wide it grows, the text size) and the two colour rows (the hover colour, the underline colour), a rule, then the OK
+	 * wide it grows, how an examine line reads, the text size) and the two colour rows (the hover colour, the underline colour), a rule, then the OK
 	 * row. The header is focusable, so the menu's window takes the keyboard when the menu opens and gives it to the
 	 * header, which shows no caret; no box is focusable at rest, and a press moves the keyboard to the box pressed.
 	 */
@@ -268,6 +276,7 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(wikiCheck);
 		popup.add(picturesCheck);
 		popup.add(bossCheck);
+		popup.add(examineCheck);
 		popup.add(underlineCheck);
 		popup.addSeparator();
 		popup.add(triggerMenu);
@@ -275,6 +284,7 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(row(CARD_DELAY_TEXT, delaySpinner));
 		popup.add(placeMenu);
 		popup.add(widthMenu);
+		popup.add(examineLineMenu);
 		popup.add(row(CARD_SIZE_TEXT, sizeSpinner));
 		popup.add(colourRow(HOVER_COLOUR_TEXT, settings::hoverColour, settings::setHoverColour, HOVER_COLOUR_TEXT));
 		popup.add(colourRow(UNDERLINE_COLOUR_TEXT, settings::alwaysUnderlineColour, settings::setAlwaysUnderlineColour,
@@ -712,6 +722,7 @@ public class ClanHubPanel extends PluginPanel
 			picturesCheck.setSelected(settings.wikiPictures());
 			bossCheck.setSelected(settings.bossCards());
 			underlineCheck.setSelected(settings.alwaysUnderlineLevels());
+			examineCheck.setSelected(settings.examineCards());
 			choiceSyncs.forEach(Runnable::run);
 			swatchSyncs.forEach(Runnable::run);
 			showKey(settings.cardKey());

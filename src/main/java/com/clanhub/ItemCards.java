@@ -3,6 +3,7 @@ package com.clanhub;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import net.runelite.api.ItemComposition;
 import net.runelite.client.game.ItemManager;
 import net.runelite.http.api.item.ItemPrice;
 
@@ -83,6 +84,44 @@ class ItemCards
 		final long price = itemManager.getItemPrice(id);
 		final int alch = itemManager.getItemComposition(id).getHaPrice();
 		return new ItemCard(id, name, quantity, price, alch, plainLine, start, end, sources(name));
+	}
+
+	/**
+	 * The card for the item with the id {@code id}, or null when the item has no name. The id is made canonical first (a
+	 * noted item or a placeholder gives the item itself), and the card's name, price and high alchemy value are the canonical
+	 * item's, its drops the sources {@link DropRates#lookup} gives for that name, as {@link #forName} makes them; an examined
+	 * item is asked for this way, since its examine text names nothing.
+	 *
+	 * <p>Choice: a name that is null, empty or "null" in any case (the game's name for an id it does not have) gives no card.
+	 */
+	HoverCard forId(int id, int quantity, String plainLine, int start, int end)
+	{
+		final String name = nameOf(id);
+		if (name == null)
+		{
+			return null;
+		}
+		final int canonical = itemManager.canonicalize(id);
+		final ItemComposition composition = itemManager.getItemComposition(canonical);
+		final long price = itemManager.getItemPrice(canonical);
+		return new ItemCard(canonical, name, quantity, price, composition.getHaPrice(), plainLine, start, end, sources(name));
+	}
+
+	/**
+	 * The name of the item with the id {@code id}: the canonical item's composition name (a noted item or a placeholder
+	 * gives the item itself), or null when the item has none.
+	 *
+	 * <p>Choice: a name that is null, empty or "null" in any case (the game's name for an id it does not have) is no name.
+	 */
+	String nameOf(int id)
+	{
+		final ItemComposition composition = itemManager.getItemComposition(itemManager.canonicalize(id));
+		final String name = composition == null ? null : composition.getName();
+		if (name == null || name.isEmpty() || "null".equalsIgnoreCase(name))
+		{
+			return null;
+		}
+		return name;
 	}
 
 	/**

@@ -3,6 +3,7 @@ package com.clanhub;
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
+import com.clanhub.ClanHubConfig.ExamineLine;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -51,11 +52,13 @@ public class ClanHubPanelTest
 	private final List<Boolean> wiki = new ArrayList<>();
 	private final List<Boolean> pictures = new ArrayList<>();
 	private final List<Boolean> bosses = new ArrayList<>();
+	private final List<Boolean> examines = new ArrayList<>();
 	private final List<Boolean> underlines = new ArrayList<>();
 	private final List<CardTrigger> triggers = new ArrayList<>();
 	private final List<Keybind> keys = new ArrayList<>();
 	private final List<CardPlace> places = new ArrayList<>();
 	private final List<CardWidth> widths = new ArrayList<>();
+	private final List<ExamineLine> examineLines = new ArrayList<>();
 	private final List<Integer> delays = new ArrayList<>();
 	private final List<Integer> sizes = new ArrayList<>();
 	private final List<Color> hoverColours = new ArrayList<>();
@@ -139,6 +142,30 @@ public class ClanHubPanelTest
 		public void setBossCards(boolean on)
 		{
 			bosses.add(on);
+		}
+
+		@Override
+		public boolean examineCards()
+		{
+			return true;
+		}
+
+		@Override
+		public void setExamineCards(boolean on)
+		{
+			examines.add(on);
+		}
+
+		@Override
+		public ExamineLine examineLine()
+		{
+			return ExamineLine.NAME_FIRST;
+		}
+
+		@Override
+		public void setExamineLine(ExamineLine line)
+		{
+			examineLines.add(line);
 		}
 
 		@Override
@@ -278,8 +305,10 @@ public class ClanHubPanelTest
 				// Re-aimed by the lead, 2026-10-09 (lot 9B): the choice rows are submenus with radio items.
 				// Re-aimed by the lead, 2026-10-09 (lot 9D): two colour rows after the number boxes.
 				// Re-aimed by the lead, 2026-10-09 (lot 9F): the card key row after the show submenu.
-				assertEquals("header, rule, six checks, rule, the show submenu, the key row, the delay row, two submenus,"
-					+ " the size row, two colour rows, rule, OK row", 19, parts.length);
+				// Re-aimed by the lead, 2026-10-23 (lot 10A): a seventh check, "Examine cards".
+				// Re-aimed by the lead, 2026-10-24 (lot 10B): a fourth choice submenu, "Examine line".
+				assertEquals("header, rule, seven checks, rule, the show submenu, the key row, the delay row, two submenus,"
+					+ " the examine line submenu, the size row, two colour rows, rule, OK row", 21, parts.length);
 				assertTrue("the header is the support header's one panel", parts[0] instanceof JPanel);
 				assertEquals("the header's title, version and links", 3, ((JPanel) parts[0]).getComponentCount());
 				assertTrue("a rule", parts[1] instanceof JPopupMenu.Separator);
@@ -289,17 +318,19 @@ public class ClanHubPanelTest
 				assertTrue("the fourth check", parts[5] instanceof JCheckBoxMenuItem);
 				assertTrue("the fifth check", parts[6] instanceof JCheckBoxMenuItem);
 				assertTrue("the sixth check", parts[7] instanceof JCheckBoxMenuItem);
-				assertTrue("a rule", parts[8] instanceof JPopupMenu.Separator);
-				assertTrue("the show submenu", parts[9] instanceof JMenu);
-				assertTrue("the key row", parts[10] instanceof JPanel);
-				assertTrue("the delay row", parts[11] instanceof JPanel);
-				assertTrue("the place submenu", parts[12] instanceof JMenu);
-				assertTrue("the width submenu", parts[13] instanceof JMenu);
-				assertTrue("the size row", parts[14] instanceof JPanel);
-				assertTrue("the hover colour row", parts[15] instanceof JPanel);
-				assertTrue("the underline colour row", parts[16] instanceof JPanel);
-				assertTrue("a rule", parts[17] instanceof JPopupMenu.Separator);
-				assertTrue("the OK row", parts[18] instanceof JPanel);
+				assertTrue("the seventh check", parts[8] instanceof JCheckBoxMenuItem);
+				assertTrue("a rule", parts[9] instanceof JPopupMenu.Separator);
+				assertTrue("the show submenu", parts[10] instanceof JMenu);
+				assertTrue("the key row", parts[11] instanceof JPanel);
+				assertTrue("the delay row", parts[12] instanceof JPanel);
+				assertTrue("the place submenu", parts[13] instanceof JMenu);
+				assertTrue("the width submenu", parts[14] instanceof JMenu);
+				assertTrue("the examine line submenu", parts[15] instanceof JMenu);
+				assertTrue("the size row", parts[16] instanceof JPanel);
+				assertTrue("the hover colour row", parts[17] instanceof JPanel);
+				assertTrue("the underline colour row", parts[18] instanceof JPanel);
+				assertTrue("a rule", parts[19] instanceof JPopupMenu.Separator);
+				assertTrue("the OK row", parts[20] instanceof JPanel);
 
 				final JCheckBoxMenuItem showCheck = (JCheckBoxMenuItem) parts[2];
 				assertEquals("Show hover cards", showCheck.getText());
@@ -316,36 +347,44 @@ public class ClanHubPanelTest
 				final JCheckBoxMenuItem bossCheck = (JCheckBoxMenuItem) parts[6];
 				assertEquals("Boss cards", bossCheck.getText());
 				assertTrue("ticked, as the setting is", bossCheck.isSelected());
-				final JCheckBoxMenuItem underlineCheck = (JCheckBoxMenuItem) parts[7];
+				// Re-aimed by the lead, 2026-10-23 (lot 10A): "Examine cards" right after "Boss cards", as the settings page has it.
+				final JCheckBoxMenuItem underlineCheck = (JCheckBoxMenuItem) parts[8];
 				assertEquals("Underline level-ups", underlineCheck.getText());
 				assertFalse("not ticked, as the setting is", underlineCheck.isSelected());
+				final JCheckBoxMenuItem examineCheck = (JCheckBoxMenuItem) parts[7];
+				assertEquals("Examine cards", examineCheck.getText());
+				assertTrue("ticked, as the setting is", examineCheck.isSelected());
 
-				final JMenu showMenu = (JMenu) parts[9];
+				final JMenu showMenu = (JMenu) parts[10];
 				assertEquals("Show a card: On hover", showMenu.getText());
 				assertRadios(showMenu, CardTrigger.values(), CardTrigger.HOVER);
 
-				final JPanel keyRow = (JPanel) parts[10];
+				final JPanel keyRow = (JPanel) parts[11];
 				assertEquals("Card key", ((JLabel) keyRow.getComponent(0)).getText());
 				assertTrue("the key row ends in a button", lastOf(keyRow) instanceof JButton);
 				assertEquals("Alt", ((JButton) lastOf(keyRow)).getText());
 				assertFalse("greyed unless the show mode is 'While holding a key'", lastOf(keyRow).isEnabled());
 
-				final JPanel delayRow = (JPanel) parts[11];
+				final JPanel delayRow = (JPanel) parts[12];
 				assertEquals("Card delay (ms)", ((JLabel) delayRow.getComponent(0)).getText());
 				final JSpinner delaySpinner = (JSpinner) lastOf(delayRow);
 				assertEquals(0, delaySpinner.getValue());
 				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) delaySpinner.getEditor())
 					.getTextField().getColumns() <= 4);
 
-				final JMenu placeMenu = (JMenu) parts[12];
+				final JMenu placeMenu = (JMenu) parts[13];
 				assertEquals("Card place: Above the cursor", placeMenu.getText());
 				assertRadios(placeMenu, CardPlace.values(), CardPlace.CURSOR);
 
-				final JMenu widthMenu = (JMenu) parts[13];
+				final JMenu widthMenu = (JMenu) parts[14];
 				assertEquals("Card width: Wide", widthMenu.getText());
 				assertRadios(widthMenu, CardWidth.values(), CardWidth.WIDE);
 
-				final JPanel sizeRow = (JPanel) parts[14];
+				final JMenu examineLineMenu = (JMenu) parts[15];
+				assertEquals("Examine line: Item name first", examineLineMenu.getText());
+				assertRadios(examineLineMenu, ExamineLine.values(), ExamineLine.NAME_FIRST);
+
+				final JPanel sizeRow = (JPanel) parts[16];
 				assertFalse("see-through", sizeRow.isOpaque());
 				assertEquals("Card text size", ((JLabel) sizeRow.getComponent(0)).getText());
 				final JSpinner sizeSpinner = (JSpinner) lastOf(sizeRow);
@@ -353,17 +392,17 @@ public class ClanHubPanelTest
 				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) sizeSpinner.getEditor())
 					.getTextField().getColumns() <= 4);
 
-				final JPanel hoverRow = (JPanel) parts[15];
+				final JPanel hoverRow = (JPanel) parts[17];
 				assertEquals("Hover colour", ((JLabel) hoverRow.getComponent(0)).getText());
 				assertTrue("the hover colour row ends in a swatch", lastOf(hoverRow) instanceof JButton);
 				assertEquals(new Color(59, 130, 246), lastOf(hoverRow).getBackground());
-				final JPanel underlineRow = (JPanel) parts[16];
+				final JPanel underlineRow = (JPanel) parts[18];
 				assertEquals("Underline colour", ((JLabel) underlineRow.getComponent(0)).getText());
 				assertTrue("the underline colour row ends in a swatch", lastOf(underlineRow) instanceof JButton);
 				assertEquals(new Color(150, 150, 150), lastOf(underlineRow).getBackground());
 
 				final List<String> okRow = new ArrayList<>();
-				for (final Component part : ((JPanel) parts[18]).getComponents())
+				for (final Component part : ((JPanel) parts[20]).getComponents())
 				{
 					if (part instanceof JButton)
 					{
@@ -373,7 +412,7 @@ public class ClanHubPanelTest
 				assertEquals("the OK row is last: Reset to default, then OK", List.of("Reset to default", "OK"), okRow);
 
 				assertTrue("opening the menu writes nothing back", shown.isEmpty() && coloured.isEmpty() && wiki.isEmpty()
-					&& pictures.isEmpty() && bosses.isEmpty() && underlines.isEmpty() && triggers.isEmpty() && keys.isEmpty() && places.isEmpty() && widths.isEmpty() && delays.isEmpty()
+					&& pictures.isEmpty() && bosses.isEmpty() && examines.isEmpty() && underlines.isEmpty() && triggers.isEmpty() && keys.isEmpty() && places.isEmpty() && widths.isEmpty() && examineLines.isEmpty() && delays.isEmpty()
 					&& sizes.isEmpty() && hoverColours.isEmpty() && underlineColours.isEmpty());
 				colourCheck.doClick(0);
 				assertEquals("un-ticking the colour check says false", List.of(false), coloured);
@@ -395,6 +434,11 @@ public class ClanHubPanelTest
 				underlineCheck.doClick(0);
 				assertEquals("ticking the fourth check says true, once", List.of(true), underlines);
 				assertEquals("and the wiki check was not touched again", List.of(false), wiki);
+				assertTrue("and nothing to the examine check", examines.isEmpty());
+				examineCheck.doClick(0);
+				assertEquals("un-ticking the examine check says false, once", List.of(false), examines);
+				assertEquals("and the underline check was not touched again", List.of(true), underlines);
+				assertEquals("nor the boss check", List.of(false), bosses);
 				radio(showMenu, 1).doClick(0);
 				assertEquals("choosing 'While holding a key' says so", List.of(CardTrigger.HOLD_KEY), triggers);
 				assertEquals("and the submenu says so", "Show a card: While holding a key", showMenu.getText());
@@ -405,6 +449,10 @@ public class ClanHubPanelTest
 				radio(widthMenu, 1).doClick(0);
 				assertEquals("choosing 'Medium' says so, once", List.of(CardWidth.MEDIUM), widths);
 				assertEquals("and the place was not touched again", List.of(CardPlace.CHAT), places);
+				radio(examineLineMenu, 1).doClick(0);
+				assertEquals("choosing 'Description only' says so, once", List.of(ExamineLine.DESCRIPTION), examineLines);
+				assertEquals("and the submenu says so", "Examine line: Description only", examineLineMenu.getText());
+				assertEquals("and the width was not touched again", List.of(CardWidth.MEDIUM), widths);
 				delaySpinner.setValue(300);
 				assertEquals("setting the delay spinner to 300 says 300", List.of(300), delays);
 				sizeSpinner.setValue(20);
@@ -454,7 +502,7 @@ public class ClanHubPanelTest
 				assertEquals("a second write, ticked again", List.of(false, true), coloured);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[18]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[20]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -495,7 +543,7 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final JMenu showMenu = (JMenu) menu.getComponents()[9];
+				final JMenu showMenu = (JMenu) menu.getComponents()[10];
 				assertEquals("Show a card: On hover", showMenu.getText());
 				MenuSelectionManager.defaultManager().setSelectedPath(
 					new MenuElement[] {menu, showMenu, showMenu.getPopupMenu()});
@@ -513,7 +561,7 @@ public class ClanHubPanelTest
 				assertEquals("one write, 'On click'", List.of(CardTrigger.CLICK), triggers);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[18]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[20]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -554,7 +602,7 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[15]);
+				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[17]);
 				assertEquals(new Color(59, 130, 246), hoverSwatch.getBackground());
 				hoverSwatch.doClick(0);
 				assertFalse("the menu goes while the picker is open", menu.isVisible());
@@ -568,7 +616,7 @@ public class ClanHubPanelTest
 				pickerOnClose.accept(new Color(1, 2, 3));
 				assertTrue("the menu comes back when the picker closes", menu.isVisible());
 
-				final JButton underlineSwatch = (JButton) lastOf((JPanel) menu.getComponents()[16]);
+				final JButton underlineSwatch = (JButton) lastOf((JPanel) menu.getComponents()[18]);
 				assertEquals(new Color(150, 150, 150), underlineSwatch.getBackground());
 				underlineSwatch.doClick(0);
 				assertFalse("the menu goes again", menu.isVisible());
@@ -613,7 +661,7 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[10]);
+				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[11]);
 				assertEquals("Alt", box.getText());
 				assertTrue("enabled in the key mode", box.isEnabled());
 				assertFalse("not focusable at rest", box.isFocusable());
@@ -704,8 +752,8 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[11]);
-				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[14]);
+				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[12]);
+				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[16]);
 				final JFormattedTextField delayField = ((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField();
 				final JFormattedTextField sizeField = ((JSpinner.DefaultEditor) sizeSpinner.getEditor()).getTextField();
 				assertFalse("the delay box is not focusable at rest", delayField.isFocusable());
@@ -763,13 +811,13 @@ public class ClanHubPanelTest
 				assertEquals("the part the window gives the keyboard to is the header", header,
 					new LayoutFocusTraversalPolicy().getFirstComponent(SwingUtilities.getWindowAncestor(menu)));
 
-				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[11]);
-				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[14]);
+				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[12]);
+				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[16]);
 				assertFalse("the delay box is not focusable at rest",
 					((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField().isFocusable());
 				assertFalse("the size box is not focusable at rest",
 					((JSpinner.DefaultEditor) sizeSpinner.getEditor()).getTextField().isFocusable());
-				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[10]);
+				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[11]);
 				assertFalse("the key box is not focusable at rest", box.isFocusable());
 
 				box.doClick(0);

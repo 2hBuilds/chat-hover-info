@@ -3,6 +3,7 @@ package com.clanhub;
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
+import com.clanhub.ClanHubConfig.ExamineLine;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.Color;
@@ -25,6 +26,7 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOpened;
+import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.RuneLiteProperties;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.Keybind;
@@ -141,6 +143,14 @@ public class ClanHubPlugin extends Plugin
 	 */
 	private volatile List<LineReader> readers = Collections.emptyList();
 
+	/**
+	 * The reader of the player's own examine lines, built in {@link #startUp}; the menu clicks are told to it, which is how
+	 * its lines know what was examined.
+	 *
+	 * <p>Choice: volatile, like {@link #readers}: start-up writes it on a thread other than the client thread that reads it.
+	 */
+	private volatile ExamineReader examine;
+
 	/** The drop rates of the wiki, loading in the background after start-up; the item cards read from it. */
 	private DropRates dropRates;
 
@@ -208,10 +218,13 @@ public class ClanHubPlugin extends Plugin
 		tables.loadInBackground(executor, gson);
 		index = new ItemNameIndex();
 		final ItemCards itemCards = new ItemCards(itemManager, dropRates, index);
+		examine = new ExamineReader(itemCards, tables, config::examineCards, client::getTickCount,
+			config::examineLine);
 		readers = Arrays.asList(
 			new BroadcastItemReader(itemCards, config::bossCards, tables),
 			new OwnLineReader(itemCards, config::bossCards, tables),
-			new BroadcastKindReader(tables, itemCards));
+			new BroadcastKindReader(tables, itemCards),
+			examine);
 		summaries = new WikiSummaries(okHttpClient, gson);
 		overlay.summaries(summaries);
 		pictures = new WikiPictures(okHttpClient, gson);
@@ -307,6 +320,30 @@ public class ClanHubPlugin extends Plugin
 			public void setBossCards(boolean on)
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "bossCards", on);
+			}
+
+			@Override
+			public boolean examineCards()
+			{
+				return config.examineCards();
+			}
+
+			@Override
+			public void setExamineCards(boolean on)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "examineCards", on);
+			}
+
+			@Override
+			public ExamineLine examineLine()
+			{
+				return config.examineLine();
+			}
+
+			@Override
+			public void setExamineLine(ExamineLine line)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "examineLine", line);
 			}
 
 			@Override
@@ -453,7 +490,9 @@ public class ClanHubPlugin extends Plugin
 	 * text (the text without its tags and a combat achievement's id). A line no reader finds a card in is not kept. When
 	 * "Colour hoverable words" is on and the line holds marked cards, the message's text gets colour tags around each of
 	 * their words, and nothing else changes in it (a line whose cards are all quiet is not touched); the store's key is the
-	 * plain text, which the tags do not change. In developer mode, {@code ::hoverinfo trace} toggles an INFO line per chat
+	 * plain text, which the tags do not change. A line that answers an Examine click and is to carry the thing's name gets
+	 * it first, "Law rune: Used for teleport spells.", written into the message before the readers read it (see {@link
+	 * ExamineReader#label}), whatever the colouring setting. In developer mode, {@code ::hoverinfo trace} toggles an INFO line per chat
 	 * event in the client log, for reading why a line gave no card.
 	 *
 	 * <p>Choice: a message that is null is skipped.
@@ -461,8 +500,8 @@ public class ClanHubPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
-		final String message = event.getMessage();
-		if (message == null)
+		final String raw = event.getMessage();
+		if (raw == null)
 		{
 			return;
 		}
@@ -470,7 +509,15 @@ public class ClanHubPlugin extends Plugin
 		if (traced)
 		{
 			log.info("hoverinfo trace: type={} name={} sender={} raw={} plain={}", event.getType(),
-				quoted(event.getName()), quoted(event.getSender()), quoted(message), quoted(ChatText.plain(message)));
+				quoted(event.getName()), quoted(event.getSender()), quoted(raw), quoted(ChatText.plain(raw)));
+		}
+		// An examine line may gain the examined thing's name in front; the line read from here on is that one.
+		final ExamineReader labeller = examine;
+		final String message = labeller == null ? raw : labeller.label(event.getType(), raw);
+		if (!message.equals(raw))
+		{
+			event.getMessageNode().setValue(message);
+			event.getMessageNode().setRuneLiteFormatMessage(message);
 		}
 		final List<HoverCard> cards = new ArrayList<>();
 		for (final LineReader reader : readers)
@@ -607,13 +654,24 @@ public class ClanHubPlugin extends Plugin
 		CardMenu.addEntries(client.getMenu(), overlay.hovered(), LinkBrowser::browse, ClanHubPlugin::copyToClipboard);
 	}
 
+	/** A menu click: an Examine click is told to the examine reader, which is how an examine line gets its card. */
+	@Subscribe
+	public void onMenuOptionClicked(MenuOptionClicked event)
+	{
+		final ExamineReader reader = examine;
+		if (reader != null)
+		{
+			ExamineReader.clicked(reader, event);
+		}
+	}
+
 	/** Puts the text on the system clipboard. */
 	private static void copyToClipboard(String text)
 	{
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
 	}
 
-	/** "Reset to default": the plugin's fourteen settings go back to their defaults. */
+	/** "Reset to default": the plugin's sixteen settings go back to their defaults. */
 	private void resetSettings()
 	{
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "showCards");
@@ -626,6 +684,8 @@ public class ClanHubPlugin extends Plugin
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "wikiDescriptions");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "wikiPictures");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "bossCards");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "examineCards");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "examineLine");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardPlace");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardWidth");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineLevels");

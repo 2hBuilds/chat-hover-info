@@ -3,6 +3,7 @@ package com.clanhub;
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
+import com.clanhub.ClanHubConfig.ExamineLine;
 import java.awt.Color;
 import net.runelite.client.config.Keybind;
 
@@ -41,6 +42,18 @@ interface PanelSettings
 
 	/** Writes whether a drop line that says where the drop came from gives the boss, monster, raid or chest a card of its own. */
 	void setBossCards(boolean on);
+
+	/** Whether the examine text of an item or a monster you examined gives a card. */
+	boolean examineCards();
+
+	/** Writes whether the examine text of an item or a monster you examined gives a card. */
+	void setExamineCards(boolean on);
+
+	/** How an examine line you asked for reads: the thing's name in front of its text, or the text alone. */
+	ExamineLine examineLine();
+
+	/** Writes how an examine line you asked for reads. */
+	void setExamineLine(ExamineLine line);
 
 	/** When a card opens. */
 	CardTrigger cardTrigger();

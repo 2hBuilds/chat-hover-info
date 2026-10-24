@@ -11,13 +11,18 @@ of the words a card is about, and that has its own switch.
 
 ## What it reads (and never reads)
 
-**Three things, and only these:**
+**Four things, and only these:**
 
 - **Broadcast lines of four chats.** The chat message events of **clan chat, guest clan chat, group ironman clan
   chat and friends chat**, and only their *broadcast* kind - the game's own announcements, such as *"... received a
   drop: Dragon claws (121,453,000 coins)"* or *"... has completed a quest: Dragon Slayer II"*.
 - **Your own game lines.** The lines the game writes to you alone: a valuable drop, an untradeable drop, a new
   collection log item, and your own kill count.
+- **Your own examine text.** When you pick Examine on an item or a monster, RuneLite tells the plugin the pick, and
+  the plugin remembers only which item or monster it was, for two game ticks (about a second). The examine line the
+  game writes to you in answer is then read, once, for the card of that thing. The text does not name what it is
+  about (an immaculate mole skin examines as *"A pristine mole skin."*), so the pick is the only way to know. Every
+  other menu pick is ignored, and nothing about the pick is kept or sent anywhere.
 - **The chatbox as it is drawn, under the mouse.** To know which words the pointer is on, the plugin reads the
   chat line widgets under it, and only while the pointer is inside the chat's scroll area. Two answers that
   RuneLite's own **Chat Commands** plugin writes into a line after it has arrived - *"<boss> kill count: N"* and
@@ -99,6 +104,17 @@ it; a line that goes on after the number matches nothing. These cards are quiet.
 hitpoints, max hit, quest and picture the way the personal best and kill count cards above do. Because the plugin matches
 the drawn words, it cannot tell the answer from someone typing the same words by hand.
 
+**Examine text.** Examine an item in your inventory, the bank, your worn items or on the ground, or a monster, and
+hover the examine line the game writes to the chat for that thing's card: an item's is the item card above (price,
+alch value, drop sources), a monster's is its boss card (the wiki's picture, the facts the bundled boss table holds for
+it, the wiki's first paragraph). The pick is what names the thing, so the line has to follow its pick within two game
+ticks, and one pick gives one card (RuneLite's own Examine plugin writes a price line after the game's, and that line
+gets none). A noted item or a placeholder gives the item itself. An object gives no card, and only your own examine
+lines are read. The line reads either of two ways, set by *Examine line*: the thing's name in front of the text (the
+default), *"Law rune: Used for teleport spells."*, with the name alone the hover words; or the text alone, as the game
+wrote it, with all of it the hover words. The name is written into the chat line on your screen, as the colouring is, and
+only on a line that answers your pick. This has its own switch, *Examine cards*, on by default.
+
 When a bundled table is missing or has not loaded yet (they load a second or two after start-up), a quest, task, pet
 or diary card shows what the line alone says, an item card shows no drop line, and a boss card shows no facts. In RuneLite's developer mode only,
 the command `::hoverinfo demo` posts sample lines to hover, and `::hoverinfo trace` writes one line per
@@ -167,7 +183,7 @@ signal. This happens in every show mode and before the delay is up, so you can s
 whose rows the plugin cannot tell apart (a rank icon wide enough to change where the game wraps) may show its card
 but no underline.
 
-**Quiet cards.** Item, quest, task, pet, diary, personal best and own kill count words are coloured in the chat (the
+**Quiet cards.** Item, quest, task, pet, diary, personal best, own kill count and examine-text words are coloured in the chat (the
 *Colour hoverable words* setting). Level and XP phrases, the Chat Commands answers and the boss of a
 drop line are *quiet*: the line keeps the game's own colour, so the hover-reveal underline is how they show
 themselves.
@@ -196,7 +212,7 @@ words of a card. With *Show hover cards* off there are none.
 
 ## Settings
 
-Fourteen settings, in the order of RuneLite's settings page. All fourteen are also controls in the sidebar's settings
+Sixteen settings, in the order of RuneLite's settings page. All sixteen are also controls in the sidebar's settings
 menu (below).
 
 | Setting | Default | What it does |
@@ -211,6 +227,8 @@ menu (below).
 | Wiki descriptions | On | Show the first paragraph of the wiki page on each card. Sends only the thing's name to oldschool.runescape.wiki. |
 | Wiki pictures | On | Show the wiki's own picture of a boss, monster, raid or chest on its card. Sends only the thing's name to oldschool.runescape.wiki, then fetches the picture the wiki names. |
 | Boss cards | On | On a drop line that says where the drop came from, give the boss, monster, raid or chest its own card, with the wiki's first paragraph. |
+| Examine cards | On | Hover the text of an item or monster you examined for its card. |
+| Examine line | Item name first | Put the examined item's or monster's name in front of its examine text, and hover the name; or keep the text alone and hover all of it. Choices: *Item name first*, *Description only*. |
 | Card place | Above the cursor | Where a card opens: centred above the cursor, or as wide as the chatbox and pinned above it. Choices: *Above the cursor*, *Above the chat*. |
 | Card width | Medium | How wide the card at the cursor may grow: wide, or two narrower widths that give the paragraph up to five lines. Choices: *Wide*, *Medium*, *Narrow*. |
 | Underline level-ups | Off | Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them. |
@@ -225,11 +243,12 @@ else, in this version: a short card reading *Nothing here yet*, with the Discord
 top-right corner. Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it; press it
 again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.3*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 0.0.4*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
-- six **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
-  *Underline level-ups*;
-- three **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*;
+- seven **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
+  *Examine cards*, *Underline level-ups*;
+- four **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*,
+  *Examine line*;
 - the **card key** box, right under *Show a card*: press it, then press the key to hold; Backspace or Delete clears the
   key, Escape keeps the old one. It is greyed unless *Show a card* is *While holding a key*;
 - two **rows**: *Card delay (ms)* and *Card text size* (number boxes, the delay stepping by 100); a number applies as you
@@ -237,7 +256,7 @@ again and it closes. The menu has:
   blinks a caret when it opens;
 - two **colours**: *Hover colour* and *Underline colour*, each a swatch; press it and the menu closes, RuneLite's colour
   picker opens on that colour, and the menu comes back when the picker closes;
-- at the bottom, **Reset to default** on the left, which puts all fourteen settings back to their defaults, and **OK**
+- at the bottom, **Reset to default** on the left, which puts all sixteen settings back to their defaults, and **OK**
   on the right, which closes the menu.
 
 Everything in the menu saves itself as you set it, and the menu stays open while you work through the switches; OK,

@@ -93,6 +93,30 @@ public interface ClanHubConfig extends Config
 		}
 	}
 
+	/**
+	 * How an examine line you asked for reads: with the thing's name written in front of its text, the name alone the
+	 * hover words, or the text alone, all of it the hover words.
+	 */
+	enum ExamineLine
+	{
+		NAME_FIRST("Item name first"),
+		DESCRIPTION("Description only");
+
+		private final String text;
+
+		ExamineLine(String text)
+		{
+			this.text = text;
+		}
+
+		/** The words the settings show for the choice. */
+		@Override
+		public String toString()
+		{
+			return text;
+		}
+	}
+
 	/** Whether the item card shows when the mouse is on a recognised chat line. */
 	@ConfigItem(
 		keyName = "showCards",
@@ -216,12 +240,36 @@ public interface ClanHubConfig extends Config
 		return true;
 	}
 
+	/** Whether the examine text of an item or a monster you examined gives a card. */
+	@ConfigItem(
+		keyName = "examineCards",
+		name = "Examine cards",
+		description = "Hover the text of an item or monster you examined for its card.",
+		position = 11
+	)
+	default boolean examineCards()
+	{
+		return true;
+	}
+
+	/** How an examine line you asked for reads: the thing's name in front of its text, or the text alone. */
+	@ConfigItem(
+		keyName = "examineLine",
+		name = "Examine line",
+		description = "Put the examined item's or monster's name in front of its examine text, and hover the name; or keep the text alone and hover all of it.",
+		position = 12
+	)
+	default ExamineLine examineLine()
+	{
+		return ExamineLine.NAME_FIRST;
+	}
+
 	/** Where a card opens. */
 	@ConfigItem(
 		keyName = "cardPlace",
 		name = "Card place",
 		description = "Where a card opens: centred above the cursor, or as wide as the chatbox and pinned above it.",
-		position = 11
+		position = 13
 	)
 	default CardPlace cardPlace()
 	{
@@ -233,7 +281,7 @@ public interface ClanHubConfig extends Config
 		keyName = "cardWidth",
 		name = "Card width",
 		description = "How wide the card at the cursor may grow: wide, or two narrower widths that give the paragraph up to five lines.",
-		position = 12
+		position = 14
 	)
 	default CardWidth cardWidth()
 	{
@@ -245,7 +293,7 @@ public interface ClanHubConfig extends Config
 		keyName = "alwaysUnderlineLevels",
 		name = "Underline level-ups",
 		description = "Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them.",
-		position = 13
+		position = 15
 	)
 	default boolean alwaysUnderlineLevels()
 	{
@@ -257,7 +305,7 @@ public interface ClanHubConfig extends Config
 		keyName = "alwaysUnderlineColour",
 		name = "Underline colour",
 		description = "The colour of that line.",
-		position = 14
+		position = 16
 	)
 	default Color alwaysUnderlineColour()
 	{

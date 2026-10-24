@@ -3,6 +3,7 @@ package com.clanhub;
 import com.clanhub.ClanHubConfig.CardPlace;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
+import com.clanhub.ClanHubConfig.ExamineLine;
 import java.awt.Color;
 import net.runelite.client.config.Keybind;
 import org.junit.Test;
@@ -67,6 +68,31 @@ public class ClanHubConfigTest
 		};
 
 		assertTrue("a drop line's boss gets its own card", config.bossCards());
+	}
+
+	@Test
+	public void examineCardsAreOnByDefault()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertTrue("the examine text of an item or a monster gives a card", config.examineCards());
+	}
+
+	@Test
+	public void theExamineLineIsNameFirstByDefault()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertEquals("the examined thing's name goes in front of its examine line", ExamineLine.NAME_FIRST,
+			config.examineLine());
+		assertArrayEquals("item name first, description only, in that order",
+			new ExamineLine[] {ExamineLine.NAME_FIRST, ExamineLine.DESCRIPTION}, ExamineLine.values());
+		assertEquals("Item name first", ExamineLine.NAME_FIRST.toString());
+		assertEquals("Description only", ExamineLine.DESCRIPTION.toString());
 	}
 
 	@Test
