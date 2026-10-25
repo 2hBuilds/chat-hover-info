@@ -23,6 +23,10 @@ final class CardHistory
 	/** How many lines the history keeps at most: a safety cap, as the history is meant to hold the whole session. */
 	static final int CAP = 5000;
 
+	/** What {@link #ago} says under a minute, and the word it ends with after a minute or an hour. */
+	private static final String JUST_NOW = "just now";
+	private static final String AGO_WORD = " ago";
+
 	/** One chat line that gave a card: the card, the line's plain text and when it arrived. */
 	static final class Entry
 	{
@@ -137,19 +141,29 @@ final class CardHistory
 		final long seconds = Math.max(0L, (now - then) / 1000L);
 		if (seconds < 60)
 		{
-			return "just now";
+			return JUST_NOW;
 		}
 		final long minutes = seconds / 60;
 		if (minutes < 60)
 		{
-			return minutes + "m ago";
+			return minutes + "m" + AGO_WORD;
 		}
-		return (minutes / 60) + "h ago";
+		return (minutes / 60) + "h" + AGO_WORD;
 	}
 
 	/**
-	 * A row's time in the way the player chose: {@link CardTime#AGO} reads as {@link #ago}, the clocks as the moment the
-	 * line arrived in {@code zone}, "14:32" in 24 hours or "2:32 PM" in 12 (English words, whatever the player's language).
+	 * The row's short form of {@link #ago}: "just now" reads "now", and "4m ago" or "2h ago" lose their " ago" ("4m",
+	 * "2h"), which is all a row's small corner has room for.
+	 */
+	private static String shortAgo(String words)
+	{
+		return JUST_NOW.equals(words) ? "now" : words.substring(0, words.length() - AGO_WORD.length());
+	}
+
+	/**
+	 * A row's time in the way the player chose: {@link CardTime#AGO} reads as {@link #ago} in its short form ("now", "4m",
+	 * "2h"), the clocks as the moment the line arrived in {@code zone}, "14:32" in 24 hours or "2:32 PM" in 12 (English
+	 * words, whatever the player's language).
 	 *
 	 * @param at when the line arrived, in milliseconds since the epoch
 	 * @param style how the time reads
@@ -165,7 +179,7 @@ final class CardHistory
 			case CLOCK_12:
 				return DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH).format(Instant.ofEpochMilli(at).atZone(zone));
 			default:
-				return ago(now, at);
+				return shortAgo(ago(now, at));
 		}
 	}
 }

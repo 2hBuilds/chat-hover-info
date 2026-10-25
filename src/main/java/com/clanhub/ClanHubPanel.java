@@ -16,7 +16,6 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.LayoutManager;
 import java.awt.Point;
@@ -102,8 +101,8 @@ import net.runelite.client.util.LinkBrowser;
  *
  * <p>Choice: the recent cards are a {@link JList}, not a column of panels, because a list paints only the rows on screen
  * and the whole session may be thousands of them: a new card is one insert at the top of the list's model, and a burst
- * of lines is one sync, so five thousand rows cost what ten do. A panel per row would be rebuilt, every row, for every
- * card that came.
+ * of lines is one sync, so five thousand rows cost a lookup of their height each, not a rebuild. A panel per row would be
+ * rebuilt, every row, for every card that came.
  */
 public class ClanHubPanel extends PluginPanel
 {
@@ -193,17 +192,37 @@ public class ClanHubPanel extends PluginPanel
 
 	/** The card's padding, in px. */
 	private static final int PADDING = 8;
-	/** A history row's height and the gap under each row (part of its list cell), in px. */
+	/**
+	 * A history row's height with a one-line title and with a two-line title (one more line), and the gap under each row
+	 * (part of its list cell), in px. A row's text is laid out in lines of {@code ROW_LINE} px: the title's one or two,
+	 * then the name and the kind.
+	 */
 	private static final int ROW_HEIGHT = 44;
+	private static final int ROW_LINE = 16;
+	private static final int ROW_HEIGHT_TWO_LINES = ROW_HEIGHT + ROW_LINE;
 	private static final int ROW_GAP = 2;
 	/** A row's picture box, in px: the picture is scaled to fit it and never drawn larger than it is. */
 	private static final int PICTURE_WIDTH = 36;
 	private static final int PICTURE_HEIGHT = 32;
-	/** A row's second line: who in the name colour, what in grey, the time at the right in grey, and the room between them, in px. */
-	private static final Color ROW_WHAT_COLOUR = ColorScheme.LIGHT_GRAY_COLOR;
-	private static final int ROW_WORDS_GAP = 6;
 	/** The bar at a hovered row's left edge, in px. */
 	private static final int BAR_WIDTH = 2;
+	/**
+	 * What a row keeps clear at its left (the bar and its room), at its right, and between the picture and the text, in
+	 * px, and so how much of the list's width the row's text does not have.
+	 */
+	private static final int ROW_LEFT_INSET = BAR_WIDTH + 4;
+	private static final int ROW_RIGHT_INSET = 6;
+	private static final int ROW_PICTURE_GAP = 6;
+	private static final int ROW_TEXT_INSET = ROW_LEFT_INSET + PICTURE_WIDTH + ROW_PICTURE_GAP + ROW_RIGHT_INSET;
+	/**
+	 * A row's words: the title in bold white, the time small and light grey in the top right corner, the name in the name
+	 * colour and the kind in grey under the title, and the room between the name and the kind or the time and the title,
+	 * in px.
+	 */
+	private static final Color ROW_WHAT_COLOUR = ColorScheme.LIGHT_GRAY_COLOR;
+	private static final Color ROW_TIME_COLOUR = new Color(130, 130, 130);
+	private static final float ROW_TIME_SIZE = 10f;
+	private static final int ROW_WORDS_GAP = 6;
 	/** The history list's wheel step, in px. */
 	private static final int SCROLL_STEP = 16;
 	/** How often the "ago" words are refreshed while the panel is showing, in ms. */
@@ -242,9 +261,10 @@ public class ClanHubPanel extends PluginPanel
 	private static final int HOW_TO_WIDTH = PluginPanel.PANEL_WIDTH + PluginPanel.SCROLLBAR_WIDTH - 4 * PADDING - 4;
 	private static final int HOW_TO_ROW_TEXT_WIDTH = HOW_TO_WIDTH - HOW_TO_ICON_SIZE - HOW_TO_ICON_GAP;
 	/** A row's border at rest and under the mouse; the bar takes the room the resting border leaves empty. */
-	private static final Border ROW_BORDER = new EmptyBorder(0, BAR_WIDTH + 4, 0, 6);
+	private static final Border ROW_BORDER = new EmptyBorder(0, ROW_LEFT_INSET, 0, ROW_RIGHT_INSET);
 	private static final Border ROW_HOT_BORDER = new CompoundBorder(
-		new MatteBorder(0, BAR_WIDTH, 0, 0, ColorScheme.BRAND_ORANGE), new EmptyBorder(0, 4, 0, 6));
+		new MatteBorder(0, BAR_WIDTH, 0, 0, ColorScheme.BRAND_ORANGE), new EmptyBorder(0, ROW_LEFT_INSET - BAR_WIDTH, 0,
+			ROW_RIGHT_INSET));
 	/** The fold arrow of the how-to's header: down when the lines show, right when they are folded. */
 	private static final Icon ARROW_OPEN = new FoldArrow(true);
 	private static final Icon ARROW_FOLDED = new FoldArrow(false);
@@ -305,14 +325,22 @@ public class ClanHubPanel extends PluginPanel
 	/** The history header's count, "N this session". */
 	private final JLabel count = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
 	/** The history's entries as the list shows them, newest first; changed only by {@link #syncList}. */
-	private final DefaultListModel<CardHistory.Entry> model = new DefaultListModel<>();
-	/** The list of recent cards, which the history's scroll pane shows. */
-	private final JList<CardHistory.Entry> historyList = new HistoryList(model);
+	private final HistoryModel model = new HistoryModel();
+	/** The list of recent cards, which the history's scroll pane shows; a change of its width has every row measured again. */
+	private final JList<CardHistory.Entry> historyList = new HistoryList(model, model::measureAgain);
 	/**
 	 * The picture of each entry in the model, by identity: the entry is a key from the moment it enters the model until it
 	 * leaves it, its value null until the picture comes.
 	 */
 	private final Map<CardHistory.Entry, ImageIcon> pictures = new IdentityHashMap<>();
+	/**
+	 * How many lines (one or two) the title of each entry in the model takes, by identity, worked out once per entry for
+	 * the list width in {@link #measuredWidth}: the entry is a key from the first time its row is drawn or measured until
+	 * it leaves the model, and every key goes when the list's width changes.
+	 */
+	private final Map<CardHistory.Entry, Integer> titleLines = new IdentityHashMap<>();
+	/** The list width, in px, that the counts in {@link #titleLines} were worked out for. */
+	private int measuredWidth = -1;
 	/** The entry the mouse is on, so that its cell draws hot and its card is shown, or null. */
 	private CardHistory.Entry hovered;
 	/** True while a {@link #syncList} is queued for the event thread, so that a burst of lines asks for one. */
@@ -729,14 +757,17 @@ public class ClanHubPanel extends PluginPanel
 	 * The recent cards: a header row ("Recent cards", the count, "Clear" at the right) over the scroll pane of the list,
 	 * which has no horizontal bar, a vertical one as needed and {@link #SCROLL_STEP} px wheel steps.
 	 *
-	 * <p>The list: every cell {@code ROW_HEIGHT + ROW_GAP} px high, drawn by the one {@link RowRenderer}, with no selection
-	 * painted (the keyboard never reaches it). The mouse is read on the list itself, since a list has no component per
-	 * row: where it moves, which cell it is on and so which card the viewer shows; a popup trigger offers the row's menu.
+	 * <p>The list: every cell {@code ROW_HEIGHT + ROW_GAP} px high, or {@code ROW_HEIGHT_TWO_LINES + ROW_GAP} when its
+	 * title takes two lines, drawn by the one {@link RowRenderer}, with no selection painted (the keyboard never reaches
+	 * it). The mouse is read on the list itself, since a list has no component per row: where it moves, which cell it is
+	 * on and so which card the viewer shows; a popup trigger offers the row's menu.
 	 *
 	 * <p>Choice: the list's cells have a fixed width of 0, and the list is made as wide as the scroll pane's view, so that
 	 * the list never asks the renderer for the width of every row (which a list does to size itself when its cells' width
 	 * is not fixed, and which would read every row of a session); a cell's width is then the list's, which is what cuts a
-	 * long line with "..." and keeps the horizontal bar away.
+	 * long line with "..." and keeps the horizontal bar away. Their height is not fixed, as a long title takes a second
+	 * line, so the list asks the renderer for each row's height; that is a lookup of the line count the renderer worked out
+	 * once for the entry (see {@link RowRenderer}).
 	 */
 	private JPanel historyView()
 	{
@@ -759,7 +790,6 @@ public class ClanHubPanel extends PluginPanel
 		historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		historyList.setFocusable(false);
 		historyList.setFixedCellWidth(0);
-		historyList.setFixedCellHeight(ROW_HEIGHT + ROW_GAP);
 		historyList.setCellRenderer(new RowRenderer());
 		final MouseAdapter mouse = new MouseAdapter()
 		{
@@ -847,7 +877,8 @@ public class ClanHubPanel extends PluginPanel
 	/**
 	 * Brings the list up to date with the history, from one read of it. The entries in front of the model's first one (by
 	 * identity) are the new ones: they are inserted at the top in one step, in order, and each new entry's picture is asked
-	 * for, once. The model is then cut to the history's size from the bottom, and the cut entries leave the pictures. A
+	 * for, once. The model is then cut to the history's size from the bottom, and the cut entries leave the pictures and
+	 * the line counts. A
 	 * history that is empty, or that no longer holds the model's first entry (it was cleared and filled again), empties the
 	 * model first. The count is set. If the entry the mouse was on is gone, the card shown for it comes down: the row is
 	 * gone, and no exit would ever tell the viewer. Runs on the event thread.
@@ -866,6 +897,7 @@ public class ClanHubPanel extends PluginPanel
 			if (top < 0)
 			{
 				pictures.clear();
+				titleLines.clear();
 				model.clear();
 			}
 			else
@@ -892,6 +924,7 @@ public class ClanHubPanel extends PluginPanel
 			for (int i = size; i < model.size(); i++)
 			{
 				pictures.remove(model.get(i));
+				titleLines.remove(model.get(i));
 			}
 			model.removeRange(size, model.size() - 1);
 		}
@@ -1112,15 +1145,36 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
+	 * The history's list model: a {@link DefaultListModel} that can tell its list that every row may have changed, which
+	 * is how the list is made to measure its rows again.
+	 */
+	private static final class HistoryModel extends DefaultListModel<CardHistory.Entry>
+	{
+		/** Tells the list that every row's content may have changed, so that it measures each row again; a model with no rows tells nobody. */
+		void measureAgain()
+		{
+			if (!isEmpty())
+			{
+				fireContentsChanged(this, 0, getSize() - 1);
+			}
+		}
+	}
+
+	/**
 	 * The history's list: as wide as the scroll pane's view, so that a row never asks for more width than the sidebar has,
 	 * which is what cuts a long line with "..." and keeps the horizontal bar away. Its cells' width is fixed (at 0, see
-	 * {@link #historyView}), so its own preferred width is 0 and the view is always the wider.
+	 * {@link #historyView}), so its own preferred width is 0 and the view is always the wider. A change of its width is
+	 * told to {@code widthChanged} as the new width is set, as a title that took two lines at one width may take one at
+	 * another and a list measures its rows on its model's word alone.
 	 */
 	private static final class HistoryList extends JList<CardHistory.Entry>
 	{
-		HistoryList(DefaultListModel<CardHistory.Entry> model)
+		private final Runnable widthChanged;
+
+		HistoryList(HistoryModel model, Runnable widthChanged)
 		{
 			super(model);
+			this.widthChanged = widthChanged;
 		}
 
 		@Override
@@ -1128,32 +1182,63 @@ public class ClanHubPanel extends PluginPanel
 		{
 			return true;
 		}
+
+		@Override
+		public void setBounds(int x, int y, int width, int height)
+		{
+			final boolean widthChanges = width != getWidth();
+			super.setBounds(x, y, width, height);
+			if (widthChanges)
+			{
+				widthChanged.run();
+			}
+		}
 	}
 
 	/**
-	 * Draws an entry of the history as a row: the picture box at the left (36 x 32 px, the entry's picture in it), the
-	 * card's title in bold white on the first line across the row's whole width, and under it the second line: who the line
-	 * is about in the name colour as the settings have it at the moment of the draw, what kind of card it gave in grey ({@link RowWords}), and when it came (how long ago, or the clock time, as set) at the row's
-	 * right. Each is cut with "..." where it does not fit, and on the second line the kind goes first and then the name, so
-	 * that the time keeps its room. The hovered entry's row takes the hover ground and an orange bar at its left edge. Under
-	 * the row, inside the cell, the gap to the next row in the list's own ground.
+	 * Draws an entry of the history as a row: the picture box at the left (36 x 32 px, the entry's picture in it) and the
+	 * text beside it. The card's title is in bold white with the time, small and grey, in the row's top right corner on
+	 * the title's first line (how long ago, or the clock time, as set); a title that does not fit beside the time goes on
+	 * to a second line (never a third: what is left after two lines is cut with "..."). Under the title come who the line
+	 * is about in the name colour as the settings have it at the moment of the draw, and what kind of card it gave in
+	 * grey, whole ({@link RowWords}); only if the two do not fit is the kind cut with "...", and then the name. The
+	 * hovered entry's row takes the hover ground and an orange bar at its left edge. Under the row, inside the cell, the
+	 * gap to the next row in the list's own ground.
 	 *
-	 * <p>Choice: one component is built, once, and set from the entry at every draw, which is how a list draws only the rows
-	 * on screen at the cost of those rows; the "ago" words are worked out here, at draw time, so that a timer's repaint is
-	 * all it takes to refresh them. No selection is drawn.
+	 * <p>Choice: one component is built, once, and set from the entry at every draw, which is how a list draws only the
+	 * rows on screen at the cost of those rows; the time is worked out here, at draw time, so that a timer's repaint is
+	 * all it takes to refresh it. No selection is drawn.
+	 *
+	 * <p>Choice: a row has only two heights, {@code ROW_HEIGHT} with a one-line title and {@code ROW_HEIGHT_TWO_LINES}
+	 * with a two-line one (each with the gap), and the cell's preferred height is the one the line count says. A list
+	 * with no fixed cell height asks the renderer for the height of every row of the session whenever its model or its
+	 * width changes, so the wrap, which measures text, is done once per entry for the list's width and kept in
+	 * {@code titleLines}; every later ask is a lookup. The count is dropped when the list's width changes, and not when
+	 * the time's words do, so the height always matches the lines drawn.
 	 */
 	private final class RowRenderer implements ListCellRenderer<CardHistory.Entry>
 	{
-		private final JPanel cell = new JPanel(new BorderLayout());
-		private final JPanel row = new JPanel(new BorderLayout(6, 0));
+		private final JPanel cell;
+		private final JPanel row = new JPanel(new BorderLayout(ROW_PICTURE_GAP, 0));
 		private final JLabel picture = new JLabel();
-		private final JLabel title = boldLabel("", 12f, Color.WHITE);
+		private final JLabel titleFirst = boldLabel("", 12f, Color.WHITE);
+		private final JLabel titleRest = boldLabel("", 12f, Color.WHITE);
+		private final JLabel time = label("", ROW_TIME_SIZE, ROW_TIME_COLOUR);
 		private final JLabel who = label("", 12f, settings.nameColour());
 		private final JLabel what = label("", 12f, ROW_WHAT_COLOUR);
-		private final JLabel ago = label("", 11f, ROW_WHAT_COLOUR);
+		/** The height the cell asks for, in px: set from the entry's line count at every draw. */
+		private int cellHeight = ROW_HEIGHT + ROW_GAP;
 
 		RowRenderer()
 		{
+			cell = new JPanel(new BorderLayout())
+			{
+				@Override
+				public Dimension getPreferredSize()
+				{
+					return new Dimension(0, cellHeight);
+				}
+			};
 			cell.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 			cell.setBorder(new EmptyBorder(0, 0, ROW_GAP, 0));
 
@@ -1164,14 +1249,15 @@ public class ClanHubPanel extends PluginPanel
 			pictureBox.add(picture);
 			row.add(pictureBox, BorderLayout.WEST);
 
-			final JPanel words = new JPanel(new RowWordsLayout(who, what, ago));
+			final JPanel words = new JPanel(new RowWordsLayout(who, what));
 			words.setOpaque(false);
 			words.add(who);
 			words.add(what);
-			words.add(ago);
-			final JPanel text = new JPanel(new GridLayout(2, 1));
+			final JPanel text = new JPanel(new RowTextLayout(titleFirst, titleRest, time, words));
 			text.setOpaque(false);
-			text.add(title);
+			text.add(titleFirst);
+			text.add(titleRest);
+			text.add(time);
 			text.add(words);
 			row.add(text, BorderLayout.CENTER);
 			cell.add(row, BorderLayout.CENTER);
@@ -1186,32 +1272,166 @@ public class ClanHubPanel extends PluginPanel
 			row.setBackground(hot ? ColorScheme.DARK_GRAY_HOVER_COLOR : ColorScheme.DARK_GRAY_COLOR);
 			row.setBorder(hot ? ROW_HOT_BORDER : ROW_BORDER);
 			picture.setIcon(pictures.get(entry));
-			title.setText(card.title());
+			time.setText(CardHistory.timeOf(entry.at(), settings.cardTime(), ZoneId.systemDefault(), System.currentTimeMillis()));
 			who.setForeground(settings.nameColour());
 			who.setText(RowWords.who(entry.line()));
 			what.setText(RowWords.what(entry.line()));
-			ago.setText(CardHistory.timeOf(entry.at(), settings.cardTime(), ZoneId.systemDefault(), System.currentTimeMillis()));
+
+			final String title = card.title();
+			final int room = Math.max(0, list.getWidth() - ROW_TEXT_INSET);
+			if (list.getWidth() != measuredWidth)
+			{
+				titleLines.clear();
+				measuredWidth = list.getWidth();
+			}
+			String[] parts = null;
+			Integer lines = titleLines.get(entry);
+			if (lines == null)
+			{
+				parts = wrap(title, room);
+				lines = parts[1].isEmpty() ? 1 : 2;
+				titleLines.put(entry, lines);
+			}
+			if (lines == 2)
+			{
+				parts = parts == null ? wrap(title, room) : parts;
+				titleFirst.setText(parts[0]);
+				titleRest.setText(parts[1]);
+			}
+			else
+			{
+				titleFirst.setText(title);
+				titleRest.setText("");
+			}
+			cellHeight = (lines == 2 ? ROW_HEIGHT_TWO_LINES : ROW_HEIGHT) + ROW_GAP;
 			return cell;
+		}
+
+		/**
+		 * The title as the first line, which has the text's width less the time's and the room before it, and the rest
+		 * (empty when the title fits the first line) for the second. The line breaks at a space; a first word too wide
+		 * for the line keeps it alone, and its label cuts it with "...".
+		 *
+		 * @param title the card's title
+		 * @param room the width the row's text has, in px
+		 */
+		private String[] wrap(String title, int room)
+		{
+			final FontMetrics metrics = titleFirst.getFontMetrics(titleFirst.getFont());
+			final int first = Math.max(0, room - time.getPreferredSize().width - ROW_WORDS_GAP);
+			if (metrics.stringWidth(title) <= first)
+			{
+				return new String[] {title, ""};
+			}
+			int cut = -1;
+			int space = title.indexOf(' ');
+			while (space > 0 && metrics.stringWidth(title.substring(0, space)) <= first)
+			{
+				cut = space;
+				space = title.indexOf(' ', space + 1);
+			}
+			if (cut < 0)
+			{
+				cut = title.indexOf(' ');
+			}
+			return cut <= 0 ? new String[] {title, ""} : new String[] {title.substring(0, cut), title.substring(cut + 1).trim()};
 		}
 	}
 
 	/**
-	 * Lays out a row's second line: the name, the kind and the time on one baseline. The time sits at the right with its own
-	 * width; the name and the kind follow at the left with {@link ClanHubPanel#ROW_WORDS_GAP} between them. When the two do not fit
-	 * beside the time, the kind is cut first (it keeps the room that is left, and none at all when that is less than the
-	 * width of "..."), then the name; a label given less than its own width cuts its text with "...".
+	 * Lays out a row's text in lines of {@link ClanHubPanel#ROW_LINE} px, the block centred in the row: the title's first
+	 * line at the left and the time at the right of it on the same baseline, the rest of the title under it when there is
+	 * one, and last the line of the name and the kind. The first line has the width the time leaves; the others have the
+	 * whole width, and a label given less than its text needs cuts it with "...".
+	 */
+	private static final class RowTextLayout implements LayoutManager
+	{
+		private final JLabel first;
+		private final JLabel rest;
+		private final JLabel time;
+		private final JPanel words;
+
+		RowTextLayout(JLabel first, JLabel rest, JLabel time, JPanel words)
+		{
+			this.first = first;
+			this.rest = rest;
+			this.time = time;
+			this.words = words;
+		}
+
+		@Override
+		public void addLayoutComponent(String name, Component comp)
+		{
+		}
+
+		@Override
+		public void removeLayoutComponent(Component comp)
+		{
+		}
+
+		@Override
+		public Dimension preferredLayoutSize(Container parent)
+		{
+			final Insets in = parent.getInsets();
+			final int lines = rest.getText().isEmpty() ? 2 : 3;
+			return new Dimension(in.left + in.right, in.top + in.bottom + lines * ROW_LINE);
+		}
+
+		@Override
+		public Dimension minimumLayoutSize(Container parent)
+		{
+			final Insets in = parent.getInsets();
+			return new Dimension(in.left + in.right, in.top + in.bottom);
+		}
+
+		@Override
+		public void layoutContainer(Container parent)
+		{
+			final Insets in = parent.getInsets();
+			final int width = Math.max(0, parent.getWidth() - in.left - in.right);
+			final boolean second = !rest.getText().isEmpty();
+			final int lines = second ? 3 : 2;
+			final int top = in.top + Math.max(0, (parent.getHeight() - in.top - in.bottom - lines * ROW_LINE) / 2);
+
+			final Dimension f = first.getPreferredSize();
+			final Dimension t = time.getPreferredSize();
+			final int timeWidth = Math.min(t.width, width);
+			final int firstWidth = Math.max(0, width - timeWidth - ROW_WORDS_GAP);
+			final int firstY = top + Math.max(0, (ROW_LINE - f.height) / 2);
+			final int timeY = firstY + Math.max(0, baselineOf(first, f) - baselineOf(time, t));
+			first.setBounds(in.left, firstY, firstWidth, f.height);
+			time.setBounds(in.left + width - timeWidth, timeY, timeWidth, t.height);
+
+			int y = top + ROW_LINE;
+			if (second)
+			{
+				final Dimension r = rest.getPreferredSize();
+				rest.setBounds(in.left, y + Math.max(0, (ROW_LINE - r.height) / 2), width, r.height);
+				y += ROW_LINE;
+			}
+			else
+			{
+				rest.setBounds(0, 0, 0, 0);
+			}
+			words.setBounds(in.left, y, width, ROW_LINE);
+		}
+	}
+
+	/**
+	 * Lays out a row's last line: the name and the kind on one baseline, at the left, with {@link ClanHubPanel#ROW_WORDS_GAP}
+	 * between them. When the two do not fit the width, the kind is cut first (it keeps the room that is left, and none at
+	 * all when that is less than the width of "..."), then the name; a label given less than its own width cuts its text
+	 * with "...".
 	 */
 	private static final class RowWordsLayout implements LayoutManager
 	{
 		private final JLabel who;
 		private final JLabel what;
-		private final JLabel ago;
 
-		RowWordsLayout(JLabel who, JLabel what, JLabel ago)
+		RowWordsLayout(JLabel who, JLabel what)
 		{
 			this.who = who;
 			this.what = what;
-			this.ago = ago;
 		}
 
 		@Override
@@ -1230,11 +1450,9 @@ public class ClanHubPanel extends PluginPanel
 			final Insets in = parent.getInsets();
 			final Dimension w = who.getPreferredSize();
 			final Dimension k = what.getPreferredSize();
-			final Dimension t = ago.getPreferredSize();
 			final boolean hasWhat = !what.getText().isEmpty();
-			final int width = w.width + (hasWhat ? ROW_WORDS_GAP + k.width : 0) + ROW_WORDS_GAP + t.width;
-			return new Dimension(in.left + in.right + width,
-				in.top + in.bottom + Math.max(w.height, Math.max(k.height, t.height)));
+			final int width = w.width + (hasWhat ? ROW_WORDS_GAP + k.width : 0);
+			return new Dimension(in.left + in.right + width, in.top + in.bottom + Math.max(w.height, k.height));
 		}
 
 		@Override
@@ -1251,16 +1469,13 @@ public class ClanHubPanel extends PluginPanel
 			final int width = Math.max(0, parent.getWidth() - in.left - in.right);
 			final Dimension w = who.getPreferredSize();
 			final Dimension k = what.getPreferredSize();
-			final Dimension t = ago.getPreferredSize();
 
-			final int agoWidth = Math.min(t.width, width);
-			final int room = Math.max(0, width - agoWidth - ROW_WORDS_GAP);
 			final boolean hasWhat = !what.getText().isEmpty();
-			final int whoWidth = Math.min(w.width, room);
+			final int whoWidth = Math.min(w.width, width);
 			int whatWidth = 0;
-			if (hasWhat && w.width + ROW_WORDS_GAP <= room)
+			if (hasWhat && w.width + ROW_WORDS_GAP <= width)
 			{
-				whatWidth = Math.min(k.width, room - w.width - ROW_WORDS_GAP);
+				whatWidth = Math.min(k.width, width - w.width - ROW_WORDS_GAP);
 				final int ellipsis = what.getFontMetrics(what.getFont()).stringWidth("...");
 				if (whatWidth < k.width && whatWidth < ellipsis)
 				{
@@ -1268,29 +1483,26 @@ public class ClanHubPanel extends PluginPanel
 				}
 			}
 
-			// One baseline: each label sits so that its text's baseline is the lowest of the three, then the block is centred.
+			// One baseline: each label sits so that its text's baseline is the lower of the two, then the block is centred.
 			final int whoBase = baselineOf(who, w);
 			final int whatBase = baselineOf(what, k);
-			final int agoBase = baselineOf(ago, t);
-			final int base = Math.max(whoBase, Math.max(whatBase, agoBase));
+			final int base = Math.max(whoBase, whatBase);
 			final int whoY = base - whoBase;
 			final int whatY = base - whatBase;
-			final int agoY = base - agoBase;
-			final int blockHeight = Math.max(whoY + w.height, Math.max(whatY + k.height, agoY + t.height));
+			final int blockHeight = Math.max(whoY + w.height, whatY + k.height);
 			final int top = in.top + Math.max(0, (parent.getHeight() - in.top - in.bottom - blockHeight) / 2);
 
 			final int whoX = in.left;
 			final int whatX = whoX + whoWidth + (whatWidth > 0 ? ROW_WORDS_GAP : 0);
 			who.setBounds(whoX, top + whoY, whoWidth, w.height);
 			what.setBounds(whatX, top + whatY, whatWidth, k.height);
-			ago.setBounds(in.left + width - agoWidth, top + agoY, agoWidth, t.height);
 		}
+	}
 
-		/** Where the text's baseline is in a label of size {@code size}, from its top; 0 when it has none. */
-		private static int baselineOf(JLabel label, Dimension size)
-		{
-			return Math.max(0, label.getBaseline(Math.max(0, size.width), Math.max(0, size.height)));
-		}
+	/** Where the text's baseline is in a label of size {@code size}, from its top; 0 when it has none. */
+	private static int baselineOf(JLabel label, Dimension size)
+	{
+		return Math.max(0, label.getBaseline(Math.max(0, size.width), Math.max(0, size.height)));
 	}
 
 	/** The how-to bar's fold arrow: a small solid triangle in the captions' grey, pointing down or right. */

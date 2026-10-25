@@ -1365,7 +1365,8 @@ public class ClanHubPanelTest
 				assertTrue("the title", texts.contains("Smite Fight"));
 				assertTrue("who", texts.contains("GMucker"));
 				assertTrue("what", texts.contains("medium task"));
-				assertTrue("when", texts.contains("just now"));
+				// Re-aimed by the lead, 2026-10-25 (lot 10N): the row's short time.
+				assertTrue("when", texts.contains("now"));
 				assertFalse("no label reads the whole line", texts.contains(line));
 			});
 		}
@@ -1401,14 +1402,111 @@ public class ClanHubPanelTest
 				frame[0].validate();
 				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
 				assertEquals("one entry", 1, list.getModel().getSize());
-				assertTrue("at 'ago' the row reads 'just now'", textsIn(cellOf(list, 0)).contains("just now"));
+				// Re-aimed by the lead, 2026-10-25 (lot 10N): the row's short time.
+				assertTrue("at 'ago' the row reads 'now'", textsIn(cellOf(list, 0)).contains("now"));
 
 				cardTime = CardTime.CLOCK_24;
 				assertTrue("at the 24-hour clock the row reads the moment as HH:mm", textsIn(cellOf(list, 0)).contains(clock24));
-				assertFalse("and no longer 'just now'", textsIn(cellOf(list, 0)).contains("just now"));
+				assertFalse("and no longer 'now'", textsIn(cellOf(list, 0)).contains("now"));
 
 				cardTime = CardTime.CLOCK_12;
 				assertTrue("at the 12-hour clock the row reads the moment as h:mm a", textsIn(cellOf(list, 0)).contains(clock12));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/**
+	 * Lot 10N: in a list as wide as RuneLite gives the sidebar a long title takes a second line and its row is taller, a
+	 * short one keeps one; the time sits in the row's top corner, above the name, and the kind is said in full.
+	 */
+	@Test
+	public void aLongTitleTakesTwoLinesAndTheFullKind() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String dartLine = "LOVE MINERS received a new collection log item: Atlatl dart (1/50).";
+			final String taskLine = "GMucker has completed a medium combat task: Deranged Archaeologist Champion.";
+			final long now = System.currentTimeMillis();
+			history.add(dartLine, Collections.<HoverCard>singletonList(card("Atlatl dart", "Atlatl_dart", dartLine)), now);
+			history.add(taskLine, Collections.<HoverCard>singletonList(card("Deranged Archaeologist Champion",
+				"Deranged_Archaeologist_Champion", taskLine)), now);
+			flush();
+			onEdt(() ->
+			{
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("two entries", 2, list.getModel().getSize());
+				listWidthTo(frame[0], list, 226);
+
+				final Rectangle long1 = list.getCellBounds(0, 0);
+				final Rectangle short1 = list.getCellBounds(1, 1);
+				assertEquals("a two-line title: 60 px and the gap", 62, long1.height);
+				assertEquals("a one-line title: 44 px and the gap", 46, short1.height);
+				assertTrue("the first cell is taller than the second", long1.height > short1.height);
+
+				final Container longCell = cellOf(list, 0);
+				layOut(longCell, long1);
+				final List<String> longTexts = textsIn(longCell);
+				assertTrue("the title's words are in its labels", String.join(" ", longTexts).contains("Deranged"));
+				assertTrue("both of them", String.join(" ", longTexts).contains("Champion"));
+				assertFalse("no label says '...'", String.join(" ", longTexts).contains("..."));
+				assertWhole(longCell);
+				assertTrue("the kind", longTexts.contains("medium task"));
+				assertTrue("the time is above the name", yIn(longCell, labelSaying(longCell, "now"))
+					< yIn(longCell, labelSaying(longCell, "GMucker")));
+
+				final Container shortCell = cellOf(list, 1);
+				layOut(shortCell, short1);
+				assertTrue("the full kind", textsIn(shortCell).contains("collection log"));
+				assertWhole(shortCell);
+				assertTrue("the time is above the name", yIn(shortCell, labelSaying(shortCell, "now"))
+					< yIn(shortCell, labelSaying(shortCell, "LOVE MINERS")));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 10N: a row's lines are counted again when the list's width changes: wide enough, a long title takes one line. */
+	@Test
+	public void aWiderListMeasuresTheRowsAgain() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String taskLine = "GMucker has completed a medium combat task: Deranged Archaeologist Champion.";
+			history.add(taskLine, Collections.<HoverCard>singletonList(card("Deranged Archaeologist Champion",
+				"Deranged_Archaeologist_Champion", taskLine)), System.currentTimeMillis());
+			flush();
+			onEdt(() ->
+			{
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				listWidthTo(frame[0], list, 226);
+				assertEquals("two lines at 226 px", 62, list.getCellBounds(0, 0).height);
+
+				listWidthTo(frame[0], list, 500);
+				assertEquals("one line at 500 px, the counts measured again", 46, list.getCellBounds(0, 0).height);
+
+				listWidthTo(frame[0], list, 226);
+				assertEquals("and two again when it narrows", 62, list.getCellBounds(0, 0).height);
 			});
 		}
 		finally
@@ -2015,6 +2113,51 @@ public class ClanHubPanelTest
 			}
 		}
 		throw new AssertionError("no label says: " + words);
+	}
+
+	/** Sizes the frame so that the history's list is {@code width} px wide and lays it out. */
+	private static void listWidthTo(JFrame frame, JList<CardHistory.Entry> list, int width)
+	{
+		frame.setSize(Math.max(1, frame.getWidth() + width - list.getWidth()), frame.getHeight());
+		frame.validate();
+		assertEquals("the list is as wide as asked", width, list.getWidth());
+	}
+
+	/** Gives {@code cell} the size of its cell in the list and lays out everything in it, top down, as a draw would. */
+	private static void layOut(Container cell, Rectangle bounds)
+	{
+		cell.setSize(bounds.width, bounds.height);
+		layOutBelow(cell);
+	}
+
+	private static void layOutBelow(Container parent)
+	{
+		parent.doLayout();
+		for (final Component child : parent.getComponents())
+		{
+			if (child instanceof Container)
+			{
+				layOutBelow((Container) child);
+			}
+		}
+	}
+
+	/** The top of {@code part} in the coordinates of {@code cell}. */
+	private static int yIn(Container cell, Component part)
+	{
+		return SwingUtilities.convertPoint(part, 0, 0, cell).y;
+	}
+
+	/** No label in {@code cell} is given less room than its text needs, so none cuts its text with "...". */
+	private static void assertWhole(Container cell)
+	{
+		for (final JLabel label : labelsIn(cell))
+		{
+			if (!label.getText().isEmpty())
+			{
+				assertTrue("'" + label.getText() + "' has the room it needs", label.getWidth() >= label.getPreferredSize().width);
+			}
+		}
 	}
 
 	/** The history's list under {@code root}, or null. */

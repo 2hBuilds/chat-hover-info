@@ -254,20 +254,22 @@ settings menu.
   the casket icon), *Quests, tasks, diaries* (the quest icon), *Level-ups* and what they unlock (the total
   level icon), *Bosses*, kill counts, PBs (the combat icon) and *Examine* any item or monster (a magnifying glass).
 - **Recent cards** lists every chat line that gave a card this session, newest first, up to 5,000, in a list that
-  scrolls. Each row has the card's picture and its title on the first line, across the row. Under it come who the line
-  is about (the player's name, or *You* for your own lines and examine lines, in the *Name colour*, the 2h orange at first),
-  what kind of card it gave (*drop*,
-  *medium task*, *level-up*, *pet*, *examined* and so on) and, at the right, when the line came - how long ago
-  (*just now*, *4m ago*, *2h ago*) or, as *Card time* is set, the clock time (*14:32* or *2:32 PM*) - cut with "..."
-  where they do not fit (the kind goes first, then the name). The header says how many are kept (*12 this session*) and has a **Clear** link that
+  scrolls. Each row has the card's picture and, beside it, the card's title in bold, with when the line came small and
+  grey in the row's top right corner - how long ago (*now*, *4m*, *2h*) or, as *Card time* is set, the clock time
+  (*14:32* or *2:32 PM*). A title that does not fit beside the time goes on to a second line, and that row is taller
+  (a third line never: what is left after two is cut with "..."). Under the title come who the line is about (the
+  player's name, or *You* for your own lines and examine lines, in the *Name colour*, the 2h orange at first) and what
+  kind of card it gave (*drop*, *medium task*, *collection log*, *level-up*, *pet*, *examined* and so on), the kind in
+  full; only where the two do not fit is the kind cut with "...", then the name. The header says how many are kept
+  (*12 this session*) and has a **Clear** link that
   empties the list. Hover a row and its card shows beside the sidebar, as it does in game; right-click a row for *Open
-  wiki* or *Copy*. The list draws only the rows on screen and a new card is one insert at its top, so a long session
-  costs no more than a short one. The list is kept for the session only: it is never written anywhere, and it is gone
-  when you turn the plugin off or close the client.
+  wiki* or *Copy*. The list draws only the rows on screen, a new card is one insert at its top and a row's lines are
+  counted once, so a long session stays quick. The list is kept for the session only: it is never written anywhere, and
+  it is gone when you turn the plugin off or close the client.
 **The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
 press it again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.6*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 0.0.7*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - seven **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
   *Examine cards*, *Underline level-ups*;

@@ -113,7 +113,10 @@ public class CardHistoryTest
 		assertEquals("12 hours", "2:32 PM", CardHistory.timeOf(at, CardTime.CLOCK_12, utc, at));
 		assertEquals("24 hours, a morning hour keeps its zero", "09:05", CardHistory.timeOf(early, CardTime.CLOCK_24, utc, early));
 		assertEquals("12 hours, a morning hour has no zero", "9:05 AM", CardHistory.timeOf(early, CardTime.CLOCK_12, utc, early));
-		assertEquals("ago, four minutes later", "4m ago", CardHistory.timeOf(at, CardTime.AGO, utc, at + 4 * 60_000L));
+		// Re-aimed by the lead, 2026-10-25 (lot 10N): the row's short time.
+		assertEquals("ago, four minutes later", "4m", CardHistory.timeOf(at, CardTime.AGO, utc, at + 4 * 60_000L));
+		assertEquals("ago, the same moment", "now", CardHistory.timeOf(at, CardTime.AGO, utc, at));
+		assertEquals("ago, two hours later", "2h", CardHistory.timeOf(at, CardTime.AGO, utc, at + 2 * 3_600_000L));
 		assertEquals("the zone moves the clock", "10:32", CardHistory.timeOf(at, CardTime.CLOCK_24, ZoneOffset.ofHours(-4), at));
 		assertEquals("and the 12-hour one", "10:32 AM", CardHistory.timeOf(at, CardTime.CLOCK_12, ZoneOffset.ofHours(-4), at));
 	}
