@@ -7,42 +7,66 @@ import com.clanhub.ClanHubConfig.ExamineLine;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Point;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.DefaultListModel;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
+import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.ListCellRenderer;
+import javax.swing.ListSelectionModel;
 import javax.swing.MenuElement;
 import javax.swing.MenuSelectionManager;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.border.Border;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.border.MatteBorder;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 import javax.swing.text.DefaultFormatter;
@@ -53,12 +77,28 @@ import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.LinkBrowser;
 
 /**
- * The sidebar panel: one message card (a bold line and a grey line, centred) whose top row ends with the support
- * pair, and the settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the four
+ * The sidebar panel. At the top, fixed, a card whose top row ends with the support pair and under it a "How to use" box
+ * whose title is a bar across the card: a press anywhere on the bar folds the box to the bar, and it stays folded (the
+ * panel's own memory, a setting no player sees). Under the bar the action line in two parts (white, then grey), a
+ * small grey heading ("WHAT IT WORKS ON") and an icon list of what gets a card, one row per kind (the game's icon, a
+ * bold label, a grey rest). Under it the recent cards: a header ("Recent cards", how many are kept this session,
+ * "Clear") and a scrolling list of rows, one per chat line that gave a card, newest first, the whole session up to
+ * {@link CardHistory#CAP}. A row shows the card's picture, its title, how long ago the line came and the line itself;
+ * under the mouse it shows the card beside the sidebar, as in game (what a {@link CardViewer} does), and a right-click on
+ * it offers "Open wiki" and "Copy", as the game's own menu does.
+ *
+ * <p>The settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the four
  * choice submenus, the card key box and the two number boxes (when a card opens, the key that opens it, its delay,
  * where it opens, how wide it grows, how an examine line reads, its text size), the two colour rows (the hover colour and the underline colour,
- * each a swatch that opens RuneLite's colour picker), then the OK row. The plugin replaces the card with its own views;
- * the pair, the menu and the type sizes stay.
+ * each a swatch that opens RuneLite's colour picker), then the OK row.
+ *
+ * <p>Everything here runs on the event thread. A chat line arrives on the client thread, so the history's change is
+ * handed to the event thread before the list is brought up to date.
+ *
+ * <p>Choice: the recent cards are a {@link JList}, not a column of panels, because a list paints only the rows on screen
+ * and the whole session may be thousands of them: a new card is one insert at the top of the list's model, and a burst
+ * of lines is one sync, so five thousand rows cost what ten do. A panel per row would be rebuilt, every row, for every
+ * card that came.
  */
 public class ClanHubPanel extends PluginPanel
 {
@@ -94,11 +134,110 @@ public class ClanHubPanel extends PluginPanel
 	static final int MAX_CARD_DELAY = 1000;
 	static final int CARD_DELAY_STEP = 100;
 
+	/** The top card's header, the history's header and its clear link, and what a right-click on a row offers. */
+	static final String HOW_TO_TEXT = "How to use";
+	static final String RECENT_TEXT = "Recent cards";
+	static final String CLEAR_TEXT = "Clear";
+	static final String OPEN_WIKI_TEXT = "Open wiki";
+	static final String COPY_TEXT = "Copy";
+	/** The words of the how-to's action line that stand in the hover colour. */
+	static final String COLOURED_WORDS = "coloured name";
+	/** The small heading over the how-to's rows. */
+	static final String HOW_TO_HEADING = "WHAT IT WORKS ON";
+	/** The how-to's action line, in white, under its bar and over the wiki line. */
+	static final String HOW_TO_ACTION = "Hover the " + COLOURED_WORDS + " for its card.";
+	/** The how-to's action line while "Colour hoverable words" is off, when no name is coloured, in no colour. */
+	static final String HOW_TO_ACTION_PLAIN = "Hover a name in a broadcast for its card.";
+	/** The how-to's second line, in grey, under the action line and over the heading. */
+	static final String HOW_TO_WIKI = "Right-click it for the wiki.";
+	/** The name the how-to's title bar carries, which the panel's tests find it by. */
+	static final String HOW_TO_BAR_NAME = "how-to-bar";
+
+	/** One kind of card the how-to lists: its label, shown in bold white, and the rest of its words, shown in grey. */
+	static final class HowToRow
+	{
+		final String label;
+		final String rest;
+
+		HowToRow(String label, String rest)
+		{
+			this.label = label;
+			this.rest = rest;
+		}
+	}
+
+	/**
+	 * The how-to's rows, one per kind of card, in the order they show: the label and the rest run on as one text, the rest
+	 * starting with its own space or comma. The icons are in {@link #askForHowToIcon}.
+	 */
+	static final List<HowToRow> HOW_TO_ROWS = List.of(
+		new HowToRow("Drops & pets", " in clan, friends or your chat"),
+		new HowToRow("Quests, tasks, diaries", ""),
+		new HowToRow("Level-ups", " and what they unlock"),
+		new HowToRow("Bosses", ", kill counts, PBs"),
+		new HowToRow("Examine", " any item or monster"));
+	/** The name a how-to row carries and the name of the row's icon box, which the panel's tests find them by. */
+	static final String HOW_TO_ROW_NAME = "how-to-row";
+	static final String HOW_TO_ICON_NAME = "how-to-icon";
+	/** The name the history's list carries, which the panel's tests find it by. */
+	static final String HISTORY_LIST_NAME = "recent-cards-list";
+	/** The count's words after the number: how many cards the session has given. */
+	static final String COUNT_SUFFIX = " this session";
+
 	/** The card's padding, in px. */
 	private static final int PADDING = 8;
-	/** The card's message. */
-	private static final String HEADLINE = "Nothing here yet";
-	private static final String HELPER = "This card is the plugin's frame";
+	/** A history row's height and the gap under each row (part of its list cell), in px. */
+	private static final int ROW_HEIGHT = 44;
+	private static final int ROW_GAP = 2;
+	/** A row's picture box, in px: the picture is scaled to fit it and never drawn larger than it is. */
+	private static final int PICTURE_WIDTH = 36;
+	private static final int PICTURE_HEIGHT = 32;
+	/** The bar at a hovered row's left edge, in px. */
+	private static final int BAR_WIDTH = 2;
+	/** The history list's wheel step, in px. */
+	private static final int SCROLL_STEP = 16;
+	/** How often the "ago" words are refreshed while the panel is showing, in ms. */
+	private static final int AGO_REFRESH_MS = 30_000;
+	/** A how-to row's icon box, a square of this side in px, and the gap between it and the row's text. */
+	private static final int HOW_TO_ICON_SIZE = 20;
+	private static final int HOW_TO_ICON_GAP = 6;
+	/** The how-to's text size, in px, for the rows and the action line. */
+	private static final float HOW_TO_FONT_SIZE = 12f;
+	/** The how-to's title bar: its height, the room at each end before the title and the arrow, and its ground at rest, in px. */
+	private static final int HOW_TO_BAR_HEIGHT = 30;
+	private static final int HOW_TO_BAR_INSET = 10;
+	private static final Color HOW_TO_BAR_COLOUR = new Color(50, 50, 50);
+	/** The room between the support row and the bar, and between the bar and the action line, in px. */
+	private static final int HOW_TO_BAR_ABOVE = PADDING;
+	private static final int HOW_TO_BAR_BELOW = 10;
+	/** The item the first row's icon shows, the Casket (a small treasure chest, the user's pick), and its stack. */
+	private static final int CASKET_ITEM_ID = 405;
+	private static final int CASKET_STACK = 1;
+	/** The ink of a how-to row's label; the rest of the row is in the grey the label's own foreground gives. */
+	private static final String HOW_TO_LABEL_COLOUR = "#ffffff";
+	/** The how-to heading's text size, in px, and its grey. */
+	private static final float HOW_TO_HEADING_SIZE = 10f;
+	private static final Color HOW_TO_HEADING_COLOUR = new Color(125, 125, 125);
+	/** The gap between two how-to rows, above the heading and between the heading and the first row, in px. */
+	private static final int HOW_TO_ROW_GAP = 4;
+	private static final int HOW_TO_HEADING_ABOVE = 8;
+	private static final int HOW_TO_HEADING_BELOW = 4;
+	/** The room above a row's text so that its first line sits level with the middle of the icon box, in px. */
+	private static final int HOW_TO_TEXT_DROP = 2;
+	/**
+	 * How wide the how-to's full-width text (the action line) is set, in px: the width RuneLite gives a panel that is not
+	 * wrapped (its panel width and the scroll bar's) less the panel's and the card's padding and a few px to spare, so that
+	 * a line never runs past the card's right edge. A row's text is this less its icon box and the gap.
+	 */
+	private static final int HOW_TO_WIDTH = PluginPanel.PANEL_WIDTH + PluginPanel.SCROLLBAR_WIDTH - 4 * PADDING - 4;
+	private static final int HOW_TO_ROW_TEXT_WIDTH = HOW_TO_WIDTH - HOW_TO_ICON_SIZE - HOW_TO_ICON_GAP;
+	/** A row's border at rest and under the mouse; the bar takes the room the resting border leaves empty. */
+	private static final Border ROW_BORDER = new EmptyBorder(0, BAR_WIDTH + 4, 0, 6);
+	private static final Border ROW_HOT_BORDER = new CompoundBorder(
+		new MatteBorder(0, BAR_WIDTH, 0, 0, ColorScheme.BRAND_ORANGE), new EmptyBorder(0, 4, 0, 6));
+	/** The fold arrow of the how-to's header: down when the lines show, right when they are folded. */
+	private static final Icon ARROW_OPEN = new FoldArrow(true);
+	private static final Icon ARROW_FOLDED = new FoldArrow(false);
 	/** The settings icon's size, in px. */
 	private static final int ICON_SIZE = 12;
 	/** A press on the settings icon this soon after the menu closed is the press that closed it, not a new open. */
@@ -111,6 +250,11 @@ public class ClanHubPanel extends PluginPanel
 	private final Runnable resetToDefault;
 	private final PanelSettings settings;
 	private final ColourPicker picker;
+	private final CardHistory history;
+	private final CardViewer viewer;
+	private final IconSource icons;
+	private final Consumer<String> browse;
+	private final Consumer<String> copy;
 	private final SupportLinks support;
 	private final JCheckBoxMenuItem showCheck;
 	private final JCheckBoxMenuItem colourCheck;
@@ -140,22 +284,67 @@ public class ClanHubPanel extends PluginPanel
 	private Keybind shownKey = Keybind.NOT_SET;
 	/** True while the card key box waits for the key to take. */
 	private boolean keyArmed;
+	/** The how-to's action line, which {@link #refreshHowTo} sets, and the box of that line, the wiki line, the heading and the rows. */
+	private final JLabel howToAction = new JLabel();
+	private final JPanel howToLines = new JPanel();
+	/** The how-to bar's fold arrow. */
+	private final JLabel foldArrow = new JLabel();
+	/** Whether the how-to is folded to its bar, as last shown. */
+	private boolean howToFolded;
+	/** The history header's count, "N this session". */
+	private final JLabel count = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
+	/** The history's entries as the list shows them, newest first; changed only by {@link #syncList}. */
+	private final DefaultListModel<CardHistory.Entry> model = new DefaultListModel<>();
+	/** The list of recent cards, which the history's scroll pane shows. */
+	private final JList<CardHistory.Entry> historyList = new HistoryList(model);
+	/**
+	 * The picture of each entry in the model, by identity: the entry is a key from the moment it enters the model until it
+	 * leaves it, its value null until the picture comes.
+	 */
+	private final Map<CardHistory.Entry, ImageIcon> pictures = new IdentityHashMap<>();
+	/** The entry the mouse is on, so that its cell draws hot and its card is shown, or null. */
+	private CardHistory.Entry hovered;
+	/** True while a {@link #syncList} is queued for the event thread, so that a burst of lines asks for one. */
+	private final AtomicBoolean syncQueued = new AtomicBoolean();
+	/** Repaints the list, so that the "ago" words are read anew, while the panel is showing. */
+	private final Timer agoTimer = new Timer(AGO_REFRESH_MS, e -> refreshAgo());
 
 	/**
+	 * The panel: the top card, the recent cards under it, and the settings menu.
+	 *
+	 * <p>Choice: the panel is not wrapped ({@code super(false)}), so that it lays out its own scrolling: the top card
+	 * stays put while only the history scrolls, which RuneLite's wrapping, one scroll pane around the whole panel, would
+	 * not allow.
+	 *
 	 * @param resetToDefault what "Reset to default" does: puts the plugin's settings back to their defaults
 	 * @param settings the settings the menu's controls show, read each time the menu opens and after "Reset to default",
-	 *        and written when a control changes
+	 *        and written when a control changes; also whether the how-to is folded
 	 * @param picker opens the colour picker a colour swatch asks for
+	 * @param history the recent cards the list shows, listened to for every change
+	 * @param viewer what shows a hovered row's card beside the sidebar and takes it down
+	 * @param icons where a row gets its picture
+	 * @param browse what "Open wiki" does with the card's wiki address
+	 * @param copy what "Copy" does with the card's line
 	 */
-	ClanHubPanel(Runnable resetToDefault, PanelSettings settings, ColourPicker picker)
+	ClanHubPanel(Runnable resetToDefault, PanelSettings settings, ColourPicker picker, CardHistory history,
+		CardViewer viewer, IconSource icons, Consumer<String> browse, Consumer<String> copy)
 	{
-		super();
+		super(false);
 		this.resetToDefault = resetToDefault;
 		this.settings = settings;
 		this.picker = picker;
+		this.history = history;
+		this.viewer = viewer;
+		this.icons = icons;
+		this.browse = browse;
+		this.copy = copy;
 		this.support = new SupportLinks("2h Chat Hover Info", Version.CURRENT, GITHUB_URL, LinkBrowser::browse, this::closeMenu);
 		this.showCheck = check(SHOW_CARDS_TEXT, settings::setShowCards);
-		this.colourCheck = check(COLOUR_TEXT, settings::setColourHoverables);
+		this.colourCheck = check(COLOUR_TEXT, on ->
+		{
+			settings.setColourHoverables(on);
+			refreshHowTo();
+		});
 		this.wikiCheck = check(WIKI_TEXT, settings::setWikiDescriptions);
 		this.picturesCheck = check(PICTURES_TEXT, settings::setWikiPictures);
 		this.bossCheck = check(BOSS_TEXT, settings::setBossCards);
@@ -175,14 +364,42 @@ public class ClanHubPanel extends PluginPanel
 		this.sizeSpinner = spinner(DEFAULT_CARD_SIZE, MIN_CARD_SIZE, MAX_CARD_SIZE, 1, 2, settings::setCardFontSize);
 		this.menu = buildMenu();
 
-		setLayout(new BorderLayout());
+		setLayout(new BorderLayout(0, PADDING));
 		setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		setBorder(new EmptyBorder(PADDING, PADDING, PADDING, PADDING));
-		add(messageCard(), BorderLayout.NORTH);
+		add(topCard(), BorderLayout.NORTH);
+		add(historyView(), BorderLayout.CENTER);
+		applyFold(settings.howToFolded());
+		history.listen(this::queueSync);
+		syncList();
 	}
 
-	/** The message card: the top row with the support pair at its right end, then the two centred lines. */
-	private JPanel messageCard()
+	/**
+	 * A label with its font, size and colour set explicitly, never left to the look and feel: the menu's 12 px plain face
+	 * is {@code size} 12, the headers' bold one is made by {@link #boldLabel}.
+	 */
+	private static JLabel label(String text, float size, Color colour)
+	{
+		final JLabel label = new JLabel(text);
+		label.setFont(FontManager.getDefaultFont().deriveFont(size));
+		label.setForeground(colour);
+		return label;
+	}
+
+	/** A label in the bold face at {@code size} px. */
+	private static JLabel boldLabel(String text, float size, Color colour)
+	{
+		final JLabel label = new JLabel(text);
+		label.setFont(FontManager.getDefaultBoldFont().deriveFont(size));
+		label.setForeground(colour);
+		return label;
+	}
+
+	/**
+	 * The top card, fixed: the top row with the support pair at its right end, then the "How to use" box, whose bar runs
+	 * the card's whole inner width.
+	 */
+	private JPanel topCard()
 	{
 		final JPanel card = new JPanel(new BorderLayout());
 		card.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -192,26 +409,813 @@ public class ClanHubPanel extends PluginPanel
 		topRow.setOpaque(false);
 		topRow.add(support.supportPair(settingsIcon()), BorderLayout.EAST);
 		card.add(topRow, BorderLayout.NORTH);
-
-		final JPanel lines = new JPanel();
-		lines.setLayout(new BoxLayout(lines, BoxLayout.Y_AXIS));
-		lines.setOpaque(false);
-		lines.setBorder(new EmptyBorder(PADDING, 0, PADDING, 0));
-		lines.add(line(HEADLINE, FontManager.getDefaultBoldFont().deriveFont(14f), Color.WHITE));
-		lines.add(Box.createVerticalStrut(4));
-		lines.add(line(HELPER, FontManager.getDefaultFont().deriveFont(12f), ColorScheme.LIGHT_GRAY_COLOR));
-		card.add(lines, BorderLayout.CENTER);
+		card.add(howTo(), BorderLayout.CENTER);
 		return card;
 	}
 
-	/** One centred line of the card. */
-	private static JLabel line(String text, Font font, Color colour)
+	/**
+	 * The "How to use" box: a title bar across the card, "How to use" at its left and the fold arrow at its right, over
+	 * the action line in two parts (white, then grey), the small heading "WHAT IT WORKS ON" and the icon rows. A press
+	 * anywhere on the bar folds the lines away or brings them back and writes which; the arrow points down while they show
+	 * and right while they are folded. The bar's ground is a shade lighter than the card's, and lighter again under the
+	 * mouse.
+	 *
+	 * <p>Choice: the bar's title and arrow take no mouse listener of their own, so a press anywhere on the bar, and the
+	 * mouse entering or leaving it, reaches the bar's one listener.
+	 */
+	private JPanel howTo()
 	{
-		final JLabel label = new JLabel(text, SwingConstants.CENTER);
-		label.setFont(font);
-		label.setForeground(colour);
-		label.setAlignmentX(Component.CENTER_ALIGNMENT);
-		return label;
+		final JPanel box = new JPanel(new BorderLayout());
+		box.setOpaque(false);
+		box.setBorder(new EmptyBorder(HOW_TO_BAR_ABOVE, 0, 0, 0));
+
+		final JPanel bar = new JPanel(new BorderLayout())
+		{
+			@Override
+			public Dimension getPreferredSize()
+			{
+				return new Dimension(super.getPreferredSize().width, HOW_TO_BAR_HEIGHT);
+			}
+		};
+		bar.setName(HOW_TO_BAR_NAME);
+		bar.setBackground(HOW_TO_BAR_COLOUR);
+		bar.setBorder(new EmptyBorder(0, HOW_TO_BAR_INSET, 0, HOW_TO_BAR_INSET));
+		bar.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		bar.add(boldLabel(HOW_TO_TEXT, 13f, Color.WHITE), BorderLayout.WEST);
+		bar.add(foldArrow, BorderLayout.EAST);
+		bar.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				bar.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				bar.setBackground(HOW_TO_BAR_COLOUR);
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger())
+				{
+					final boolean folded = !howToFolded;
+					applyFold(folded);
+					settings.setHowToFolded(folded);
+				}
+			}
+		});
+		box.add(bar, BorderLayout.NORTH);
+
+		howToLines.setLayout(new BoxLayout(howToLines, BoxLayout.Y_AXIS));
+		howToLines.setOpaque(false);
+		howToLines.add(Box.createVerticalStrut(HOW_TO_BAR_BELOW));
+		howToAction.setFont(FontManager.getDefaultFont().deriveFont(HOW_TO_FONT_SIZE));
+		howToAction.setForeground(Color.WHITE);
+		howToLines.add(actionLine(howToAction));
+		final JLabel wiki = label("", HOW_TO_FONT_SIZE, ColorScheme.LIGHT_GRAY_COLOR);
+		wiki.setText(howToHtml(List.of(new Run(HOW_TO_WIKI, "", "", wiki.getFontMetrics(wiki.getFont()))), HOW_TO_WIDTH));
+		howToLines.add(actionLine(wiki));
+		howToLines.add(Box.createVerticalStrut(HOW_TO_HEADING_ABOVE));
+		final JLabel heading = boldLabel(HOW_TO_HEADING, HOW_TO_HEADING_SIZE, HOW_TO_HEADING_COLOUR);
+		heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+		howToLines.add(heading);
+		howToLines.add(Box.createVerticalStrut(HOW_TO_HEADING_BELOW));
+		for (int i = 0; i < HOW_TO_ROWS.size(); i++)
+		{
+			howToLines.add(howToRow(i));
+			howToLines.add(Box.createVerticalStrut(HOW_TO_ROW_GAP));
+		}
+		refreshHowTo();
+		box.add(howToLines, BorderLayout.CENTER);
+		return box;
+	}
+
+	/** One of the how-to's two action lines in a box of its own, so that it fills the card's width and sits at its left. */
+	private static JPanel actionLine(JLabel line)
+	{
+		line.setVerticalAlignment(SwingConstants.TOP);
+		final JPanel box = new JPanel(new BorderLayout());
+		box.setOpaque(false);
+		box.setAlignmentX(Component.LEFT_ALIGNMENT);
+		box.add(line, BorderLayout.CENTER);
+		return box;
+	}
+
+	/**
+	 * One row of the how-to, number {@code index} of {@link #HOW_TO_ROWS}: an icon box of {@link #HOW_TO_ICON_SIZE} px at
+	 * the left, empty until its picture comes, and beside it the row's label in bold white and its rest in grey, wrapped to
+	 * the room the icon leaves. The picture is asked for here, once.
+	 *
+	 * <p>Choice: the label is a bold run of the one HTML text, so that the rest wraps beside it as running text, and the
+	 * words are measured for the wrap in the client's bold face; RuneLite registers that face with the graphics
+	 * environment, which is what lets Swing's HTML draw {@code <b>} in it.
+	 */
+	private JPanel howToRow(int index)
+	{
+		final HowToRow row = HOW_TO_ROWS.get(index);
+		final JPanel panel = new JPanel(new BorderLayout(HOW_TO_ICON_GAP, 0));
+		panel.setName(HOW_TO_ROW_NAME);
+		panel.setOpaque(false);
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		final JLabel icon = new JLabel();
+		icon.setName(HOW_TO_ICON_NAME);
+		icon.setHorizontalAlignment(SwingConstants.CENTER);
+		icon.setVerticalAlignment(SwingConstants.TOP);
+		icon.setPreferredSize(new Dimension(HOW_TO_ICON_SIZE, HOW_TO_ICON_SIZE));
+		panel.add(icon, BorderLayout.WEST);
+		askForHowToIcon(index, icon);
+
+		final JLabel text = label("", HOW_TO_FONT_SIZE, ColorScheme.LIGHT_GRAY_COLOR);
+		text.setVerticalAlignment(SwingConstants.TOP);
+		text.setBorder(new EmptyBorder(HOW_TO_TEXT_DROP, 0, 0, 0));
+		final Font bold = FontManager.getDefaultBoldFont().deriveFont(HOW_TO_FONT_SIZE);
+		final List<Run> runs = new ArrayList<>();
+		runs.add(new Run(row.label, "<b><font color='" + HOW_TO_LABEL_COLOUR + "'>", "</font></b>", text.getFontMetrics(bold)));
+		if (!row.rest.isEmpty())
+		{
+			runs.add(new Run(row.rest, "", "", text.getFontMetrics(text.getFont())));
+		}
+		text.setText(howToHtml(runs, HOW_TO_ROW_TEXT_WIDTH));
+		panel.add(text, BorderLayout.CENTER);
+		return panel;
+	}
+
+	/**
+	 * Asks the icon source for the picture of how-to row {@code index} and puts it in {@code box} when it comes: the
+	 * Casket (at a stack of 1) for the drops, the quest sprite, the total level sprite for the level-ups, the combat sprite for the
+	 * bosses, and for the examine row a magnifying glass drawn in code. The row's order is {@link #HOW_TO_ROWS}'s.
+	 */
+	private void askForHowToIcon(int index, JLabel box)
+	{
+		final Consumer<BufferedImage> picture = pictureIn(box, HOW_TO_ICON_SIZE, HOW_TO_ICON_SIZE);
+		switch (index)
+		{
+			case 0:
+				icons.item(CASKET_ITEM_ID, CASKET_STACK, picture);
+				break;
+			case 1:
+				icons.sprite(SkillSprites.QUEST, picture);
+				break;
+			case 2:
+				icons.sprite(SkillSprites.spriteOf("Total"), picture);
+				break;
+			case 3:
+				icons.sprite(SkillSprites.spriteOf("Combat"), picture);
+				break;
+			default:
+				box.setIcon(ExamineGlyph.icon(HOW_TO_ICON_SIZE, ColorScheme.LIGHT_GRAY_COLOR));
+				break;
+		}
+	}
+
+	/**
+	 * Sets the how-to's action line, in white: {@link #HOW_TO_ACTION} wrapped to {@link #HOW_TO_WIDTH} px and written as
+	 * HTML, the {@link #COLOURED_WORDS} in the hover colour as the settings have it now. While "Colour hoverable words" is
+	 * off no name is coloured, so the line is {@link #HOW_TO_ACTION_PLAIN}, in no colour.
+	 *
+	 * <p>Choice: the line is wrapped here, by the width of its words in the label's own font, and joined with line breaks,
+	 * and no width is written into the HTML: Swing's HTML reads a CSS width in px as 1.3 times what it says (it was
+	 * measured), which would let a line run past the card's right edge.
+	 */
+	private void refreshHowTo()
+	{
+		final FontMetrics metrics = howToAction.getFontMetrics(howToAction.getFont());
+		final List<Run> runs = new ArrayList<>();
+		if (settings.colourHoverables())
+		{
+			final Color hover = settings.hoverColour();
+			final String coloured = String.format("#%02x%02x%02x", hover.getRed(), hover.getGreen(), hover.getBlue());
+			final int at = HOW_TO_ACTION.indexOf(COLOURED_WORDS);
+			final int end = at + COLOURED_WORDS.length();
+			runs.add(new Run(HOW_TO_ACTION.substring(0, at), "", "", metrics));
+			runs.add(new Run(COLOURED_WORDS, "<font color='" + coloured + "'>", "</font>", metrics));
+			runs.add(new Run(HOW_TO_ACTION.substring(end), "", "", metrics));
+		}
+		else
+		{
+			runs.add(new Run(HOW_TO_ACTION_PLAIN, "", "", metrics));
+		}
+		howToAction.setText(howToHtml(runs, HOW_TO_WIDTH));
+	}
+
+	/**
+	 * A stretch of a how-to text in one look: its words, the HTML that opens and closes it (both empty for the label's own
+	 * look), and the metrics of the font the words are drawn in, which the wrapping measures them with.
+	 */
+	private static final class Run
+	{
+		final String text;
+		final String open;
+		final String close;
+		final FontMetrics metrics;
+
+		Run(String text, String open, String close, FontMetrics metrics)
+		{
+			this.text = text;
+			this.open = open;
+			this.close = close;
+			this.metrics = metrics;
+		}
+	}
+
+	/**
+	 * The runs as one HTML text: the words broken into lines no wider than {@code maxWidth} px, each word measured in its
+	 * own run's font (a word wider than that has a line to itself), joined with line breaks, every run's tags opened and
+	 * closed again on each line it reaches, so that a run split across two lines keeps its look on both. The space a line
+	 * breaks at is dropped.
+	 */
+	private static String howToHtml(List<Run> runs, int maxWidth)
+	{
+		final StringBuilder all = new StringBuilder();
+		for (final Run run : runs)
+		{
+			all.append(run.text);
+		}
+		final String text = all.toString();
+		final StringBuilder html = new StringBuilder("<html>");
+		int from = 0;
+		while (from < text.length())
+		{
+			// [from, to) is the words that fit on this line; the first word is taken whatever its width.
+			int to = from;
+			int next = from;
+			while (next < text.length())
+			{
+				final int space = text.indexOf(' ', next);
+				final int wordEnd = space < 0 ? text.length() : space;
+				if (to > from && widthOf(runs, from, wordEnd) > maxWidth)
+				{
+					break;
+				}
+				to = wordEnd;
+				next = space < 0 ? text.length() : space + 1;
+			}
+			appendLine(html, runs, from, to);
+			if (to < text.length())
+			{
+				html.append("<br>");
+			}
+			from = to + 1;
+		}
+		return html.append("</html>").toString();
+	}
+
+	/** How wide the characters {@code from} to {@code to} of the runs' text are, each run's part in its own font. */
+	private static int widthOf(List<Run> runs, int from, int to)
+	{
+		int width = 0;
+		int at = 0;
+		for (final Run run : runs)
+		{
+			final int runFrom = Math.max(from, at);
+			final int runTo = Math.min(to, at + run.text.length());
+			if (runFrom < runTo)
+			{
+				width += run.metrics.stringWidth(run.text.substring(runFrom - at, runTo - at));
+			}
+			at += run.text.length();
+		}
+		return width;
+	}
+
+	/** Adds the characters {@code from} to {@code to} of the runs' text to {@code html}, each run's part in its own tags. */
+	private static void appendLine(StringBuilder html, List<Run> runs, int from, int to)
+	{
+		int at = 0;
+		for (final Run run : runs)
+		{
+			final int runFrom = Math.max(from, at);
+			final int runTo = Math.min(to, at + run.text.length());
+			if (runFrom < runTo)
+			{
+				html.append(run.open).append(run.text, runFrom - at, runTo - at).append(run.close);
+			}
+			at += run.text.length();
+		}
+	}
+
+	/** Shows the how-to folded to its bar or open, writing nothing: the lines, the arrow and the card's height follow. */
+	private void applyFold(boolean folded)
+	{
+		howToFolded = folded;
+		howToLines.setVisible(!folded);
+		foldArrow.setIcon(folded ? ARROW_FOLDED : ARROW_OPEN);
+		revalidate();
+		repaint();
+	}
+
+	/**
+	 * The recent cards: a header row ("Recent cards", the count, "Clear" at the right) over the scroll pane of the list,
+	 * which has no horizontal bar, a vertical one as needed and {@link #SCROLL_STEP} px wheel steps.
+	 *
+	 * <p>The list: every cell {@code ROW_HEIGHT + ROW_GAP} px high, drawn by the one {@link RowRenderer}, with no selection
+	 * painted (the keyboard never reaches it). The mouse is read on the list itself, since a list has no component per
+	 * row: where it moves, which cell it is on and so which card the viewer shows; a popup trigger offers the row's menu.
+	 *
+	 * <p>Choice: the list's cells have a fixed width of 0, and the list is made as wide as the scroll pane's view, so that
+	 * the list never asks the renderer for the width of every row (which a list does to size itself when its cells' width
+	 * is not fixed, and which would read every row of a session); a cell's width is then the list's, which is what cuts a
+	 * long line with "..." and keeps the horizontal bar away.
+	 */
+	private JPanel historyView()
+	{
+		final JPanel view = new JPanel(new BorderLayout());
+		view.setOpaque(false);
+
+		final JPanel header = new JPanel();
+		header.setLayout(new BoxLayout(header, BoxLayout.X_AXIS));
+		header.setOpaque(false);
+		header.setBorder(new EmptyBorder(0, 0, 6, 0));
+		header.add(boldLabel(RECENT_TEXT, 13f, Color.WHITE));
+		header.add(Box.createHorizontalStrut(8));
+		header.add(count);
+		header.add(Box.createHorizontalGlue());
+		header.add(clearLink());
+		view.add(header, BorderLayout.NORTH);
+
+		historyList.setName(HISTORY_LIST_NAME);
+		historyList.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		historyList.setFocusable(false);
+		historyList.setFixedCellWidth(0);
+		historyList.setFixedCellHeight(ROW_HEIGHT + ROW_GAP);
+		historyList.setCellRenderer(new RowRenderer());
+		final MouseAdapter mouse = new MouseAdapter()
+		{
+			@Override
+			public void mouseMoved(MouseEvent e)
+			{
+				hoverAt(e.getPoint());
+			}
+
+			@Override
+			public void mouseDragged(MouseEvent e)
+			{
+				hoverAt(e.getPoint());
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				hoverAt(null);
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				offerMenu(e);
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				offerMenu(e);
+			}
+		};
+		historyList.addMouseListener(mouse);
+		historyList.addMouseMotionListener(mouse);
+		final JScrollPane scroll = new JScrollPane(historyList, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+			ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		scroll.setBorder(null);
+		scroll.getViewport().setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		scroll.getVerticalScrollBar().setUnitIncrement(SCROLL_STEP);
+		view.add(scroll, BorderLayout.CENTER);
+		return view;
+	}
+
+	/** The history header's "Clear": grey at rest, white under the mouse; a left press empties the history. */
+	private JLabel clearLink()
+	{
+		final JLabel clear = label(CLEAR_TEXT, 12f, ColorScheme.LIGHT_GRAY_COLOR);
+		clear.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		clear.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				clear.setForeground(Color.WHITE);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				clear.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			}
+
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger())
+				{
+					history.clear();
+				}
+			}
+		});
+		return clear;
+	}
+
+	/** Asks for one {@link #syncList} on the event thread, unless one is already queued; may be called on any thread. */
+	private void queueSync()
+	{
+		if (syncQueued.compareAndSet(false, true))
+		{
+			SwingUtilities.invokeLater(this::syncList);
+		}
+	}
+
+	/**
+	 * Brings the list up to date with the history, from one read of it. The entries in front of the model's first one (by
+	 * identity) are the new ones: they are inserted at the top in one step, in order, and each new entry's picture is asked
+	 * for, once. The model is then cut to the history's size from the bottom, and the cut entries leave the pictures. A
+	 * history that is empty, or that no longer holds the model's first entry (it was cleared and filled again), empties the
+	 * model first. The count is set. If the entry the mouse was on is gone, the card shown for it comes down: the row is
+	 * gone, and no exit would ever tell the viewer. Runs on the event thread.
+	 *
+	 * <p>Choice: the queued flag is let go before the history is read, so that a line that comes while this runs asks for a
+	 * sync of its own and is never lost.
+	 */
+	private void syncList()
+	{
+		syncQueued.set(false);
+		final List<CardHistory.Entry> entries = history.entries();
+		int fresh = entries.size();
+		if (!model.isEmpty())
+		{
+			final int top = identityIndex(entries, model.get(0));
+			if (top < 0)
+			{
+				pictures.clear();
+				model.clear();
+			}
+			else
+			{
+				fresh = top;
+			}
+		}
+		if (fresh > 0)
+		{
+			final List<CardHistory.Entry> added = new ArrayList<>(entries.subList(0, fresh));
+			for (final CardHistory.Entry entry : added)
+			{
+				pictures.put(entry, null);
+			}
+			model.addAll(0, added);
+			for (final CardHistory.Entry entry : added)
+			{
+				askForPicture(entry);
+			}
+		}
+		final int size = entries.size();
+		if (model.size() > size)
+		{
+			for (int i = size; i < model.size(); i++)
+			{
+				pictures.remove(model.get(i));
+			}
+			model.removeRange(size, model.size() - 1);
+		}
+		count.setText(history.size() + COUNT_SUFFIX);
+		if (hovered != null && !pictures.containsKey(hovered))
+		{
+			hovered = null;
+			viewer.hide();
+		}
+	}
+
+	/** Where {@code entry} is in {@code entries}, by identity, or -1. */
+	private static int identityIndex(List<CardHistory.Entry> entries, CardHistory.Entry entry)
+	{
+		for (int i = 0; i < entries.size(); i++)
+		{
+			if (entries.get(i) == entry)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * Asks the icon source for {@code entry}'s picture, which may come on any thread, more than once; each time it comes
+	 * it is fitted to the picture box and kept, on the event thread, and the entry's cell is drawn again, unless the entry
+	 * has left the model in the meantime.
+	 */
+	private void askForPicture(CardHistory.Entry entry)
+	{
+		icons.iconFor(entry.card(), image -> onEventThread(() ->
+		{
+			if (!pictures.containsKey(entry))
+			{
+				return;
+			}
+			final ImageIcon icon = fitted(image, PICTURE_WIDTH, PICTURE_HEIGHT);
+			if (icon != null)
+			{
+				pictures.put(entry, icon);
+				repaintCell(entry);
+			}
+		}));
+	}
+
+	/** Draws the cell of {@code entry} again, if it is in the model; a null entry is ignored. */
+	private void repaintCell(CardHistory.Entry entry)
+	{
+		if (entry == null)
+		{
+			return;
+		}
+		final int index = model.indexOf(entry);
+		final Rectangle bounds = index < 0 ? null : historyList.getCellBounds(index, index);
+		if (bounds != null)
+		{
+			historyList.repaint(bounds);
+		}
+	}
+
+	/** Draws the whole list again, so that every "ago" is read from the clock now. */
+	private void refreshAgo()
+	{
+		historyList.repaint();
+	}
+
+	/** The index of the cell whose bounds hold {@code point}, or -1: the list answers the cell nearest a point, so it is checked. */
+	private int cellAt(Point point)
+	{
+		final int index = historyList.locationToIndex(point);
+		final Rectangle bounds = index < 0 ? null : historyList.getCellBounds(index, index);
+		return bounds != null && bounds.contains(point) ? index : -1;
+	}
+
+	/**
+	 * Makes the entry under {@code point} (a point of the list, or null once the mouse has left it) the hovered one: its
+	 * cell draws hot and the viewer is asked for its card, level with the cell; off every cell, or off the list, the cell
+	 * is let go and the viewer is asked to take the card down. A mouse that stays on the same cell asks for nothing.
+	 */
+	private void hoverAt(Point point)
+	{
+		final int index = point == null ? -1 : cellAt(point);
+		final CardHistory.Entry now = index < 0 ? null : model.get(index);
+		if (now == hovered)
+		{
+			return;
+		}
+		final CardHistory.Entry before = hovered;
+		hovered = now;
+		repaintCell(before);
+		repaintCell(now);
+		if (now == null)
+		{
+			viewer.hide();
+		}
+		else if (historyList.isShowing())
+		{
+			final Rectangle cell = historyList.getCellBounds(index, index);
+			final Point origin = historyList.getLocationOnScreen();
+			cell.translate(origin.x, origin.y);
+			viewer.show(now.card(), cell);
+		}
+	}
+
+	/**
+	 * A popup-trigger press or release on a row opens a menu under the mouse with "Open wiki" (the card's wiki address goes
+	 * to {@code browse}) and "Copy" (the line goes to {@code copy}), the two entries the game's own menu gets on the same
+	 * line.
+	 */
+	private void offerMenu(MouseEvent e)
+	{
+		if (!e.isPopupTrigger())
+		{
+			return;
+		}
+		final int index = cellAt(e.getPoint());
+		if (index < 0)
+		{
+			return;
+		}
+		final HoverCard card = model.get(index).card();
+		final JPopupMenu popup = new JPopupMenu();
+		popup.add(menuItem(OPEN_WIKI_TEXT, () -> browse.accept(card.wikiUrl())));
+		popup.add(menuItem(COPY_TEXT, () -> copy.accept(card.plainLine())));
+		popup.show(historyList, e.getX(), e.getY());
+	}
+
+	/** One entry of a row's menu, in the menu's 12 px type. */
+	private static JMenuItem menuItem(String text, Runnable action)
+	{
+		final JMenuItem item = new JMenuItem(text);
+		item.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
+		item.setForeground(Color.WHITE);
+		item.addActionListener(e -> action.run());
+		return item;
+	}
+
+	/** Runs {@code body} now when this is the event thread, else on it later. */
+	private static void onEventThread(Runnable body)
+	{
+		if (SwingUtilities.isEventDispatchThread())
+		{
+			body.run();
+		}
+		else
+		{
+			SwingUtilities.invokeLater(body);
+		}
+	}
+
+	/**
+	 * What takes a picture, on any thread, into {@code box}: the picture is fitted to {@code boxWidth} by {@code boxHeight}
+	 * px and set as the box's icon on the event thread, each time it is given (a picture that loads gives itself twice).
+	 */
+	private static Consumer<BufferedImage> pictureIn(JLabel box, int boxWidth, int boxHeight)
+	{
+		return image -> onEventThread(() ->
+		{
+			final ImageIcon icon = fitted(image, boxWidth, boxHeight);
+			if (icon != null)
+			{
+				box.setIcon(icon);
+			}
+		});
+	}
+
+	/**
+	 * The picture drawn into a copy that fits a box of {@code boxWidth} by {@code boxHeight} px, in its own proportions and
+	 * never larger than it came: a copy, because an item's picture is filled in after it is handed out and the copy is taken
+	 * when the picture is given. Null when the picture has no size.
+	 */
+	private static ImageIcon fitted(BufferedImage image, int boxWidth, int boxHeight)
+	{
+		final int width = image.getWidth();
+		final int height = image.getHeight();
+		if (width <= 0 || height <= 0)
+		{
+			return null;
+		}
+		final double scale = Math.min(1.0, Math.min((double) boxWidth / width, (double) boxHeight / height));
+		final int fitWidth = Math.max(1, (int) Math.round(width * scale));
+		final int fitHeight = Math.max(1, (int) Math.round(height * scale));
+		final BufferedImage copy = new BufferedImage(fitWidth, fitHeight, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = copy.createGraphics();
+		try
+		{
+			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			g.drawImage(image, 0, 0, fitWidth, fitHeight, null);
+		}
+		finally
+		{
+			g.dispose();
+		}
+		return new ImageIcon(copy);
+	}
+
+	/** The "ago" words are refreshed from now on, once now and then every {@link #AGO_REFRESH_MS} ms, while the panel shows. */
+	@Override
+	public void addNotify()
+	{
+		super.addNotify();
+		refreshAgo();
+		agoTimer.start();
+	}
+
+	/** The "ago" refresh stops, and a card shown for a hovered row comes down, as the panel leaves the screen. */
+	@Override
+	public void removeNotify()
+	{
+		agoTimer.stop();
+		if (hovered != null)
+		{
+			hovered = null;
+			viewer.hide();
+		}
+		super.removeNotify();
+	}
+
+	/**
+	 * The history's list: as wide as the scroll pane's view, so that a row never asks for more width than the sidebar has,
+	 * which is what cuts a long line with "..." and keeps the horizontal bar away. Its cells' width is fixed (at 0, see
+	 * {@link #historyView}), so its own preferred width is 0 and the view is always the wider.
+	 */
+	private static final class HistoryList extends JList<CardHistory.Entry>
+	{
+		HistoryList(DefaultListModel<CardHistory.Entry> model)
+		{
+			super(model);
+		}
+
+		@Override
+		public boolean getScrollableTracksViewportWidth()
+		{
+			return true;
+		}
+	}
+
+	/**
+	 * Draws an entry of the history as a row: the picture box at the left (36 x 32 px, the entry's picture in it), the
+	 * card's title in bold white with the "ago" words at the row's right, and under it the line in grey
+	 * ({@link CardHistory#withoutName} takes off a leading "title: ", so that an examine line does not say its name twice),
+	 * cut with "..." where it does not fit. The hovered entry's row takes the hover ground and an orange bar at its left
+	 * edge. Under the row, inside the cell, the gap to the next row in the list's own ground.
+	 *
+	 * <p>Choice: one component is built, once, and set from the entry at every draw, which is how a list draws only the rows
+	 * on screen at the cost of those rows; the "ago" words are worked out here, at draw time, so that a timer's repaint is
+	 * all it takes to refresh them. No selection is drawn.
+	 */
+	private final class RowRenderer implements ListCellRenderer<CardHistory.Entry>
+	{
+		private final JPanel cell = new JPanel(new BorderLayout());
+		private final JPanel row = new JPanel(new BorderLayout(6, 0));
+		private final JLabel picture = new JLabel();
+		private final JLabel title = boldLabel("", 12f, Color.WHITE);
+		private final JLabel ago = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
+		private final JLabel line = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
+
+		RowRenderer()
+		{
+			cell.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			cell.setBorder(new EmptyBorder(0, 0, ROW_GAP, 0));
+
+			picture.setHorizontalAlignment(SwingConstants.CENTER);
+			picture.setPreferredSize(new Dimension(PICTURE_WIDTH, PICTURE_HEIGHT));
+			final JPanel pictureBox = new JPanel(new GridBagLayout());
+			pictureBox.setOpaque(false);
+			pictureBox.add(picture);
+			row.add(pictureBox, BorderLayout.WEST);
+
+			ago.setBorder(new EmptyBorder(0, 6, 0, 0));
+			final JPanel top = new JPanel(new BorderLayout());
+			top.setOpaque(false);
+			top.add(title, BorderLayout.CENTER);
+			top.add(ago, BorderLayout.EAST);
+			final JPanel text = new JPanel(new GridLayout(2, 1));
+			text.setOpaque(false);
+			text.add(top);
+			text.add(line);
+			row.add(text, BorderLayout.CENTER);
+			cell.add(row, BorderLayout.CENTER);
+		}
+
+		@Override
+		public Component getListCellRendererComponent(JList<? extends CardHistory.Entry> list, CardHistory.Entry entry,
+			int index, boolean isSelected, boolean cellHasFocus)
+		{
+			final HoverCard card = entry.card();
+			final boolean hot = entry == hovered;
+			row.setBackground(hot ? ColorScheme.DARK_GRAY_HOVER_COLOR : ColorScheme.DARK_GRAY_COLOR);
+			row.setBorder(hot ? ROW_HOT_BORDER : ROW_BORDER);
+			picture.setIcon(pictures.get(entry));
+			title.setText(card.title());
+			ago.setText(CardHistory.ago(System.currentTimeMillis(), entry.at()));
+			line.setText(CardHistory.withoutName(entry.line(), card.title()));
+			return cell;
+		}
+	}
+
+	/** The how-to bar's fold arrow: a small solid triangle in the captions' grey, pointing down or right. */
+	private static final class FoldArrow implements Icon
+	{
+		private static final int SIZE = 10;
+		private final boolean down;
+
+		FoldArrow(boolean down)
+		{
+			this.down = down;
+		}
+
+		@Override
+		public int getIconWidth()
+		{
+			return SIZE;
+		}
+
+		@Override
+		public int getIconHeight()
+		{
+			return SIZE;
+		}
+
+		@Override
+		public void paintIcon(Component c, Graphics g, int x, int y)
+		{
+			final Graphics2D g2 = (Graphics2D) g.create();
+			try
+			{
+				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+				g2.setColor(ColorScheme.LIGHT_GRAY_COLOR);
+				final Polygon triangle = down
+					? new Polygon(new int[] {x, x + SIZE, x + SIZE / 2}, new int[] {y + 2, y + 2, y + SIZE - 2}, 3)
+					: new Polygon(new int[] {x + 2, x + 2, x + SIZE - 2}, new int[] {y, y + SIZE, y + SIZE / 2}, 3);
+				g2.fillPolygon(triangle);
+			}
+			finally
+			{
+				g2.dispose();
+			}
+		}
 	}
 
 	/** The settings icon: grey at rest, orange under the mouse; a press opens the menu under it. */
@@ -706,7 +1710,8 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * Sets the checks, the choice submenus, the card key box, the spinners and the colour swatches from the settings,
-	 * without writing anything back.
+	 * without writing anything back; the how-to's coloured words follow the hover colour and its fold follows the setting,
+	 * which "Reset to default" has just put back.
 	 *
 	 * <p>Choice: a stored size outside 8 to 24 shows as the nearest end of the range, and a stored delay outside 0 to 1000
 	 * likewise.
@@ -729,6 +1734,8 @@ public class ClanHubPanel extends PluginPanel
 			keyBoxEnabled(settings.cardTrigger() == CardTrigger.HOLD_KEY);
 			delaySpinner.setValue(Math.max(0, Math.min(MAX_CARD_DELAY, settings.cardDelayMs())));
 			sizeSpinner.setValue(Math.max(MIN_CARD_SIZE, Math.min(MAX_CARD_SIZE, settings.cardFontSize())));
+			refreshHowTo();
+			applyFold(settings.howToFolded());
 		}
 		finally
 		{

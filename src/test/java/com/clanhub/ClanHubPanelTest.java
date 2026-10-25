@@ -7,6 +7,8 @@ import com.clanhub.ClanHubConfig.ExamineLine;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.Window;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
@@ -15,16 +17,21 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import javax.swing.AbstractButton;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
@@ -34,10 +41,13 @@ import javax.swing.MenuElement;
 import javax.swing.MenuSelectionManager;
 import javax.swing.SwingUtilities;
 import net.runelite.client.config.Keybind;
+import net.runelite.client.ui.ColorScheme;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -67,6 +77,43 @@ public class ClanHubPanelTest
 	/** The key and the show mode the settings stub answers: a test may set them before the menu opens. */
 	private Keybind cardKey = Keybind.ALT;
 	private CardTrigger trigger = CardTrigger.HOVER;
+
+	/** What the settings stub answers for "Colour hoverable words": the write of the colour check sets it too. */
+	private boolean colourOn = true;
+
+	/** What the settings stub answers for the how-to's fold, and what the panel wrote for it. */
+	private boolean howToFolded = false;
+	private final List<Boolean> folds = new ArrayList<>();
+
+	/** The recent cards the panel under test lists. */
+	private final CardHistory history = new CardHistory();
+
+	/** What the viewer stub was asked to show, and how many times to hide. */
+	private final List<Object[]> viewerShows = new ArrayList<>();
+	private int viewerHides;
+
+	/** A viewer that shows nothing: it records what it was asked. */
+	private final CardViewer viewer = new CardViewer()
+	{
+		@Override
+		public void show(HoverCard card, Rectangle rowOnScreen)
+		{
+			viewerShows.add(new Object[] {card, rowOnScreen});
+		}
+
+		@Override
+		public void hide()
+		{
+			viewerHides++;
+		}
+	};
+
+	/** An icon source that gives nothing. */
+	private final IconSource icons = (card, onIcon) -> { };
+
+	/** What "Open wiki" and "Copy" handed over. */
+	private final List<String> browsed = new ArrayList<>();
+	private final List<String> copied = new ArrayList<>();
 
 	/** What the picker stub was asked: the parent, the title and the starting colour of each call. */
 	private final List<Object[]> pickerCalls = new ArrayList<>();
@@ -99,12 +146,13 @@ public class ClanHubPanelTest
 		@Override
 		public boolean colourHoverables()
 		{
-			return true;
+			return colourOn;
 		}
 
 		@Override
 		public void setColourHoverables(boolean colour)
 		{
+			colourOn = colour;
 			coloured.add(colour);
 		}
 
@@ -275,14 +323,38 @@ public class ClanHubPanelTest
 		{
 			sizes.add(size);
 		}
+
+		@Override
+		public boolean howToFolded()
+		{
+			return howToFolded;
+		}
+
+		@Override
+		public void setHowToFolded(boolean folded)
+		{
+			folds.add(folded);
+		}
 	};
+
+	/** The panel under test, built with the fixture's settings, history, viewer, icons and recorders. */
+	private ClanHubPanel newPanel()
+	{
+		return newPanel(icons);
+	}
+
+	/** The panel under test, as {@link #newPanel()} builds it, with {@code source} for its pictures. */
+	private ClanHubPanel newPanel(IconSource source)
+	{
+		return new ClanHubPanel(() -> { }, settings, picker, history, viewer, source, browsed::add, copied::add);
+	}
 
 	@Test
 	public void theMenuHoldsTheSwitchesTheRowsAndTheOkRow() throws Exception
 	{
 		onEdt(() ->
 		{
-			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final ClanHubPanel panel = newPanel();
 			final JFrame frame = new JFrame();
 			frame.setFocusableWindowState(false);
 			frame.add(panel);
@@ -472,7 +544,7 @@ public class ClanHubPanelTest
 	{
 		onEdt(() ->
 		{
-			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final ClanHubPanel panel = newPanel();
 			final JFrame frame = new JFrame();
 			frame.setFocusableWindowState(false);
 			frame.add(panel);
@@ -529,7 +601,7 @@ public class ClanHubPanelTest
 	{
 		onEdt(() ->
 		{
-			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final ClanHubPanel panel = newPanel();
 			final JFrame frame = new JFrame();
 			frame.setFocusableWindowState(false);
 			frame.add(panel);
@@ -588,7 +660,7 @@ public class ClanHubPanelTest
 	{
 		onEdt(() ->
 		{
-			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final ClanHubPanel panel = newPanel();
 			final JFrame frame = new JFrame();
 			frame.setFocusableWindowState(false);
 			frame.add(panel);
@@ -647,7 +719,7 @@ public class ClanHubPanelTest
 		trigger = CardTrigger.HOLD_KEY;
 		onEdt(() ->
 		{
-			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final ClanHubPanel panel = newPanel();
 			final JFrame frame = new JFrame();
 			frame.setFocusableWindowState(false);
 			frame.add(panel);
@@ -738,7 +810,7 @@ public class ClanHubPanelTest
 	{
 		onEdt(() ->
 		{
-			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final ClanHubPanel panel = newPanel();
 			final JFrame frame = new JFrame();
 			frame.setFocusableWindowState(false);
 			frame.add(panel);
@@ -791,7 +863,7 @@ public class ClanHubPanelTest
 		trigger = CardTrigger.HOLD_KEY;
 		onEdt(() ->
 		{
-			final ClanHubPanel panel = new ClanHubPanel(() -> { }, settings, picker);
+			final ClanHubPanel panel = newPanel();
 			final JFrame frame = new JFrame();
 			frame.setFocusableWindowState(false);
 			frame.add(panel);
@@ -837,6 +909,836 @@ public class ClanHubPanelTest
 				frame.dispose();
 			}
 		});
+	}
+
+	/**
+	 * Lot 10C: the sidebar holds the how-to, the recent cards' header and its count and clear link, and no placeholder.
+	 * Lot 10E: the how-to is five rows, one per kind of card, and the action line.
+	 */
+	@Test
+	public void theSidebarHoldsTheHowToAndTheHistory() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				final List<String> texts = new ArrayList<>();
+				final List<String> raw = new ArrayList<>();
+				for (final JLabel label : labelsIn(panel))
+				{
+					if (label.getText() == null)
+					{
+						continue;
+					}
+					raw.add(label.getText());
+					texts.add(plain(label.getText()));
+				}
+				assertTrue("the how-to's header", texts.contains("How to use"));
+				// Re-aimed by the lead, 2026-10-25 (lot 10E): the how-to is the icon list of what gets a card.
+				for (final ClanHubPanel.HowToRow row : ClanHubPanel.HOW_TO_ROWS)
+				{
+					assertTrue("a row says " + row.label + row.rest, texts.contains((row.label + row.rest).trim()));
+				}
+				assertEquals("five kinds of card", 5, ClanHubPanel.HOW_TO_ROWS.size());
+				// Re-aimed by the lead, 2026-10-25 (lot 10G): the header bar, the action line in two parts.
+				assertTrue("the action line, whole", texts.contains("Hover the coloured name for its card."));
+				assertTrue("the wiki line", texts.contains("Right-click it for the wiki."));
+				// Re-aimed by the lead, 2026-10-25 (lot 10F): the heading "WHAT IT WORKS ON", under the action line.
+				assertTrue("the heading over the rows", texts.contains("WHAT IT WORKS ON"));
+				final int actionY = labelSaying(panel, "Hover the coloured name for its card.").getLocationOnScreen().y;
+				final int wikiY = labelSaying(panel, "Right-click it for the wiki.").getLocationOnScreen().y;
+				final int headingY = labelSaying(panel, "WHAT IT WORKS ON").getLocationOnScreen().y;
+				final int firstRowY = rowsOfTheHowTo(panel).get(0).getLocationOnScreen().y;
+				assertTrue("the wiki line is under the action line", actionY < wikiY);
+				assertTrue("the wiki line is above the heading", wikiY < headingY);
+				assertTrue("the action line is above the heading", actionY < headingY);
+				assertTrue("and the heading is above the first row", headingY < firstRowY);
+				assertTrue("the history's header", texts.contains("Recent cards"));
+				// Re-aimed by the lead, 2026-10-25 (lot 10F): the count is the session's, no cap in it.
+				assertTrue("the count, with nothing kept", texts.contains("0 this session"));
+				assertTrue("the clear link", texts.contains("Clear"));
+				for (final String text : texts)
+				{
+					assertFalse("no placeholder: " + text, text.contains("Nothing here yet"));
+				}
+				boolean blue = false;
+				for (final String text : raw)
+				{
+					blue |= text.contains("<font color='#3b82f6'>coloured");
+				}
+				assertTrue("'coloured name' stands in the hover colour", blue);
+				assertEquals("a row per kind, no more", 5, rowsOfTheHowTo(panel).size());
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 10D: with "Colour hoverable words" off the how-to's action line is the plain one, with no colour; ticking the switch
+	 * in the menu brings the coloured line at once, and un-ticking it the plain one again.
+	 */
+	@Test
+	public void theFirstLineFollowsTheColourSwitch() throws Exception
+	{
+		// Re-aimed by the lead, 2026-10-25 (lot 10E): the how-to is the icon list of what gets a card.
+		colourOn = false;
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				// Re-aimed by the lead, 2026-10-25 (lot 10G): the header bar, the action line in two parts.
+				assertEquals("plain while the switch is off", "Hover a name in a broadcast for its card.", actionLine(panel));
+				assertFalse("and in no colour", rawActionLine(panel).contains("<font"));
+				assertTrue("the wiki line is there", textsIn(panel).contains("Right-click it for the wiki."));
+
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				final JCheckBoxMenuItem colourCheck = (JCheckBoxMenuItem) menu.getComponents()[3];
+				assertEquals("Colour hoverable words", colourCheck.getText());
+				assertFalse("not ticked, as the setting is", colourCheck.isSelected());
+
+				click(colourCheck);
+				assertEquals("ticking writes true", List.of(true), coloured);
+				assertEquals("the coloured line at once", "Hover the coloured name for its card.", actionLine(panel));
+				assertTrue("with the words in the hover colour", rawActionLine(panel).contains("<font color='#3b82f6'>coloured"));
+				assertTrue("the wiki line unchanged", textsIn(panel).contains("Right-click it for the wiki."));
+
+				click(colourCheck);
+				assertEquals("un-ticking writes false", List.of(true, false), coloured);
+				assertEquals("the plain line again", "Hover a name in a broadcast for its card.", actionLine(panel));
+				assertFalse("in no colour", rawActionLine(panel).contains("<font"));
+				assertTrue("and the wiki line still", textsIn(panel).contains("Right-click it for the wiki."));
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/** Lot 10D: a row whose line starts with its card's title and ": " shows the rest alone, and no label reads the whole line. */
+	@Test
+	public void anExamineRowShowsTheDescriptionAlone() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String line = "Law rune: Used for teleport spells.";
+			history.add(line, Collections.<HoverCard>singletonList(card("Law rune", "Law_rune", line)), 1000L);
+			flush();
+			onEdt(() ->
+			{
+				frame[0].validate();
+				// Re-aimed by the lead, 2026-10-25 (lot 10F): the row is a cell of the history's list, read through its renderer.
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("one entry", 1, list.getModel().getSize());
+				final List<String> texts = textsIn(cellOf(list, 0));
+				assertTrue("the title", texts.contains("Law rune"));
+				assertTrue("the description alone", texts.contains("Used for teleport spells."));
+				assertFalse("no label reads the whole line", texts.contains(line));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 10C: a press on the how-to's header folds the lines and writes it; a second press opens them; a stored fold is kept. */
+	@Test
+	public void theHowToFoldsAndRemembers() throws Exception
+	{
+		// Re-aimed by the lead, 2026-10-25 (lot 10E): the how-to is the icon list of what gets a card.
+		// Re-aimed by the lead, 2026-10-25 (lot 10G): the press is made on the title bar, and the lines are the new ones.
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				final JLabel line = labelSaying(panel, "Hover the coloured name for its card.");
+				final JLabel wiki = labelSaying(panel, "Right-click it for the wiki.");
+				assertTrue("the lines show at first", line.isShowing());
+				assertTrue("both of them", wiki.isShowing());
+				final Component bar = howToBarIn(panel);
+				assertSame("a press on the title lands on the bar", bar, pressTarget(labelSaying(panel, "How to use")));
+
+				leftPress(bar);
+				assertFalse("a press folds the lines away", line.isShowing());
+				assertFalse("the wiki line too", wiki.isShowing());
+				assertTrue("the bar stays", bar.isShowing());
+				assertEquals("and writes true, once", List.of(true), folds);
+
+				leftPress(bar);
+				assertTrue("a second press brings them back", line.isShowing());
+				assertTrue("the wiki line too", wiki.isShowing());
+				assertEquals("and writes false", List.of(true, false), folds);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+		howToFolded = true;
+		folds.clear();
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				assertFalse("a panel built with the fold stored starts folded",
+					labelSaying(panel, "Hover the coloured name for its card.").isShowing());
+				assertFalse("the wiki line too", labelSaying(panel, "Right-click it for the wiki.").isShowing());
+				assertTrue("the bar still shows", labelSaying(panel, "How to use").isShowing());
+				assertTrue("and building it wrote nothing", folds.isEmpty());
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 10G: the how-to's title bar runs the top card's whole inner width and has a ground of its own, a shade off the
+	 * card's; a press at its left end folds the how-to (writing true once) and a press at its right end opens it again
+	 * (writing false once); the mouse entering it changes its ground and the mouse leaving it brings the ground back.
+	 */
+	@Test
+	public void theBarFoldsOnAPressAnywhereOnIt() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				final JPanel bar = howToBarIn(panel);
+				final Container card = (Container) panel.getComponent(0);
+				assertTrue("the bar is inside the top card", SwingUtilities.isDescendingFrom(bar, card));
+				final int inner = card.getWidth() - card.getInsets().left - card.getInsets().right;
+				assertTrue("the card has a width", inner > 0);
+				assertEquals("the bar is as wide as the card's inner width", inner, bar.getWidth());
+				assertFalse("its ground is not the card's", bar.getBackground().equals(card.getBackground()));
+
+				final Color atRest = bar.getBackground();
+				bar.dispatchEvent(new MouseEvent(bar, MouseEvent.MOUSE_ENTERED, System.currentTimeMillis(), 0, 3, 3, 0, false));
+				final Color hot = bar.getBackground();
+				assertFalse("the mouse on it changes its ground", hot.equals(atRest));
+				bar.dispatchEvent(new MouseEvent(bar, MouseEvent.MOUSE_EXITED, System.currentTimeMillis(), 0, -1, -1, 0, false));
+				assertEquals("the mouse off it brings the ground back", atRest, bar.getBackground());
+
+				leftPressAt(bar, 3, 3);
+				assertEquals("a press at its left end folds, writing true once", List.of(true), folds);
+				assertFalse("the lines are away", labelSaying(panel, "Right-click it for the wiki.").isShowing());
+				leftPressAt(bar, bar.getWidth() - 3, bar.getHeight() / 2);
+				assertEquals("a press at its right end opens, writing false once", List.of(true, false), folds);
+				assertTrue("the lines are back", labelSaying(panel, "Right-click it for the wiki.").isShowing());
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 10E: building the panel asks the icon source once for each picture the how-to's rows need (the Collection log, the
+	 * quest, total level and combat sprites), and a picture handed to the quest's callback, from any thread, ends up as the
+	 * icon of the quest row, scaled down to the 20 px box and never up; the examine row's glass is drawn in code.
+	 */
+	@Test
+	public void theHowToRowsAskForTheirIcons() throws Exception
+	{
+		final List<String> asks = new ArrayList<>();
+		final List<Consumer<BufferedImage>> questCallbacks = new ArrayList<>();
+		final IconSource recording = new IconSource()
+		{
+			@Override
+			public void iconFor(HoverCard card, Consumer<BufferedImage> onIcon)
+			{
+			}
+
+			@Override
+			public void sprite(int spriteId, Consumer<BufferedImage> onIcon)
+			{
+				asks.add("sprite " + spriteId);
+				if (spriteId == SkillSprites.QUEST)
+				{
+					questCallbacks.add(onIcon);
+				}
+			}
+
+			@Override
+			public void item(int itemId, int quantity, Consumer<BufferedImage> onIcon)
+			{
+				asks.add("item " + itemId + " x" + quantity);
+			}
+		};
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel(recording);
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			assertEquals("four pictures asked for", 4, asks.size());
+			// Re-aimed by the lead, 2026-10-25 (lot 10F): the first row's icon is the Collection log at 1, not Coins.
+			// Re-aimed by the lead, 2026-10-25: the Casket in its place, the user's pick.
+			assertEquals("the Casket at 1, once", 1, Collections.frequency(asks, "item 405 x1"));
+			assertEquals("and no Coins", 0, Collections.frequency(asks, "item 995 x10000"));
+			assertEquals("the quest sprite, once", 1, Collections.frequency(asks, "sprite " + SkillSprites.QUEST));
+			assertEquals("the total level sprite, once", 1,
+				Collections.frequency(asks, "sprite " + SkillSprites.spriteOf("Total")));
+			assertEquals("the combat sprite, once", 1,
+				Collections.frequency(asks, "sprite " + SkillSprites.spriteOf("Combat")));
+			assertEquals("one callback for the quest", 1, questCallbacks.size());
+
+			onEdt(() ->
+			{
+				final List<JPanel> howToRows = rowsOfTheHowTo(panel[0]);
+				assertEquals("five rows", 5, howToRows.size());
+				final JPanel questRow = (JPanel) labelSaying(panel[0], "Quests, tasks, diaries").getParent();
+				assertSame("the quest row is the second", howToRows.get(1), questRow);
+				assertNull("its icon box is empty until the picture comes", iconBoxOf(questRow).getIcon());
+				assertNull("so are the coins'", iconBoxOf(howToRows.get(0)).getIcon());
+				assertNotNull("the examine glass is drawn at once", iconBoxOf(howToRows.get(4)).getIcon());
+				assertEquals(20, iconBoxOf(howToRows.get(4)).getIcon().getIconWidth());
+			});
+
+			// A picture comes from the client thread, not the event thread, and is bigger than the box.
+			questCallbacks.get(0).accept(new BufferedImage(30, 30, BufferedImage.TYPE_INT_ARGB));
+			flush();
+			onEdt(() ->
+			{
+				final JPanel questRow = (JPanel) labelSaying(panel[0], "Quests, tasks, diaries").getParent();
+				final Icon icon = iconBoxOf(questRow).getIcon();
+				assertNotNull("the picture is the quest row's icon", icon);
+				assertEquals("scaled down to the box", 20, icon.getIconWidth());
+				assertEquals(20, icon.getIconHeight());
+				assertNull("no other row took it", iconBoxOf(rowsOfTheHowTo(panel[0]).get(0)).getIcon());
+			});
+
+			// A smaller picture is never scaled up.
+			questCallbacks.get(0).accept(new BufferedImage(10, 8, BufferedImage.TYPE_INT_ARGB));
+			flush();
+			onEdt(() ->
+			{
+				final JPanel questRow = (JPanel) labelSaying(panel[0], "Quests, tasks, diaries").getParent();
+				assertEquals("kept as it is", 10, iconBoxOf(questRow).getIcon().getIconWidth());
+				assertEquals(8, iconBoxOf(questRow).getIcon().getIconHeight());
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 10C: a row per line, newest first, each with its title and its line; the count follows; Clear empties it all. */
+	@Test
+	public void theRowsFollowTheHistory() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String whipLine = "Klar received a drop: Abyssal whip (1,500,000 coins).";
+			final String herbLine = "Klar has reached Herblore level 78.";
+			history.add(whipLine, Collections.<HoverCard>singletonList(card("Abyssal whip", "Abyssal_whip", whipLine)), 1000L);
+			history.add(herbLine, Collections.<HoverCard>singletonList(card("Herblore 78", "Herblore", herbLine)), 2000L);
+			flush();
+			onEdt(() ->
+			{
+				frame[0].validate();
+				// Re-aimed by the lead, 2026-10-25 (lot 10F): the rows are the cells of the history's list, read through its renderer.
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("two entries in the model", 2, list.getModel().getSize());
+				assertEquals("the newest first", "Herblore 78", list.getModel().getElementAt(0).card().title());
+				final List<String> first = textsIn(cellOf(list, 0));
+				assertTrue("the newest first, by its title", first.contains("Herblore 78"));
+				assertTrue("and its line", first.contains(herbLine));
+				final List<String> second = textsIn(cellOf(list, 1));
+				assertTrue("the older second, by its title", second.contains("Abyssal whip"));
+				assertTrue("and its line", second.contains(whipLine));
+				// Re-aimed by the lead, 2026-10-25 (lot 10F): the count is the session's, no cap in it.
+				assertTrue("the count follows", textsIn(panel[0]).contains("2 this session"));
+			});
+
+			onEdt(() -> leftPress(labelSaying(panel[0], "Clear")));
+			flush();
+			onEdt(() ->
+			{
+				assertEquals("Clear empties the history", 0, history.size());
+				assertEquals("and the list's model", 0, historyListIn(panel[0]).getModel().getSize());
+				assertTrue("and the count", textsIn(panel[0]).contains("0 this session"));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 10C: the mouse entering a row asks the viewer for its card, once; leaving it asks for the card to come down, once. */
+	@Test
+	public void hoveringARowShowsItsCard() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String whipLine = "Klar received a drop: Abyssal whip (1,500,000 coins).";
+			final String herbLine = "Klar has reached Herblore level 78.";
+			final HoverCard herb = card("Herblore 78", "Herblore", herbLine);
+			final HoverCard whip = card("Abyssal whip", "Abyssal_whip", whipLine);
+			history.add(whipLine, Collections.<HoverCard>singletonList(whip), 1000L);
+			history.add(herbLine, Collections.<HoverCard>singletonList(herb), 2000L);
+			flush();
+			onEdt(() ->
+			{
+				frame[0].validate();
+				// Re-aimed by the lead, 2026-10-25 (lot 10F): the mouse is read on the list, cell by cell.
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("nothing was asked before the mouse came", 0, viewerShows.size() + viewerHides);
+
+				final Point inFirst = middleOf(list, 0);
+				mouse(list, MouseEvent.MOUSE_MOVED, inFirst);
+				assertEquals("the viewer was asked once to show", 1, viewerShows.size());
+				assertSame("for the first cell's card", herb, viewerShows.get(0)[0]);
+				final Rectangle cell = list.getCellBounds(0, 0);
+				cell.translate(list.getLocationOnScreen().x, list.getLocationOnScreen().y);
+				assertEquals("level with the cell on the screen", cell, viewerShows.get(0)[1]);
+				assertEquals("and asked to hide none", 0, viewerHides);
+				assertEquals("the hovered cell draws hot", ColorScheme.DARK_GRAY_HOVER_COLOR, rowOf(list, 0).getBackground());
+				assertEquals("and the other does not", ColorScheme.DARK_GRAY_COLOR, rowOf(list, 1).getBackground());
+
+				mouse(list, MouseEvent.MOUSE_MOVED, new Point(inFirst.x + 1, inFirst.y));
+				assertEquals("a move inside the same cell asks for nothing", 1, viewerShows.size());
+
+				mouse(list, MouseEvent.MOUSE_MOVED, middleOf(list, 1));
+				assertEquals("a move to the second cell shows its card", 2, viewerShows.size());
+				assertSame("the older line's", whip, viewerShows.get(1)[0]);
+				assertEquals("the second cell draws hot", ColorScheme.DARK_GRAY_HOVER_COLOR, rowOf(list, 1).getBackground());
+				assertEquals("and the first does not", ColorScheme.DARK_GRAY_COLOR, rowOf(list, 0).getBackground());
+
+				mouse(list, MouseEvent.MOUSE_EXITED, middleOf(list, 1));
+				assertEquals("leaving asks to hide, once", 1, viewerHides);
+				assertEquals("and shows nothing more", 2, viewerShows.size());
+				assertEquals("and no cell draws hot", ColorScheme.DARK_GRAY_COLOR, rowOf(list, 1).getBackground());
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 10C: a right-click on a row offers "Open wiki" and "Copy", which hand over the card's address and the line. */
+	@Test
+	public void aRightClickOnARowOffersWikiAndCopy() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String herbLine = "Klar has reached Herblore level 78.";
+			final HoverCard herb = card("Herblore 78", "Herblore", herbLine);
+			history.add(herbLine, Collections.<HoverCard>singletonList(herb), 2000L);
+			flush();
+			onEdt(() ->
+			{
+				frame[0].validate();
+				// Re-aimed by the lead, 2026-10-25 (lot 10F): the press lands on the first cell of the history's list.
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				final Point inFirst = middleOf(list, 0);
+				list.dispatchEvent(new MouseEvent(list, MouseEvent.MOUSE_PRESSED, System.currentTimeMillis(),
+					MouseEvent.BUTTON3_DOWN_MASK, inFirst.x, inFirst.y, 1, true, MouseEvent.BUTTON3));
+				final JPopupMenu menu = popupMenu(frame[0]);
+				assertNotNull("the row's menu is on screen", menu);
+				final List<JMenuItem> items = new ArrayList<>();
+				for (final Component part : menu.getComponents())
+				{
+					if (part instanceof JMenuItem)
+					{
+						items.add((JMenuItem) part);
+					}
+				}
+				assertEquals("two entries", 2, items.size());
+				assertEquals("Open wiki", items.get(0).getText());
+				assertEquals("Copy", items.get(1).getText());
+
+				items.get(0).doClick(0);
+				assertEquals("'Open wiki' hands over the card's address", List.of(herb.wikiUrl()), browsed);
+				assertTrue("and copies nothing", copied.isEmpty());
+				items.get(1).doClick(0);
+				assertEquals("'Copy' hands over the card's line", List.of(herb.plainLine()), copied);
+				assertEquals("and opens nothing more", 1, browsed.size());
+				menu.setVisible(false);
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/**
+	 * Lot 10F: a card is one insert at the top of the list's model, the entries below it the same objects in the same order;
+	 * a burst of lines is one sync; the whole session is kept, to the history's cap of five thousand, and the count says how
+	 * many; a history cleared and filled again before a sync leaves only the new entries.
+	 */
+	@Test
+	public void theListGrowsAtTheTopAndKeepsTheWholeSession() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			for (int i = 1; i <= 3; i++)
+			{
+				final String line = "line " + i;
+				history.add(line, Collections.<HoverCard>singletonList(card("Card " + i, "Page", line)), i);
+			}
+			flush();
+			final List<CardHistory.Entry> three = history.entries();
+			onEdt(() ->
+			{
+				final List<CardHistory.Entry> model = modelOf(historyListIn(panel[0]));
+				assertEquals("three entries", 3, model.size());
+				assertEquals("the newest first", "line 3", model.get(0).line());
+				assertEquals("the oldest last", "line 1", model.get(2).line());
+				for (int i = 0; i < 3; i++)
+				{
+					assertSame("the model holds the history's own entry " + i, three.get(i), model.get(i));
+				}
+			});
+
+			history.add("line 4", Collections.<HoverCard>singletonList(card("Card 4", "Page", "line 4")), 4);
+			flush();
+			onEdt(() ->
+			{
+				final List<CardHistory.Entry> model = modelOf(historyListIn(panel[0]));
+				assertEquals("four entries", 4, model.size());
+				assertEquals("the new one is at the top", "line 4", model.get(0).line());
+				for (int i = 0; i < 3; i++)
+				{
+					assertSame("the earlier ones are the same objects, in the same order, below it", three.get(i),
+						model.get(i + 1));
+				}
+			});
+
+			// Re-aimed by the lead, 2026-10-25 (lot 10F): the whole session, up to 5,000, the user's word.
+			for (int i = 5; i <= 5005; i++)
+			{
+				final String line = "line " + i;
+				history.add(line, Collections.<HoverCard>singletonList(card("Card " + i, "Page", line)), i);
+			}
+			flush();
+			final List<CardHistory.Entry> kept = history.entries();
+			onEdt(() ->
+			{
+				final List<CardHistory.Entry> model = modelOf(historyListIn(panel[0]));
+				assertEquals("five thousand in the model", 5000, model.size());
+				assertEquals("the first is the newest", "line 5005", model.get(0).line());
+				assertEquals("the last is the 5000th newest", "line 6", model.get(4999).line());
+				assertSame("the first is the history's own", kept.get(0), model.get(0));
+				assertSame("and so is the last", kept.get(4999), model.get(4999));
+				assertTrue("the count says so", textsIn(panel[0]).contains("5000 this session"));
+			});
+
+			history.clear();
+			history.add("fresh", Collections.<HoverCard>singletonList(card("Fresh", "Page", "fresh")), 9);
+			flush();
+			onEdt(() ->
+			{
+				final List<CardHistory.Entry> model = modelOf(historyListIn(panel[0]));
+				assertEquals("a history cleared and filled again before a sync leaves the new entry only", 1, model.size());
+				assertEquals("fresh", model.get(0).line());
+				assertTrue("and the count", textsIn(panel[0]).contains("1 this session"));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** The how-to's action line as written in its label, tags and all. */
+	private static String rawActionLine(Container root)
+	{
+		for (final JLabel label : labelsIn(root))
+		{
+			final String text = plain(label.getText());
+			if (text.startsWith("Hover the ") || text.startsWith("Hover a name"))
+			{
+				return label.getText();
+			}
+		}
+		throw new AssertionError("no action line");
+	}
+
+	/** The how-to's action line as a player reads it, tags taken out. */
+	private static String actionLine(Container root)
+	{
+		return plain(rawActionLine(root));
+	}
+
+	/** The how-to's title bar under {@code root}: the panel that carries the bar's name. */
+	private static JPanel howToBarIn(Container root)
+	{
+		final JPanel bar = findHowToBar(root);
+		assertNotNull("the panel has a how-to bar", bar);
+		return bar;
+	}
+
+	/** The panel under {@code root} that carries the how-to bar's name, or null. */
+	private static JPanel findHowToBar(Container root)
+	{
+		for (final Component child : root.getComponents())
+		{
+			if (child instanceof JPanel && ClanHubPanel.HOW_TO_BAR_NAME.equals(child.getName()))
+			{
+				return (JPanel) child;
+			}
+			if (child instanceof Container)
+			{
+				final JPanel found = findHowToBar((Container) child);
+				if (found != null)
+				{
+					return found;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** The how-to's rows under {@code root}, the first at the top. */
+	private static List<JPanel> rowsOfTheHowTo(Container root)
+	{
+		final List<JPanel> found = new ArrayList<>();
+		for (final Component child : root.getComponents())
+		{
+			if (child instanceof JPanel && ClanHubPanel.HOW_TO_ROW_NAME.equals(child.getName()))
+			{
+				found.add((JPanel) child);
+			}
+			else if (child instanceof Container)
+			{
+				found.addAll(rowsOfTheHowTo((Container) child));
+			}
+		}
+		return found;
+	}
+
+	/** The icon box of a how-to row: the label that carries its picture. */
+	private static JLabel iconBoxOf(JPanel howToRow)
+	{
+		for (final JLabel label : labelsIn(howToRow))
+		{
+			if (ClanHubPanel.HOW_TO_ICON_NAME.equals(label.getName()))
+			{
+				return label;
+			}
+		}
+		throw new AssertionError("a how-to row has no icon box");
+	}
+
+	/** An info card of a title, a wiki page and a line, with no facts, notes or picture, as the other tests make one. */
+	private static InfoCard card(String title, String page, String line)
+	{
+		return new InfoCard(title, Collections.<HoverCard.Pair>emptyList(), Collections.<String>emptyList(), page, line, 0,
+			line.length(), -1);
+	}
+
+	/** The panel in a visible frame that never takes the keyboard, laid out. */
+	private static JFrame frameOf(ClanHubPanel panel)
+	{
+		final JFrame frame = new JFrame();
+		frame.setFocusableWindowState(false);
+		frame.add(panel);
+		frame.setBounds(100, 100, 500, 600);
+		frame.setVisible(true);
+		frame.validate();
+		return frame;
+	}
+
+	/** Lets everything already queued for the event thread run, from a thread that is not the event thread. */
+	private static void flush() throws Exception
+	{
+		SwingUtilities.invokeAndWait(() -> { });
+		SwingUtilities.invokeAndWait(() -> { });
+	}
+
+	/** Every label under {@code root}, in the tree's order. */
+	private static List<JLabel> labelsIn(Container root)
+	{
+		final List<JLabel> found = new ArrayList<>();
+		for (final Component child : root.getComponents())
+		{
+			if (child instanceof JLabel)
+			{
+				found.add((JLabel) child);
+			}
+			if (child instanceof Container)
+			{
+				found.addAll(labelsIn((Container) child));
+			}
+		}
+		return found;
+	}
+
+	/** The words of every label under {@code root}, tags taken out. */
+	private static List<String> textsIn(Container root)
+	{
+		final List<String> texts = new ArrayList<>();
+		for (final JLabel label : labelsIn(root))
+		{
+			texts.add(plain(label.getText()));
+		}
+		return texts;
+	}
+
+	/** A label's text without its HTML tags, a line break read as a space. */
+	private static String plain(String text)
+	{
+		return text == null ? "" : text.replaceAll("<br>", " ").replaceAll("<[^>]*>", "").trim();
+	}
+
+	/** The label under {@code root} whose words are {@code words}. */
+	private static JLabel labelSaying(Container root, String words)
+	{
+		for (final JLabel label : labelsIn(root))
+		{
+			if (words.equals(plain(label.getText())))
+			{
+				return label;
+			}
+		}
+		throw new AssertionError("no label says: " + words);
+	}
+
+	/** The history's list under {@code root}, or null. */
+	@SuppressWarnings("unchecked")
+	private static JList<CardHistory.Entry> historyListIn(Container root)
+	{
+		for (final Component child : root.getComponents())
+		{
+			if (child instanceof JList && ClanHubPanel.HISTORY_LIST_NAME.equals(child.getName()))
+			{
+				return (JList<CardHistory.Entry>) child;
+			}
+			if (child instanceof Container)
+			{
+				final JList<CardHistory.Entry> found = historyListIn((Container) child);
+				if (found != null)
+				{
+					return found;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** The history's entries as the list's model holds them, the first at the top. */
+	private static List<CardHistory.Entry> modelOf(JList<CardHistory.Entry> list)
+	{
+		final List<CardHistory.Entry> entries = new ArrayList<>();
+		for (int i = 0; i < list.getModel().getSize(); i++)
+		{
+			entries.add(list.getModel().getElementAt(i));
+		}
+		return entries;
+	}
+
+	/** What the list's renderer draws for the entry at {@code index}: the cell, with its labels under it. */
+	private static Container cellOf(JList<CardHistory.Entry> list, int index)
+	{
+		return (Container) list.getCellRenderer().getListCellRendererComponent(list, list.getModel().getElementAt(index),
+			index, false, false);
+	}
+
+	/** The row inside the cell the renderer draws for {@code index}: the part that takes the hover ground. */
+	private static Component rowOf(JList<CardHistory.Entry> list, int index)
+	{
+		return cellOf(list, index).getComponent(0);
+	}
+
+	/** The middle of the cell at {@code index}, in the list's own coordinates. */
+	private static Point middleOf(JList<CardHistory.Entry> list, int index)
+	{
+		final Rectangle bounds = list.getCellBounds(index, index);
+		return new Point(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+	}
+
+	/** A mouse event of {@code type} on the list at {@code at}, delivered the way the event queue delivers it. */
+	private static void mouse(JList<CardHistory.Entry> list, int type, Point at)
+	{
+		list.dispatchEvent(new MouseEvent(list, type, System.currentTimeMillis(), 0, at.x, at.y, 0, false));
+	}
+
+	/** The nearest component at or above {@code part} that listens to the mouse: where a press on {@code part} lands. */
+	private static Component pressTarget(Component part)
+	{
+		Component at = part;
+		while (at != null && at.getMouseListeners().length == 0)
+		{
+			at = at.getParent();
+		}
+		assertNotNull("a press on the part lands somewhere", at);
+		return at;
+	}
+
+	/** A left-button press on {@code target}, delivered the way the event queue delivers it. */
+	private static void leftPress(Component target)
+	{
+		target.dispatchEvent(new MouseEvent(target, MouseEvent.MOUSE_PRESSED, System.currentTimeMillis(),
+			MouseEvent.BUTTON1_DOWN_MASK, 3, 3, 1, false, MouseEvent.BUTTON1));
+	}
+
+	/** A left-button press on {@code target} at ({@code x}, {@code y}), delivered the way the event queue delivers it. */
+	private static void leftPressAt(Component target, int x, int y)
+	{
+		target.dispatchEvent(new MouseEvent(target, MouseEvent.MOUSE_PRESSED, System.currentTimeMillis(),
+			MouseEvent.BUTTON1_DOWN_MASK, x, y, 1, false, MouseEvent.BUTTON1));
 	}
 
 	/** A key press on {@code source}, answering the extended key code as the AWT toolkit does, which {@link Keybind} reads. */

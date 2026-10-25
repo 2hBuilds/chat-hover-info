@@ -238,12 +238,31 @@ menu (below).
 always-underline both), the right-click entries are not added, and the wiki is not asked for anything. It does not
 undo the colouring of the words, which has its own switch.
 
-**The sidebar.** The plugin adds a sidebar button. Its panel holds the settings menu and the support links, nothing
-else, in this version: a short card reading *Nothing here yet*, with the Discord mark and the settings icon at its
-top-right corner. Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it; press it
-again and it closes. The menu has:
+**The sidebar.** The plugin adds a sidebar button. Its panel has a fixed top card, the recent cards under it, and the
+settings menu.
 
-- a **header**: the plugin's name, *Version 0.0.4*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- The **top card** has the Discord mark and the settings icon at its top-right corner, and under them a **How to use**
+  box. Its title is a bar across the card (a shade lighter than the card, lighter again under the mouse, an arrow at its
+  right): press anywhere on the bar to fold the box away to the bar (the arrow turns to point right) and press it
+  again to open it; the sidebar remembers which, and *Reset to default* opens it again. Under the bar come two lines:
+  "Hover the coloured name for its card." in white (the words *coloured name* stand in your *Hover colour*; while
+  *Colour hoverable words* is off the line reads "Hover a name in a broadcast for its card.") and "Right-click it for
+  the wiki." in grey; then a small grey heading, *WHAT IT WORKS ON*, and under it an icon list of what gets a card,
+  five rows, each with the game's own icon, a bold label and a grey rest - *Drops & pets* (clan, friends or your chat;
+  the casket icon), *Quests, tasks, diaries* (the quest icon), *Level-ups* and what they unlock (the total
+  level icon), *Bosses*, kill counts, PBs (the combat icon) and *Examine* any item or monster (a magnifying glass).
+- **Recent cards** lists every chat line that gave a card this session, newest first, up to 5,000, in a list that
+  scrolls. Each row has the card's picture, its title, how long ago the line came (*just now*, *4m ago*, *2h ago*) and
+  the line itself (an examine line written name first shows only the text after the name, under the name), cut with
+  "..." where it does not fit. The header says how many are kept (*12 this session*) and has a **Clear** link that
+  empties the list. Hover a row and its card shows beside the sidebar, as it does in game; right-click a row for *Open
+  wiki* or *Copy*. The list draws only the rows on screen and a new card is one insert at its top, so a long session
+  costs no more than a short one. The list is kept for the session only: it is never written anywhere, and it is gone
+  when you turn the plugin off or close the client.
+**The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
+press it again and it closes. The menu has:
+
+- a **header**: the plugin's name, *Version 0.0.5*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - seven **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
   *Examine cards*, *Underline level-ups*;
@@ -325,8 +344,8 @@ request they reach the wiki from your IP address.
   own bundled text), and with the game's icon in place of a picture. With *Show hover cards* off nothing is sent
   either: no card, no asking.
 
-**Every link opens through RuneLite's own link opener**, and only when you press it: *Open wiki*, and the marks in the
-sidebar's menu and card.
+**Every link opens through RuneLite's own link opener**, and only when you press it: *Open wiki* (in game, and on a row
+of the sidebar's recent cards), and the marks in the sidebar's menu and card.
 
 ## Found a bug or have an idea?
 

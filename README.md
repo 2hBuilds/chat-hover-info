@@ -79,6 +79,7 @@ Everything a new level unlocks, from the wiki's level-up tables, as a numbered l
 4. **Show it your way.** On hover, while a key is held, or on click, with a delay and your own text size.
 5. **Quiet it down.** Switch off the blue words, wiki paragraphs, pictures, boss cards or examine cards, and pick your two colours, in the settings menu (the settings icon on the sidebar panel).
 6. **Read in peace.** If a new line shifts the chat, the card stays until you move the mouse or turn the wheel.
+7. **Catch up.** The sidebar keeps every card this session. Hover a row to see it again.
 
 ## Good to know
 

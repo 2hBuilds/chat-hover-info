@@ -81,6 +81,16 @@ public class ClanHubConfigTest
 	}
 
 	@Test
+	public void theHowToStartsOpen()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertFalse("the sidebar's how-to starts open", config.howToFolded());
+	}
+
+	@Test
 	public void theExamineLineIsNameFirstByDefault()
 	{
 		final ClanHubConfig config = new ClanHubConfig()

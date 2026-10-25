@@ -1,4 +1,4 @@
-{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki", "fetched": "2026-10-08",
+{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki", "fetched": "2026-10-25",
  "bosses": [
   {"name": "Abyssal Sire", "wiki": "Abyssal_Sire", "combat": "350", "hitpoints": "425", "maxHit": "66 (Melee)", "quest": "", "petItem": 13262},
   {"name": "Alchemical Hydra", "wiki": "Alchemical_Hydra", "combat": "426", "hitpoints": "1100", "maxHit": "17x2 (default)", "quest": "", "petItem": 22746},

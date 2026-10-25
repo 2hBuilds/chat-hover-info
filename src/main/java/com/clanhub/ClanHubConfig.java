@@ -311,4 +311,19 @@ public interface ClanHubConfig extends Config
 	{
 		return new Color(150, 150, 150);
 	}
+
+	/**
+	 * Whether the sidebar's "How to use" box is folded to its header. The panel's own memory, not a setting the player
+	 * sees: hidden from RuneLite's settings page, so the settings stay sixteen.
+	 */
+	@ConfigItem(
+		keyName = "howToFolded",
+		name = "How to use folded",
+		description = "Whether the sidebar's How to use box is folded.",
+		hidden = true
+	)
+	default boolean howToFolded()
+	{
+		return false;
+	}
 }

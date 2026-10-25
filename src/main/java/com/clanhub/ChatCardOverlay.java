@@ -183,6 +183,48 @@ public class ChatCardOverlay extends Overlay
 		return hovered;
 	}
 
+	/**
+	 * The split card as the cursor shows it, for the sidebar's recent cards: the same text size, width, description and
+	 * picture as {@link #render} gives it, painted at (0, 0) into a new image of the size the painter measured. Null for a
+	 * null card.
+	 *
+	 * <p>Choice: called on the client thread, as {@link #render} runs there: the card's picture may be an item's or a
+	 * sprite's, which the managers hand out on that thread, and its description asks the wiki's kept paragraphs, which
+	 * the client thread reads. The card place does not matter here, a card in the sidebar is always the split card.
+	 */
+	BufferedImage cardImage(HoverCard card)
+	{
+		if (card == null)
+		{
+			return null;
+		}
+		final BufferedImage picture = pictureOf(card);
+		final String description = descriptionOf(card);
+		final int fontSize = config.cardFontSize();
+		final ClanHubConfig.CardWidth width = config.cardWidth();
+		final Graphics2D measure = scratch.createGraphics();
+		final Dimension size;
+		try
+		{
+			size = CardPainter.paintSplit(measure, card, picture, fontSize, 0, 0, description, width.cap, width.lines);
+		}
+		finally
+		{
+			measure.dispose();
+		}
+		final BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = image.createGraphics();
+		try
+		{
+			CardPainter.paintSplit(g, card, picture, fontSize, 0, 0, description, width.cap, width.lines);
+		}
+		finally
+		{
+			g.dispose();
+		}
+		return image;
+	}
+
 	/** Tells the overlay whether the card key is held: the plugin's card key listener calls it on press and release, and when the window loses focus. */
 	void keyHeld(boolean held)
 	{

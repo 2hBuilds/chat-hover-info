@@ -7,17 +7,31 @@ import com.clanhub.ClanHubConfig.ExamineLine;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
@@ -28,10 +42,12 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.RuneLiteProperties;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseAdapter;
 import net.runelite.client.input.MouseManager;
@@ -40,9 +56,11 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.colorpicker.ColorPickerManager;
 import net.runelite.client.ui.components.colorpicker.RuneliteColorPicker;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.LinkBrowser;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
@@ -57,7 +75,9 @@ import org.slf4j.LoggerFactory;
  * arrives, for the page's first paragraph, which the card shows (see {@link WikiSummaries}); while "Wiki pictures" is on,
  * the page name of each boss, monster, raid or chest card is sent too, for the page's own picture (see
  * {@link WikiPictures}). With the show mode "On click" a left click on the words opens the card; the click is read
- * through RuneLite's mouse manager and passed on to the game untouched. In developer mode the command {@code ::hoverinfo demo} posts sample lines to hover.
+ * through RuneLite's mouse manager and passed on to the game untouched. The sidebar lists the last 50 lines that gave a
+ * card (see {@link CardHistory} and {@link ClanHubPanel}), kept for the session only; hovering a row shows its card in a
+ * small window beside the sidebar. In developer mode the command {@code ::hoverinfo demo} posts sample lines to hover.
  */
 @PluginDescriptor(
 	name = "2h Chat Hover Info",
@@ -75,6 +95,9 @@ public class ClanHubPlugin extends Plugin
 	/** How many item ids the names index reads on one game tick. */
 	private static final int ITEMS_PER_TICK = 1000;
 
+	/** The gap between a sidebar row's card window and the sidebar's left edge, in px. */
+	private static final int CARD_GAP = 8;
+
 	@Inject
 	private ClientToolbar clientToolbar;
 
@@ -90,6 +113,14 @@ public class ClanHubPlugin extends Plugin
 
 	@Inject
 	private ItemManager itemManager;
+
+	/** RuneLite's sprite manager, which the sidebar rows' pictures of a sprite card are asked from. */
+	@Inject
+	private SpriteManager spriteManager;
+
+	/** RuneLite's client thread, which a hovered sidebar row's card is painted on. */
+	@Inject
+	private ClientThread clientThread;
 
 	@Inject
 	private OverlayManager overlayManager;
@@ -189,6 +220,26 @@ public class ClanHubPlugin extends Plugin
 	private NavigationButton navButton;
 
 	/**
+	 * The recent cards the sidebar lists: the last 50 chat lines that gave a card, made in {@link #startUp} and cleared in
+	 * {@link #shutDown}, kept for the session only.
+	 *
+	 * <p>Choice: volatile, because start-up writes it on a thread other than the client thread that adds to it.
+	 */
+	private volatile CardHistory history;
+
+	/** The window that shows a hovered sidebar row's card beside the sidebar, made on first use; the event thread only. */
+	private JWindow cardWindow;
+
+	/** The label of {@link #cardWindow} that holds the card's picture; the event thread only. */
+	private JLabel cardLabel;
+
+	/**
+	 * Counts every ask of the sidebar's card viewer, a show or a hide, so that a card painted on the client thread is put
+	 * up only if nothing was asked since it was.
+	 */
+	private final AtomicInteger cardAsks = new AtomicInteger();
+
+	/**
 	 * The listener of the card key, registered in {@link #startUp} and taken away in {@link #shutDown}. It takes the key
 	 * from the game only over a card in the "While holding a key" mode, so a letter set as the card key still types.
 	 */
@@ -260,6 +311,7 @@ public class ClanHubPlugin extends Plugin
 			}
 		};
 		mouseManager.registerMouseWheelListener(wheelListener);
+		history = new CardHistory();
 		final ClanHubPanel panel = new ClanHubPanel(this::resetSettings, new PanelSettings()
 		{
 			@Override
@@ -453,13 +505,25 @@ public class ClanHubPlugin extends Plugin
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "cardFontSize", size);
 			}
+
+			@Override
+			public boolean howToFolded()
+			{
+				return config.howToFolded();
+			}
+
+			@Override
+			public void setHowToFolded(boolean folded)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "howToFolded", folded);
+			}
 		}, (parent, title, current, onChange, onClose) ->
 		{
 			final RuneliteColorPicker colourPicker = colorPickerManager.create(parent, current, title, true);
 			colourPicker.setOnColorChange(onChange);
 			colourPicker.setOnClose(onClose);
 			colourPicker.setVisible(true);
-		});
+		}, history, cardViewer(), iconSource(), LinkBrowser::browse, ClanHubPlugin::copyToClipboard);
 		navButton = NavigationButton.builder()
 			.tooltip("2h Chat Hover Info")
 			.icon(NavIcon.create())
@@ -483,11 +547,27 @@ public class ClanHubPlugin extends Plugin
 			navButton = null;
 		}
 		store.clear();
+		final CardHistory recent = history;
+		if (recent != null)
+		{
+			recent.clear();
+		}
+		cardAsks.incrementAndGet();
+		onEventThread(() ->
+		{
+			if (cardWindow != null)
+			{
+				cardWindow.dispose();
+				cardWindow = null;
+				cardLabel = null;
+			}
+		});
 	}
 
 	/**
 	 * A chat line: every reader is asked for the cards the line holds, and what they give is kept under the line's plain
-	 * text (the text without its tags and a combat achievement's id). A line no reader finds a card in is not kept. When
+	 * text (the text without its tags and a combat achievement's id), and the line with its first card is added to the
+	 * sidebar's recent cards. A line no reader finds a card in is not kept. When
 	 * "Colour hoverable words" is on and the line holds marked cards, the message's text gets colour tags around each of
 	 * their words, and nothing else changes in it (a line whose cards are all quiet is not touched); the store's key is the
 	 * plain text, which the tags do not change. A line that answers an Examine click and is to carry the thing's name gets
@@ -533,10 +613,16 @@ public class ClanHubPlugin extends Plugin
 			}
 			log.info("hoverinfo trace: {} card(s): {}", cards.size(), cards.isEmpty() ? "-" : titles);
 		}
-		store.put(ChatText.plain(message), cards);
+		final String plain = ChatText.plain(message);
+		store.put(plain, cards);
 		if (cards.isEmpty())
 		{
 			return;
+		}
+		final CardHistory recent = history;
+		if (recent != null)
+		{
+			recent.add(plain, cards, System.currentTimeMillis());
 		}
 		log.debug("{} card(s) from a {} line", cards.size(), event.getType());
 		prefetch(cards);
@@ -671,7 +757,183 @@ public class ClanHubPlugin extends Plugin
 		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
 	}
 
-	/** "Reset to default": the plugin's sixteen settings go back to their defaults. */
+	/**
+	 * What shows a hovered sidebar row's card: the card is painted on the client thread ({@link
+	 * ChatCardOverlay#cardImage}), and put in a small window beside the sidebar on the event thread, unless a hide or a
+	 * newer show was asked in between ({@link #cardAsks}).
+	 */
+	private CardViewer cardViewer()
+	{
+		return new CardViewer()
+		{
+			@Override
+			public void show(HoverCard card, Rectangle rowOnScreen)
+			{
+				final int ask = cardAsks.incrementAndGet();
+				clientThread.invokeLater(() ->
+				{
+					final BufferedImage image = overlay.cardImage(card);
+					if (image == null)
+					{
+						return;
+					}
+					SwingUtilities.invokeLater(() ->
+					{
+						if (cardAsks.get() == ask)
+						{
+							showCardWindow(image, rowOnScreen);
+						}
+					});
+				});
+			}
+
+			@Override
+			public void hide()
+			{
+				cardAsks.incrementAndGet();
+				onEventThread(() ->
+				{
+					if (cardWindow != null)
+					{
+						cardWindow.setVisible(false);
+					}
+				});
+			}
+		};
+	}
+
+	/**
+	 * Puts {@code image} in the card window and shows it, its right edge {@link #CARD_GAP} px left of the row's left edge
+	 * and its middle level with the row's, kept on the row's screen. The window is made on first use, owned by the window
+	 * the sidebar is in when it has one, with no decorations and never taking the keyboard from the game. Runs on the event
+	 * thread.
+	 */
+	private void showCardWindow(BufferedImage image, Rectangle row)
+	{
+		if (cardWindow == null)
+		{
+			final PluginPanel sidebar = navButton == null ? null : navButton.getPanel();
+			final Window owner = sidebar == null ? null : SwingUtilities.getWindowAncestor(sidebar);
+			cardWindow = owner == null ? new JWindow() : new JWindow(owner);
+			cardWindow.setFocusableWindowState(false);
+			cardLabel = new JLabel();
+			cardWindow.getContentPane().add(cardLabel);
+		}
+		final Dimension size = new Dimension(image.getWidth(), image.getHeight());
+		cardLabel.setIcon(new ImageIcon(image));
+		cardWindow.setSize(size);
+		cardWindow.setLocation(besideRow(row, size, screenOf(row)));
+		cardWindow.setVisible(true);
+	}
+
+	/**
+	 * Where a card window of {@code card} size goes for the row {@code row}: its right edge {@link #CARD_GAP} px left of the
+	 * row's left edge, its middle level with the row's, and held inside {@code screen} (at its left and top edges when the
+	 * card is bigger than the room).
+	 */
+	private static Point besideRow(Rectangle row, Dimension card, Rectangle screen)
+	{
+		final int x = row.x - CARD_GAP - card.width;
+		final int y = row.y + row.height / 2 - card.height / 2;
+		return new Point(
+			Math.max(screen.x, Math.min(x, screen.x + screen.width - card.width)),
+			Math.max(screen.y, Math.min(y, screen.y + screen.height - card.height)));
+	}
+
+	/** The usable area (the screen less its task bar and the like) of the screen the middle of {@code row} is on. */
+	private static Rectangle screenOf(Rectangle row)
+	{
+		final GraphicsEnvironment environment = GraphicsEnvironment.getLocalGraphicsEnvironment();
+		GraphicsConfiguration found = environment.getDefaultScreenDevice().getDefaultConfiguration();
+		for (final GraphicsDevice device : environment.getScreenDevices())
+		{
+			final GraphicsConfiguration candidate = device.getDefaultConfiguration();
+			if (candidate.getBounds().contains(row.x + row.width / 2, row.y + row.height / 2))
+			{
+				found = candidate;
+				break;
+			}
+		}
+		final Rectangle bounds = found.getBounds();
+		final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(found);
+		return new Rectangle(bounds.x + insets.left, bounds.y + insets.top,
+			bounds.width - insets.left - insets.right, bounds.height - insets.top - insets.bottom);
+	}
+
+	/**
+	 * Where the sidebar gets its pictures: a row's card through {@link #iconFor}, and the how-to's rows' sprites and items
+	 * straight from the game's sprite and item managers, an item's picture handed out at once and again when it has
+	 * loaded. Each may be called on any thread; the panel moves a picture to the event thread itself.
+	 */
+	private IconSource iconSource()
+	{
+		return new IconSource()
+		{
+			@Override
+			public void iconFor(HoverCard card, Consumer<BufferedImage> onIcon)
+			{
+				ClanHubPlugin.this.iconFor(card, onIcon);
+			}
+
+			@Override
+			public void sprite(int spriteId, Consumer<BufferedImage> onIcon)
+			{
+				spriteManager.getSpriteAsync(spriteId, 0, onIcon);
+			}
+
+			@Override
+			public void item(int itemId, int quantity, Consumer<BufferedImage> onIcon)
+			{
+				final AsyncBufferedImage image = itemManager.getImage(itemId, quantity, quantity > 1);
+				onIcon.accept(image);
+				image.onLoaded(() -> onIcon.accept(image));
+			}
+		};
+	}
+
+	/**
+	 * Gives {@code onIcon} the picture of a sidebar row's card: the wiki's own picture when the card wants it, "Wiki
+	 * pictures" is on and one is kept; else the card's item, now and again when it has loaded; else the card's sprite, when
+	 * it comes; else nothing. May be called on any thread; the panel moves the picture to the event thread itself.
+	 */
+	private void iconFor(HoverCard card, Consumer<BufferedImage> onIcon)
+	{
+		final WikiPictures pictured = pictures;
+		if (pictured != null && card.wikiPicture() && config.wikiPictures())
+		{
+			final BufferedImage wiki = pictured.pictureOf(card.wikiTitle());
+			if (wiki != null)
+			{
+				onIcon.accept(wiki);
+				return;
+			}
+		}
+		if (card.itemId() >= 0)
+		{
+			final AsyncBufferedImage image = itemManager.getImage(card.itemId(), card.quantity(), card.quantity() > 1);
+			onIcon.accept(image);
+			image.onLoaded(() -> onIcon.accept(image));
+		}
+		else if (card.spriteId() >= 0)
+		{
+			spriteManager.getSpriteAsync(card.spriteId(), 0, onIcon);
+		}
+	}
+
+	/** Runs {@code body} now when this is the event thread, else on it later. */
+	private static void onEventThread(Runnable body)
+	{
+		if (SwingUtilities.isEventDispatchThread())
+		{
+			body.run();
+		}
+		else
+		{
+			SwingUtilities.invokeLater(body);
+		}
+	}
+
+	/** "Reset to default": the plugin's sixteen settings go back to their defaults, and the sidebar's how-to opens. */
 	private void resetSettings()
 	{
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "showCards");
@@ -690,5 +952,6 @@ public class ClanHubPlugin extends Plugin
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardWidth");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineLevels");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineColour");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "howToFolded");
 	}
 }

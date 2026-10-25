@@ -108,4 +108,10 @@ interface PanelSettings
 
 	/** Writes the card text's size, in pixels. */
 	void setCardFontSize(int size);
+
+	/** Whether the sidebar's "How to use" box is folded to its header. */
+	boolean howToFolded();
+
+	/** Writes whether the sidebar's "How to use" box is folded to its header. */
+	void setHowToFolded(boolean folded);
 }

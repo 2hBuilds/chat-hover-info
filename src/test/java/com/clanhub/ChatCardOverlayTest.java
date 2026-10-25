@@ -228,6 +228,23 @@ public class ChatCardOverlayTest
 		}
 	}
 
+	/** Lot 10C: the image the sidebar shows is the split card painted from the origin, in an image of the size it measures. */
+	@Test
+	public void theCardImageIsTheSplitCardAtTheOrigin()
+	{
+		final BufferedImage image = overlay.cardImage(claws);
+
+		final BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D scratchGraphics = scratch.createGraphics();
+		final java.awt.Dimension size = CardPainter.paintSplit(scratchGraphics, claws, null, 16, 0, 0, "", 480, 3);
+		scratchGraphics.dispose();
+		assertNotNull("a card gives an image", image);
+		assertEquals("as wide as the painter says", size.width, image.getWidth());
+		assertEquals("and as tall", size.height, image.getHeight());
+		assertEquals("the card's black edge starts at the corner", 0xFF000000, image.getRGB(0, 0));
+		assertNull("no card gives no image", overlay.cardImage(null));
+	}
+
 	@Test
 	public void aCardWithSeveralNotesPaintsThemAsAList()
 	{
