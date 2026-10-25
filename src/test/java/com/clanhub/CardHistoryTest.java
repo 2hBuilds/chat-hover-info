@@ -1,5 +1,9 @@
 package com.clanhub;
 
+import com.clanhub.ClanHubConfig.CardTime;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -97,18 +101,20 @@ public class CardHistoryTest
 		assertEquals("25 hours", "25h ago", CardHistory.ago(then + 25 * 3_600_000L, then));
 	}
 
-	/** Lot 10D: a leading "title: " is taken off a line; any other line comes back as it is. */
+	/** Lot 10K: a row's time reads the way the player chose, the clocks in the zone given, the "ago" words from the present. */
 	@Test
-	public void withoutNameDropsALeadingTitle()
+	public void timeOfReadsTheChosenWay()
 	{
-		assertEquals("a leading title and its colon go", "Used for teleport spells.",
-			CardHistory.withoutName("Law rune: Used for teleport spells.", "Law rune"));
-		assertEquals("a title inside the line stays", "Dragonrains received a drop: Law rune",
-			CardHistory.withoutName("Dragonrains received a drop: Law rune", "Law rune"));
-		assertEquals("a longer first word is not the title", "Law runes are nice",
-			CardHistory.withoutName("Law runes are nice", "Law rune"));
-		assertEquals("a null title leaves the line", "Law rune: Used for teleport spells.",
-			CardHistory.withoutName("Law rune: Used for teleport spells.", null));
-		assertEquals("a null line is empty", "", CardHistory.withoutName(null, "Law rune"));
+		final long at = Instant.parse("2026-10-25T14:32:10Z").toEpochMilli();
+		final long early = Instant.parse("2026-10-25T09:05:00Z").toEpochMilli();
+		final ZoneId utc = ZoneOffset.UTC;
+
+		assertEquals("24 hours", "14:32", CardHistory.timeOf(at, CardTime.CLOCK_24, utc, at));
+		assertEquals("12 hours", "2:32 PM", CardHistory.timeOf(at, CardTime.CLOCK_12, utc, at));
+		assertEquals("24 hours, a morning hour keeps its zero", "09:05", CardHistory.timeOf(early, CardTime.CLOCK_24, utc, early));
+		assertEquals("12 hours, a morning hour has no zero", "9:05 AM", CardHistory.timeOf(early, CardTime.CLOCK_12, utc, early));
+		assertEquals("ago, four minutes later", "4m ago", CardHistory.timeOf(at, CardTime.AGO, utc, at + 4 * 60_000L));
+		assertEquals("the zone moves the clock", "10:32", CardHistory.timeOf(at, CardTime.CLOCK_24, ZoneOffset.ofHours(-4), at));
+		assertEquals("and the 12-hour one", "10:32 AM", CardHistory.timeOf(at, CardTime.CLOCK_12, ZoneOffset.ofHours(-4), at));
 	}
 }

@@ -1,7 +1,12 @@
 package com.clanhub;
 
+import com.clanhub.ClanHubConfig.CardTime;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The recent cards: the chat lines that gave a card over the whole session, newest first, each with the first card its
@@ -121,25 +126,6 @@ final class CardHistory
 	}
 
 	/**
-	 * The line without a leading {@code title + ": "}, as an examine line written name first ("Burning claws: Torn from the
-	 * hands of ...") shows the rest alone under the title; a line that does not start so comes back unchanged. A null title
-	 * leaves the line as it is, and a null line is "".
-	 */
-	static String withoutName(String line, String title)
-	{
-		if (line == null)
-		{
-			return "";
-		}
-		if (title == null)
-		{
-			return line;
-		}
-		final String lead = title + ": ";
-		return line.startsWith(lead) ? line.substring(lead.length()) : line;
-	}
-
-	/**
 	 * How long ago a line arrived, in the words a row shows: "just now" under a minute, "Nm ago" under an hour, else
 	 * "Nh ago" (hours, however many). A time in the future, a clock set back, reads as "just now".
 	 *
@@ -159,5 +145,27 @@ final class CardHistory
 			return minutes + "m ago";
 		}
 		return (minutes / 60) + "h ago";
+	}
+
+	/**
+	 * A row's time in the way the player chose: {@link CardTime#AGO} reads as {@link #ago}, the clocks as the moment the
+	 * line arrived in {@code zone}, "14:32" in 24 hours or "2:32 PM" in 12 (English words, whatever the player's language).
+	 *
+	 * @param at when the line arrived, in milliseconds since the epoch
+	 * @param style how the time reads
+	 * @param zone the zone the clocks read in: the player's own
+	 * @param now the present, in the terms of {@code at}, for the "ago" words
+	 */
+	static String timeOf(long at, CardTime style, ZoneId zone, long now)
+	{
+		switch (style)
+		{
+			case CLOCK_24:
+				return DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH).format(Instant.ofEpochMilli(at).atZone(zone));
+			case CLOCK_12:
+				return DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH).format(Instant.ofEpochMilli(at).atZone(zone));
+			default:
+				return ago(now, at);
+		}
 	}
 }

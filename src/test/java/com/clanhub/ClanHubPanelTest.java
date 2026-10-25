@@ -1,6 +1,7 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
@@ -18,9 +19,13 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.image.BufferedImage;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 import javax.swing.AbstractButton;
 import javax.swing.Icon;
@@ -69,14 +74,22 @@ public class ClanHubPanelTest
 	private final List<CardPlace> places = new ArrayList<>();
 	private final List<CardWidth> widths = new ArrayList<>();
 	private final List<ExamineLine> examineLines = new ArrayList<>();
+	private final List<CardTime> cardTimes = new ArrayList<>();
 	private final List<Integer> delays = new ArrayList<>();
 	private final List<Integer> sizes = new ArrayList<>();
 	private final List<Color> hoverColours = new ArrayList<>();
 	private final List<Color> underlineColours = new ArrayList<>();
+	private final List<Color> nameColours = new ArrayList<>();
+
+	/** What the settings stub answers for "Name colour": the write of the colour sets it too. */
+	private Color nameColour = new Color(220, 138, 0);
 
 	/** The key and the show mode the settings stub answers: a test may set them before the menu opens. */
 	private Keybind cardKey = Keybind.ALT;
 	private CardTrigger trigger = CardTrigger.HOVER;
+
+	/** What the settings stub answers for "Card time": the write of the choice sets it too. */
+	private CardTime cardTime = CardTime.AGO;
 
 	/** What the settings stub answers for "Colour hoverable words": the write of the colour check sets it too. */
 	private boolean colourOn = true;
@@ -115,15 +128,15 @@ public class ClanHubPanelTest
 	private final List<String> browsed = new ArrayList<>();
 	private final List<String> copied = new ArrayList<>();
 
-	/** What the picker stub was asked: the parent, the title and the starting colour of each call. */
+	/** What the picker stub was asked: the parent, the title, the starting colour and the point of each call. */
 	private final List<Object[]> pickerCalls = new ArrayList<>();
 	private Consumer<Color> pickerOnChange;
 	private Consumer<Color> pickerOnClose;
 
 	/** A colour picker that opens nothing: it records the call and keeps the callbacks for the test to call. */
-	private final ColourPicker picker = (parent, title, current, onChange, onClose) ->
+	private final ColourPicker picker = (parent, title, current, onChange, onClose, at) ->
 	{
-		pickerCalls.add(new Object[] {parent, title, current});
+		pickerCalls.add(new Object[] {parent, title, current, at});
 		pickerOnChange = onChange;
 		pickerOnClose = onClose;
 	};
@@ -217,6 +230,19 @@ public class ClanHubPanelTest
 		}
 
 		@Override
+		public CardTime cardTime()
+		{
+			return cardTime;
+		}
+
+		@Override
+		public void setCardTime(CardTime time)
+		{
+			cardTime = time;
+			cardTimes.add(time);
+		}
+
+		@Override
 		public boolean alwaysUnderlineLevels()
 		{
 			return false;
@@ -238,6 +264,19 @@ public class ClanHubPanelTest
 		public void setHoverColour(Color colour)
 		{
 			hoverColours.add(colour);
+		}
+
+		@Override
+		public Color nameColour()
+		{
+			return nameColour;
+		}
+
+		@Override
+		public void setNameColour(Color colour)
+		{
+			nameColour = colour;
+			nameColours.add(colour);
 		}
 
 		@Override
@@ -379,8 +418,12 @@ public class ClanHubPanelTest
 				// Re-aimed by the lead, 2026-10-09 (lot 9F): the card key row after the show submenu.
 				// Re-aimed by the lead, 2026-10-23 (lot 10A): a seventh check, "Examine cards".
 				// Re-aimed by the lead, 2026-10-24 (lot 10B): a fourth choice submenu, "Examine line".
+				// Re-aimed by the lead, 2026-10-25 (lot 10K): a fifth choice submenu, "Card time".
+				// Re-aimed by the lead, 2026-10-25 (lot 10L): a third colour row, "Name colour".
+				// Re-aimed by the lead, 2026-10-25 (lot 10M): the name swatch reads the 2h orange.
 				assertEquals("header, rule, seven checks, rule, the show submenu, the key row, the delay row, two submenus,"
-					+ " the examine line submenu, the size row, two colour rows, rule, OK row", 21, parts.length);
+					+ " the examine line submenu, the card time submenu, the size row, three colour rows, rule, OK row", 23,
+					parts.length);
 				assertTrue("the header is the support header's one panel", parts[0] instanceof JPanel);
 				assertEquals("the header's title, version and links", 3, ((JPanel) parts[0]).getComponentCount());
 				assertTrue("a rule", parts[1] instanceof JPopupMenu.Separator);
@@ -398,11 +441,13 @@ public class ClanHubPanelTest
 				assertTrue("the place submenu", parts[13] instanceof JMenu);
 				assertTrue("the width submenu", parts[14] instanceof JMenu);
 				assertTrue("the examine line submenu", parts[15] instanceof JMenu);
-				assertTrue("the size row", parts[16] instanceof JPanel);
-				assertTrue("the hover colour row", parts[17] instanceof JPanel);
-				assertTrue("the underline colour row", parts[18] instanceof JPanel);
-				assertTrue("a rule", parts[19] instanceof JPopupMenu.Separator);
-				assertTrue("the OK row", parts[20] instanceof JPanel);
+				assertTrue("the card time submenu", parts[16] instanceof JMenu);
+				assertTrue("the size row", parts[17] instanceof JPanel);
+				assertTrue("the hover colour row", parts[18] instanceof JPanel);
+				assertTrue("the underline colour row", parts[19] instanceof JPanel);
+				assertTrue("the name colour row", parts[20] instanceof JPanel);
+				assertTrue("a rule", parts[21] instanceof JPopupMenu.Separator);
+				assertTrue("the OK row", parts[22] instanceof JPanel);
 
 				final JCheckBoxMenuItem showCheck = (JCheckBoxMenuItem) parts[2];
 				assertEquals("Show hover cards", showCheck.getText());
@@ -456,7 +501,11 @@ public class ClanHubPanelTest
 				assertEquals("Examine line: Item name first", examineLineMenu.getText());
 				assertRadios(examineLineMenu, ExamineLine.values(), ExamineLine.NAME_FIRST);
 
-				final JPanel sizeRow = (JPanel) parts[16];
+				final JMenu cardTimeMenu = (JMenu) parts[16];
+				assertEquals("Card time: 4m ago", cardTimeMenu.getText());
+				assertRadios(cardTimeMenu, CardTime.values(), CardTime.AGO);
+
+				final JPanel sizeRow = (JPanel) parts[17];
 				assertFalse("see-through", sizeRow.isOpaque());
 				assertEquals("Card text size", ((JLabel) sizeRow.getComponent(0)).getText());
 				final JSpinner sizeSpinner = (JSpinner) lastOf(sizeRow);
@@ -464,17 +513,21 @@ public class ClanHubPanelTest
 				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) sizeSpinner.getEditor())
 					.getTextField().getColumns() <= 4);
 
-				final JPanel hoverRow = (JPanel) parts[17];
+				final JPanel hoverRow = (JPanel) parts[18];
 				assertEquals("Hover colour", ((JLabel) hoverRow.getComponent(0)).getText());
 				assertTrue("the hover colour row ends in a swatch", lastOf(hoverRow) instanceof JButton);
 				assertEquals(new Color(59, 130, 246), lastOf(hoverRow).getBackground());
-				final JPanel underlineRow = (JPanel) parts[18];
+				final JPanel underlineRow = (JPanel) parts[19];
 				assertEquals("Underline colour", ((JLabel) underlineRow.getComponent(0)).getText());
 				assertTrue("the underline colour row ends in a swatch", lastOf(underlineRow) instanceof JButton);
 				assertEquals(new Color(150, 150, 150), lastOf(underlineRow).getBackground());
+				final JPanel nameRow = (JPanel) parts[20];
+				assertEquals("Name colour", ((JLabel) nameRow.getComponent(0)).getText());
+				assertTrue("the name colour row ends in a swatch", lastOf(nameRow) instanceof JButton);
+				assertEquals(new Color(220, 138, 0), lastOf(nameRow).getBackground());
 
 				final List<String> okRow = new ArrayList<>();
-				for (final Component part : ((JPanel) parts[20]).getComponents())
+				for (final Component part : ((JPanel) parts[22]).getComponents())
 				{
 					if (part instanceof JButton)
 					{
@@ -484,8 +537,8 @@ public class ClanHubPanelTest
 				assertEquals("the OK row is last: Reset to default, then OK", List.of("Reset to default", "OK"), okRow);
 
 				assertTrue("opening the menu writes nothing back", shown.isEmpty() && coloured.isEmpty() && wiki.isEmpty()
-					&& pictures.isEmpty() && bosses.isEmpty() && examines.isEmpty() && underlines.isEmpty() && triggers.isEmpty() && keys.isEmpty() && places.isEmpty() && widths.isEmpty() && examineLines.isEmpty() && delays.isEmpty()
-					&& sizes.isEmpty() && hoverColours.isEmpty() && underlineColours.isEmpty());
+					&& pictures.isEmpty() && bosses.isEmpty() && examines.isEmpty() && underlines.isEmpty() && triggers.isEmpty() && keys.isEmpty() && places.isEmpty() && widths.isEmpty() && examineLines.isEmpty() && cardTimes.isEmpty() && delays.isEmpty()
+					&& sizes.isEmpty() && hoverColours.isEmpty() && underlineColours.isEmpty() && nameColours.isEmpty());
 				colourCheck.doClick(0);
 				assertEquals("un-ticking the colour check says false", List.of(false), coloured);
 				assertTrue("and writes nothing to the wiki check", wiki.isEmpty());
@@ -525,6 +578,10 @@ public class ClanHubPanelTest
 				assertEquals("choosing 'Description only' says so, once", List.of(ExamineLine.DESCRIPTION), examineLines);
 				assertEquals("and the submenu says so", "Examine line: Description only", examineLineMenu.getText());
 				assertEquals("and the width was not touched again", List.of(CardWidth.MEDIUM), widths);
+				radio(cardTimeMenu, 1).doClick(0);
+				assertEquals("choosing '14:32' says so, once", List.of(CardTime.CLOCK_24), cardTimes);
+				assertEquals("and the submenu says so", "Card time: 14:32", cardTimeMenu.getText());
+				assertEquals("and the examine line was not touched again", List.of(ExamineLine.DESCRIPTION), examineLines);
 				delaySpinner.setValue(300);
 				assertEquals("setting the delay spinner to 300 says 300", List.of(300), delays);
 				sizeSpinner.setValue(20);
@@ -574,7 +631,7 @@ public class ClanHubPanelTest
 				assertEquals("a second write, ticked again", List.of(false, true), coloured);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[20]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[22]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -633,7 +690,7 @@ public class ClanHubPanelTest
 				assertEquals("one write, 'On click'", List.of(CardTrigger.CLICK), triggers);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[20]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[22]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -674,7 +731,7 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[17]);
+				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[18]);
 				assertEquals(new Color(59, 130, 246), hoverSwatch.getBackground());
 				hoverSwatch.doClick(0);
 				assertFalse("the menu goes while the picker is open", menu.isVisible());
@@ -688,7 +745,7 @@ public class ClanHubPanelTest
 				pickerOnClose.accept(new Color(1, 2, 3));
 				assertTrue("the menu comes back when the picker closes", menu.isVisible());
 
-				final JButton underlineSwatch = (JButton) lastOf((JPanel) menu.getComponents()[18]);
+				final JButton underlineSwatch = (JButton) lastOf((JPanel) menu.getComponents()[19]);
 				assertEquals(new Color(150, 150, 150), underlineSwatch.getBackground());
 				underlineSwatch.doClick(0);
 				assertFalse("the menu goes again", menu.isVisible());
@@ -707,6 +764,226 @@ public class ClanHubPanelTest
 				frame.dispose();
 			}
 		});
+	}
+
+	/**
+	 * Lot 10M: a choice submenu left open closes when the mouse enters a plain row of the menu (a colour row, a
+	 * spinner, the OK row); the menu itself stays up, and with no submenu open entering a row changes nothing.
+	 */
+	@Test
+	public void aPlainRowClosesAnOpenSubmenu() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = new JFrame();
+			frame.setFocusableWindowState(false);
+			frame.add(panel);
+			frame.setBounds(100, 100, 500, 600);
+			frame.setVisible(true);
+			try
+			{
+				frame.validate();
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				assertTrue("the menu is up", menu.isVisible());
+
+				final Component[] parts = menu.getComponents();
+				final JMenu cardTimeMenu = (JMenu) parts[16];
+				assertEquals("Card time: 4m ago", cardTimeMenu.getText());
+				final JPanel nameRow = (JPanel) parts[20];
+				assertEquals("Name colour", ((JLabel) nameRow.getComponent(0)).getText());
+				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) parts[12]);
+				final JPanel okRow = (JPanel) parts[22];
+
+				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
+				enter(nameRow);
+				enter(delaySpinner);
+				enter(okRow);
+				assertPathIsThe(menu);
+				assertTrue("with no submenu open nothing happens to the menu", menu.isVisible());
+
+				final MenuElement[] open = {menu, cardTimeMenu, cardTimeMenu.getPopupMenu()};
+				MenuSelectionManager.defaultManager().setSelectedPath(open);
+				assertTrue("the submenu is up", cardTimeMenu.getPopupMenu().isVisible());
+				enter(nameRow);
+				assertPathIsThe(menu);
+				assertFalse("the Name colour row took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
+				assertTrue("the menu is still up", menu.isVisible());
+
+				MenuSelectionManager.defaultManager().setSelectedPath(open);
+				assertTrue("the submenu is up again", cardTimeMenu.getPopupMenu().isVisible());
+				enter(delaySpinner);
+				assertPathIsThe(menu);
+				assertFalse("the delay row's spinner took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
+
+				MenuSelectionManager.defaultManager().setSelectedPath(open);
+				assertTrue("the submenu is up a third time", cardTimeMenu.getPopupMenu().isVisible());
+				enter(((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField());
+				assertPathIsThe(menu);
+				assertFalse("the spinner's text field took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
+
+				MenuSelectionManager.defaultManager().setSelectedPath(open);
+				assertTrue("the submenu is up a fourth time", cardTimeMenu.getPopupMenu().isVisible());
+				enter(okRow);
+				assertPathIsThe(menu);
+				assertFalse("the OK row took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
+				assertTrue("the menu is still up after all of it", menu.isVisible());
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 10M: a press on a colour swatch hands the picker the swatch's centre on the screen, as it was before the menu
+	 * came down.
+	 */
+	@Test
+	public void theSwatchTellsThePickerWhereItIs() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = new JFrame();
+			frame.setFocusableWindowState(false);
+			frame.add(panel);
+			frame.setBounds(100, 100, 500, 600);
+			frame.setVisible(true);
+			try
+			{
+				frame.validate();
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				assertTrue("the menu is up", menu.isVisible());
+
+				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[18]);
+				final Rectangle onScreen = new Rectangle(hoverSwatch.getLocationOnScreen(), hoverSwatch.getSize());
+				hoverSwatch.doClick(0);
+				assertFalse("the menu goes while the picker is open", menu.isVisible());
+				assertEquals("the picker was asked once", 1, pickerCalls.size());
+				final Point at = (Point) pickerCalls.get(0)[3];
+				assertNotNull("the picker was told a point", at);
+				assertTrue("the point " + at + " is inside the swatch " + onScreen, onScreen.contains(at));
+				pickerOnClose.accept(new Color(59, 130, 246));
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 10L: a row's name is drawn in the name colour; the Name colour swatch opens the picker, and each colour the
+	 * picker settles on is written and shows in the rows at once, with the picker still open.
+	 */
+	@Test
+	public void theNameColourPaintsLive() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String line = "GMucker has completed a medium combat task: Smite Fight.";
+			history.add(line, Collections.<HoverCard>singletonList(card("Smite Fight", "Smite_Fight", line)),
+				System.currentTimeMillis());
+			flush();
+			onEdt(() ->
+			{
+				frame[0].validate();
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("one entry", 1, list.getModel().getSize());
+				// Re-aimed by the lead, 2026-10-25 (lot 10M): the 2h orange, the user's word.
+				assertEquals("the name is drawn in the 2h orange", new Color(220, 138, 0),
+					labelSaying(cellOf(list, 0), "GMucker").getForeground());
+
+				press(settingsIcon(panel[0]));
+				final JPopupMenu menu = popupMenu(frame[0]);
+				assertNotNull("the menu is on screen", menu);
+				final JButton nameSwatch = (JButton) lastOf((JPanel) menu.getComponents()[20]);
+				assertEquals(new Color(220, 138, 0), nameSwatch.getBackground());
+				nameSwatch.doClick(0);
+				assertFalse("the menu goes while the picker is open", menu.isVisible());
+				assertEquals("the picker was asked once", 1, pickerCalls.size());
+				assertEquals("Name colour", pickerCalls.get(0)[1]);
+				assertEquals(new Color(220, 138, 0), pickerCalls.get(0)[2]);
+
+				pickerOnChange.accept(new Color(1, 2, 3));
+				assertEquals("the new colour is written, once", List.of(new Color(1, 2, 3)), nameColours);
+				assertEquals("and the swatch shows it", new Color(1, 2, 3), nameSwatch.getBackground());
+				assertEquals("and the row shows it with the picker still open", new Color(1, 2, 3),
+					labelSaying(cellOf(list, 0), "GMucker").getForeground());
+				assertFalse("the menu stays down until the picker closes", menu.isVisible());
+				assertTrue("the hover colour was not touched", hoverColours.isEmpty());
+				assertTrue("nor the underline colour", underlineColours.isEmpty());
+
+				pickerOnClose.accept(new Color(1, 2, 3));
+				assertTrue("the menu comes back when the picker closes", menu.isVisible());
+				menu.setVisible(false);
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/**
+	 * Lot 10L: when the plugin's settings change from somewhere else (RuneLite's own settings page), the sidebar draws its
+	 * rows in the new name colour and its how-to in the new words once it is told.
+	 */
+	@Test
+	public void aSettingsChangeRepaintsTheSidebar() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String line = "GMucker has completed a medium combat task: Smite Fight.";
+			history.add(line, Collections.<HoverCard>singletonList(card("Smite Fight", "Smite_Fight", line)),
+				System.currentTimeMillis());
+			flush();
+			onEdt(() ->
+			{
+				frame[0].validate();
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("one entry", 1, list.getModel().getSize());
+				assertEquals("the how-to starts coloured", "Hover the coloured name for its card.", actionLine(panel[0]));
+
+				nameColour = new Color(9, 9, 9);
+				panel[0].settingsChanged();
+				assertEquals("the name is drawn in the new colour", new Color(9, 9, 9),
+					labelSaying(cellOf(list, 0), "GMucker").getForeground());
+
+				colourOn = false;
+				panel[0].settingsChanged();
+				assertEquals("the how-to reads the plain line", "Hover a name in a broadcast for its card.",
+					actionLine(panel[0]));
+				assertFalse("in no colour", rawActionLine(panel[0]).contains("<font"));
+				assertTrue("and nothing was written back", nameColours.isEmpty() && coloured.isEmpty());
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
 	}
 
 	/**
@@ -825,7 +1102,7 @@ public class ClanHubPanelTest
 				assertTrue("the menu is up", menu.isVisible());
 
 				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[12]);
-				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[16]);
+				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[17]);
 				final JFormattedTextField delayField = ((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField();
 				final JFormattedTextField sizeField = ((JSpinner.DefaultEditor) sizeSpinner.getEditor()).getTextField();
 				assertFalse("the delay box is not focusable at rest", delayField.isFocusable());
@@ -884,7 +1161,7 @@ public class ClanHubPanelTest
 					new LayoutFocusTraversalPolicy().getFirstComponent(SwingUtilities.getWindowAncestor(menu)));
 
 				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[12]);
-				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[16]);
+				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[17]);
 				assertFalse("the delay box is not focusable at rest",
 					((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField().isFocusable());
 				assertFalse("the size box is not focusable at rest",
@@ -1048,9 +1325,90 @@ public class ClanHubPanelTest
 				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
 				assertEquals("one entry", 1, list.getModel().getSize());
 				final List<String> texts = textsIn(cellOf(list, 0));
+				// Re-aimed by the lead, 2026-10-25 (lot 10J): an examine row says "You examined", the user's row style 4.
 				assertTrue("the title", texts.contains("Law rune"));
-				assertTrue("the description alone", texts.contains("Used for teleport spells."));
+				assertTrue("who is you", texts.contains("You"));
+				assertTrue("what is examined", texts.contains("examined"));
+				assertFalse("no label reads the description", texts.contains("Used for teleport spells."));
 				assertFalse("no label reads the whole line", texts.contains(line));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 10J: a row's second line says who, what and when (the user's row style 4), and no label reads the whole line. */
+	@Test
+	public void aRowSaysWhoWhatAndWhen() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String line = "GMucker has completed a medium combat task: Smite Fight.";
+			history.add(line, Collections.<HoverCard>singletonList(card("Smite Fight", "Smite_Fight", line)),
+				System.currentTimeMillis());
+			flush();
+			onEdt(() ->
+			{
+				frame[0].validate();
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("one entry", 1, list.getModel().getSize());
+				final List<String> texts = textsIn(cellOf(list, 0));
+				assertTrue("the title", texts.contains("Smite Fight"));
+				assertTrue("who", texts.contains("GMucker"));
+				assertTrue("what", texts.contains("medium task"));
+				assertTrue("when", texts.contains("just now"));
+				assertFalse("no label reads the whole line", texts.contains(line));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 10K: a row's time reads as set: how long ago, the 24-hour clock or the 12-hour clock of the player's own zone. */
+	@Test
+	public void aRowShowsTheTimeAsSet() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final String line = "GMucker has completed a medium combat task: Smite Fight.";
+			final long at = System.currentTimeMillis();
+			history.add(line, Collections.<HoverCard>singletonList(card("Smite Fight", "Smite_Fight", line)), at);
+			flush();
+			final String clock24 = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
+				.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()));
+			final String clock12 = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+				.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()));
+			onEdt(() ->
+			{
+				frame[0].validate();
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("one entry", 1, list.getModel().getSize());
+				assertTrue("at 'ago' the row reads 'just now'", textsIn(cellOf(list, 0)).contains("just now"));
+
+				cardTime = CardTime.CLOCK_24;
+				assertTrue("at the 24-hour clock the row reads the moment as HH:mm", textsIn(cellOf(list, 0)).contains(clock24));
+				assertFalse("and no longer 'just now'", textsIn(cellOf(list, 0)).contains("just now"));
+
+				cardTime = CardTime.CLOCK_12;
+				assertTrue("at the 12-hour clock the row reads the moment as h:mm a", textsIn(cellOf(list, 0)).contains(clock12));
 			});
 		}
 		finally
@@ -1279,11 +1637,14 @@ public class ClanHubPanelTest
 				assertEquals("two entries in the model", 2, list.getModel().getSize());
 				assertEquals("the newest first", "Herblore 78", list.getModel().getElementAt(0).card().title());
 				final List<String> first = textsIn(cellOf(list, 0));
+				// Re-aimed by the lead, 2026-10-25 (lot 10J): a row's second line says who, what and when, not the whole line.
 				assertTrue("the newest first, by its title", first.contains("Herblore 78"));
-				assertTrue("and its line", first.contains(herbLine));
+				assertTrue("and its who", first.contains("Klar"));
+				assertFalse("not the whole line", first.contains(herbLine));
 				final List<String> second = textsIn(cellOf(list, 1));
 				assertTrue("the older second, by its title", second.contains("Abyssal whip"));
-				assertTrue("and its line", second.contains(whipLine));
+				assertTrue("and its who", second.contains("Klar"));
+				assertFalse("not the whole line", second.contains(whipLine));
 				// Re-aimed by the lead, 2026-10-25 (lot 10F): the count is the session's, no cap in it.
 				assertTrue("the count follows", textsIn(panel[0]).contains("2 this session"));
 			});
@@ -1753,6 +2114,20 @@ public class ClanHubPanelTest
 				return getKeyCode();
 			}
 		};
+	}
+
+	/** The mouse comes onto {@code part}: a MOUSE_ENTERED delivered to every listener on it. */
+	private static void enter(Component part)
+	{
+		part.dispatchEvent(new MouseEvent(part, MouseEvent.MOUSE_ENTERED, System.currentTimeMillis(), 0, 1, 1, 0, false));
+	}
+
+	/** The menu selection's path is {@code menu} alone: the menu is up and no submenu is open. */
+	private static void assertPathIsThe(JPopupMenu menu)
+	{
+		final MenuElement[] path = MenuSelectionManager.defaultManager().getSelectedPath();
+		assertEquals("the path ends at the menu", 1, path.length);
+		assertSame("and is the menu", menu, path[0]);
 	}
 
 	/** The submenu's {@code index}th choice. */

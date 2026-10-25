@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.Point;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
@@ -816,5 +817,36 @@ public class ChatCardOverlayTest
 		theChatMovesUp(visible);
 		assertNull("the shift came with a move of a pixel: no hold", frameAt(words + 1, 407));
 		assertFalse("nothing painted", painted());
+	}
+
+	@Test
+	public void aLeadingIconMovesTheUnderlineAndTheHit()
+	{
+		final IndexedSprite icon = mock(IndexedSprite.class);
+		when(icon.getWidth()).thenReturn(11);
+		when(client.getModIcons()).thenReturn(new IndexedSprite[] {null, null, icon});
+		final String level = "aetzli has reached Crafting level 50.";
+		final int start = level.indexOf("Crafting");
+		final InfoCard quiet = new InfoCard("Crafting level 50", Collections.singletonList(
+			new HoverCard.Pair("Skill", "Crafting", "")), Collections.<String>emptyList(), "Crafting", level, start,
+			start + "Crafting level 50".length(), 199, -1, false);
+		final CardStore store = new CardStore();
+		store.put(level, Collections.<HoverCard>singletonList(quiet));
+		overlay.attach(store);
+		final int lineX = 7;
+		final Widget drawn = lineSaying("<img=2> " + level, new Rectangle(lineX, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {drawn});
+		final Color orange = new Color(220, 138, 0);
+		when(config.alwaysUnderlineLevels()).thenReturn(true);
+		when(config.alwaysUnderlineColour()).thenReturn(orange);
+		// The game draws the icon (11 px) and a space before "aetzli", which the plain text leaves out.
+		final FontMetrics fm = metrics();
+		final int from = lineX + 11 + fm.stringWidth(" ") + fm.stringWidth(level.substring(0, start));
+
+		assertNull("the mouse outside the area", frameAt(100, 207));
+		assertEquals("the underline starts after the icon and its space", orange.getRGB(), canvas.getRGB(from, 414));
+		assertEquals("and not before", 0, canvas.getRGB(from - 1, 414) >>> 24);
+		assertSame("the mouse a little inside the words", quiet, frameAt(from + 3, 407));
+		assertNull("the mouse 11 px left of them, where the icon pushes them from", frameAt(from - 11, 407));
 	}
 }

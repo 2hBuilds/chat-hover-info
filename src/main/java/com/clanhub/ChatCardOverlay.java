@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 import javax.inject.Inject;
 import net.runelite.api.Client;
+import net.runelite.api.IndexedSprite;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.game.ItemManager;
@@ -495,7 +496,8 @@ public class ChatCardOverlay extends Overlay
 
 	/**
 	 * Whether the last hit's line is still under the mouse, still says what it said, and the mouse is still on the hit
-	 * card's own words: a move of a pixel or two off them, under the walk threshold, drops the hit.
+	 * card's own words, measured after the line's leading icon like the search and the underline ({@link #rowsOf}): a move
+	 * of a pixel or two off them, under the walk threshold, drops the hit.
 	 */
 	private boolean stillHit(int mouseX, int mouseY, FontMetrics metrics)
 	{
@@ -510,7 +512,7 @@ public class ChatCardOverlay extends Overlay
 			return false;
 		}
 		final int offset = plain.indexOf(hitCard.plainLine());
-		return ChatRows.of(plain, metrics::stringWidth, bounds).pick(hitMatch.cards, offset, mouseX, mouseY) == hitCard;
+		return rowsOf(hitLine, plain, bounds, metrics).pick(hitMatch.cards, offset, mouseX, mouseY) == hitCard;
 	}
 
 	/**
@@ -527,6 +529,35 @@ public class ChatCardOverlay extends Overlay
 		final String plain = plain(rowLine);
 		final CardStore.Match now = plain == null ? null : store.find(plain);
 		return now != null && now.cards == rowMatch.cards && now.offset == rowMatch.offset;
+	}
+
+	/**
+	 * The rows of a chat line widget's plain text, its first row starting after the icon the game draws before the text
+	 * ({@link ChatText#leadWidth}: the width of each {@code <img=N>} chat icon and of the spaces the plain text drops), so
+	 * the hit check, the search and the underline all measure from the same place.
+	 *
+	 * <p>Choice: a line with no room before its text takes the rows' plain form, with no indent; it is the same reading
+	 * as an indent of 0, and it is that form's one caller in the shipped code.
+	 */
+	private ChatRows rowsOf(Widget line, String plain, Rectangle bounds, FontMetrics metrics)
+	{
+		final int indent = ChatText.leadWidth(line.getText(), this::iconWidth, metrics::stringWidth);
+		return indent == 0 ? ChatRows.of(plain, metrics::stringWidth, bounds)
+			: ChatRows.of(plain, metrics::stringWidth, bounds, indent);
+	}
+
+	/**
+	 * The width in pixels of chat icon {@code id}, the sprite the game draws for {@code <img=id>}: the width of that entry
+	 * of the client's mod icons; 0 when the client has none, the id is out of range or the entry is empty.
+	 */
+	private int iconWidth(int id)
+	{
+		final IndexedSprite[] icons = client.getModIcons();
+		if (icons == null || id < 0 || id >= icons.length || icons[id] == null)
+		{
+			return 0;
+		}
+		return icons[id].getWidth();
 	}
 
 	/** Whether a widget's plain text holds the card's line. */
@@ -554,7 +585,8 @@ public class ChatCardOverlay extends Overlay
 	 * Looks through one group of widgets; true when the hit is set. A widget is a hit only when the mouse is on the words
 	 * of one of its cards, so the hit's line, match and card are always set together or not at all. The row is the first
 	 * widget the mouse is on that says a line the plugin has cards for, set even when the mouse is not on any card's words
-	 * in it; a hit makes its own widget the row. A widget the store has nothing for is read once as a line RuneLite
+	 * in it; a hit makes its own widget the row. The card's words are looked for after the line's leading icon, where the
+	 * game draws them ({@link #rowsOf}). A widget the store has nothing for is read once as a line RuneLite
 	 * rewrote after it arrived ({@link #readLate}), and a card found that way is stored, so it is a stored line from then on.
 	 */
 	private boolean find(Widget[] widgets, int mouseX, int mouseY, FontMetrics metrics)
@@ -589,8 +621,7 @@ public class ChatCardOverlay extends Overlay
 				rowLine = widget;
 				rowMatch = match;
 			}
-			final HoverCard card = ChatRows.of(plain, metrics::stringWidth, bounds).pick(match.cards, match.offset, mouseX,
-				mouseY);
+			final HoverCard card = rowsOf(widget, plain, bounds, metrics).pick(match.cards, match.offset, mouseX, mouseY);
 			if (card != null)
 			{
 				rowLine = widget;
@@ -686,8 +717,9 @@ public class ChatCardOverlay extends Overlay
 
 	/**
 	 * A 1 px underline, 1 px under the text box of each row the card's words fall on, from where the words start to where
-	 * they end on that row: the widget's left edge plus the width of the plain text before them on their row in the
-	 * game's chat font, the stored line's place in the text ({@code offset}) added to the card's own. A line of one row
+	 * they end on that row: the widget's left edge, plus on the first row the room of the icon the game draws before the
+	 * text ({@link #rowsOf}), plus the width of the plain text before them on their row in the game's chat font, the
+	 * stored line's place in the text ({@code offset}) added to the card's own. A line of one row
 	 * gets one, under its box; a wrapped line ({@link ChatRows}) gets a piece on each row the words touch. It is drawn in
 	 * {@code colour}.
 	 *
@@ -707,7 +739,7 @@ public class ChatCardOverlay extends Overlay
 		{
 			return;
 		}
-		final ChatRows rows = ChatRows.of(text, metrics::stringWidth, bounds);
+		final ChatRows rows = rowsOf(line, text, bounds, metrics);
 		if (rows.rows() == 1 && bounds.height > ONE_ROW)
 		{
 			return;

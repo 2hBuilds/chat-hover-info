@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntUnaryOperator;
+import java.util.function.ToIntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.runelite.client.chat.ChatColorType;
@@ -31,6 +33,8 @@ final class ChatText
 	private static final Pattern LEAD = Pattern.compile("^\\s*(?:CA_ID:\\d+\\|)?\\s*");
 	/** A tag, the way {@link Text#removeTags} sees one: a "<", anything but a ">", and the ">". */
 	private static final Pattern TAG = Pattern.compile("<[^>]*>");
+	/** The game's chat icon tag as a whole tag: {@code <img=N>}, group 1 the icon's number. */
+	private static final Pattern IMAGE = Pattern.compile("<img=(\\d{1,9})>");
 	/**
 	 * One of the game's string variables, as a whole tag: {@code <str_NAME=VALUE>} defines one (group 1 the name, group 3
 	 * the value, up to the first "&gt;") and {@code <str_NAME>} refers to one (group 2 is null).
@@ -74,6 +78,57 @@ final class ChatText
 			to--;
 		}
 		return text.substring(from, to);
+	}
+
+	/**
+	 * The width in pixels the game draws before the first character of {@link #plain}{@code (raw)}: what {@link #plain}
+	 * drops from the front of the line. Each {@code <img=N>} tag before that character adds {@code iconWidth(N)}, the
+	 * width of chat icon N; every other tag adds nothing; each space or non-breaking space the lead drops adds the
+	 * {@code textWidth} of one space; the hidden {@code CA_ID:<digits>|} prefix, which the client does not draw, adds
+	 * nothing. A null text, or one with nothing before its first character, gives 0.
+	 *
+	 * <p>Choice: the walk is over the expanded text ({@link #expand}), the text {@link #plain} reads, so a string
+	 * variable's definition tag at the front adds nothing and the two agree on which character is the first. A tag
+	 * after the first character adds nothing here, an icon in the middle of the line being inside the words' own
+	 * widths.
+	 */
+	static int leadWidth(String raw, IntUnaryOperator iconWidth, ToIntFunction<String> textWidth)
+	{
+		if (raw == null)
+		{
+			return 0;
+		}
+		final String expanded = expand(raw);
+		final String tagless = Text.removeTags(expanded).replace('\u00a0', ' ');
+		final Matcher lead = LEAD.matcher(tagless);
+		final int skipped = lead.find() ? lead.end() : 0;
+		int width = 0;
+		int consumed = 0;
+		int from = 0;
+		final Matcher tags = TAG.matcher(expanded);
+		while (tags.find())
+		{
+			consumed += tags.start() - from;
+			from = tags.end();
+			if (consumed > skipped)
+			{
+				break;
+			}
+			final Matcher icon = IMAGE.matcher(tags.group());
+			if (icon.matches())
+			{
+				width += iconWidth.applyAsInt(Integer.parseInt(icon.group(1)));
+			}
+		}
+		int spaces = 0;
+		for (int i = 0; i < skipped; i++)
+		{
+			if (tagless.charAt(i) == ' ')
+			{
+				spaces++;
+			}
+		}
+		return spaces == 0 ? width : width + spaces * textWidth.applyAsInt(" ");
 	}
 
 	/**

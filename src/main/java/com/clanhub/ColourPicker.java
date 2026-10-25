@@ -2,6 +2,7 @@ package com.clanhub;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Point;
 import java.util.function.Consumer;
 
 /**
@@ -19,6 +20,7 @@ interface ColourPicker
 	 * @param current the colour the picker starts on
 	 * @param onChange told each colour the picker settles on while it is open
 	 * @param onClose told the colour the picker holds when it closes
+	 * @param at the point on the screen the picker opens beside: the centre of the swatch just pressed
 	 */
-	void pick(Component parent, String title, Color current, Consumer<Color> onChange, Consumer<Color> onClose);
+	void pick(Component parent, String title, Color current, Consumer<Color> onChange, Consumer<Color> onClose, Point at);
 }

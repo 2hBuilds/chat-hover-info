@@ -1,6 +1,7 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
@@ -46,6 +47,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.input.KeyManager;
@@ -104,7 +106,7 @@ public class ClanHubPlugin extends Plugin
 	@Inject
 	private ConfigManager configManager;
 
-	/** RuneLite's colour picker maker, which the sidebar menu's two colour swatches open the picker through. */
+	/** RuneLite's colour picker maker, which the sidebar menu's three colour swatches open the picker through. */
 	@Inject
 	private ColorPickerManager colorPickerManager;
 
@@ -220,6 +222,14 @@ public class ClanHubPlugin extends Plugin
 	private NavigationButton navButton;
 
 	/**
+	 * The sidebar's panel, kept so that a change of the plugin's settings can tell it to repaint ({@link
+	 * #onConfigChanged}); null while the plugin is off.
+	 *
+	 * <p>Choice: volatile, because start-up writes it on a thread other than the one that reads it.
+	 */
+	private volatile ClanHubPanel panel;
+
+	/**
 	 * The recent cards the sidebar lists: the last 50 chat lines that gave a card, made in {@link #startUp} and cleared in
 	 * {@link #shutDown}, kept for the session only.
 	 *
@@ -312,7 +322,7 @@ public class ClanHubPlugin extends Plugin
 		};
 		mouseManager.registerMouseWheelListener(wheelListener);
 		history = new CardHistory();
-		final ClanHubPanel panel = new ClanHubPanel(this::resetSettings, new PanelSettings()
+		final ClanHubPanel sidebar = new ClanHubPanel(this::resetSettings, new PanelSettings()
 		{
 			@Override
 			public boolean showCards()
@@ -399,6 +409,18 @@ public class ClanHubPlugin extends Plugin
 			}
 
 			@Override
+			public CardTime cardTime()
+			{
+				return config.cardTime();
+			}
+
+			@Override
+			public void setCardTime(CardTime time)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "cardTime", time);
+			}
+
+			@Override
 			public boolean alwaysUnderlineLevels()
 			{
 				return config.alwaysUnderlineLevels();
@@ -420,6 +442,18 @@ public class ClanHubPlugin extends Plugin
 			public void setHoverColour(Color colour)
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "hoverColour", colour);
+			}
+
+			@Override
+			public Color nameColour()
+			{
+				return config.nameColour();
+			}
+
+			@Override
+			public void setNameColour(Color colour)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "nameColour", colour);
 			}
 
 			@Override
@@ -517,18 +551,21 @@ public class ClanHubPlugin extends Plugin
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "howToFolded", folded);
 			}
-		}, (parent, title, current, onChange, onClose) ->
+		}, (parent, title, current, onChange, onClose, at) ->
 		{
 			final RuneliteColorPicker colourPicker = colorPickerManager.create(parent, current, title, true);
 			colourPicker.setOnColorChange(onChange);
 			colourPicker.setOnClose(onClose);
+			colourPicker.setLocation(ScreenPlace.leftOf(at, colourPicker.getSize(),
+				screenOf(new Rectangle(at.x, at.y, 1, 1))));
 			colourPicker.setVisible(true);
 		}, history, cardViewer(), iconSource(), LinkBrowser::browse, ClanHubPlugin::copyToClipboard);
+		panel = sidebar;
 		navButton = NavigationButton.builder()
 			.tooltip("2h Chat Hover Info")
 			.icon(NavIcon.create())
 			.priority(NAV_PRIORITY)
-			.panel(panel)
+			.panel(sidebar)
 			.build();
 		clientToolbar.addNavigation(navButton);
 		log.info("2h Chat Hover Info {} started on RuneLite {}", Version.CURRENT, RuneLiteProperties.getVersion());
@@ -546,6 +583,7 @@ public class ClanHubPlugin extends Plugin
 			clientToolbar.removeNavigation(navButton);
 			navButton = null;
 		}
+		panel = null;
 		store.clear();
 		final CardHistory recent = history;
 		if (recent != null)
@@ -730,6 +768,25 @@ public class ClanHubPlugin extends Plugin
 			tracing = !tracing;
 			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
 				tracing ? "2h Chat Hover Info: trace on, see client.log" : "2h Chat Hover Info: trace off", null);
+		}
+	}
+
+	/**
+	 * A change in the plugin's settings, made in the sidebar's menu or on RuneLite's own settings page (whose colour
+	 * picker is live too): the sidebar repaints at once, on the event thread, so that the recent cards show the new colour
+	 * and the how-to the new words. A change in another plugin's group is not ours and is ignored.
+	 */
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!ClanHubConfig.GROUP.equals(event.getGroup()))
+		{
+			return;
+		}
+		final ClanHubPanel sidebar = panel;
+		if (sidebar != null)
+		{
+			onEventThread(sidebar::settingsChanged);
 		}
 	}
 
@@ -933,7 +990,7 @@ public class ClanHubPlugin extends Plugin
 		}
 	}
 
-	/** "Reset to default": the plugin's sixteen settings go back to their defaults, and the sidebar's how-to opens. */
+	/** "Reset to default": the plugin's eighteen settings go back to their defaults, and the sidebar's how-to opens. */
 	private void resetSettings()
 	{
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "showCards");
@@ -950,6 +1007,8 @@ public class ClanHubPlugin extends Plugin
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "examineLine");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardPlace");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardWidth");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardTime");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "nameColour");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineLevels");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineColour");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "howToFolded");

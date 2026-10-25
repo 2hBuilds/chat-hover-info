@@ -102,4 +102,25 @@ public class ChatRowsTest
 		assertEquals(1, third.size());
 		assertArrayEquals(new int[] {0, 40, 428}, third.get(0));
 	}
+
+	@Test
+	public void theFirstRowStartsAfterTheIndent()
+	{
+		// Six pixels a character; the widget's left edge is 100 and it wraps at 120 px.
+		final ToIntFunction<String> six = t -> t.length() * 6;
+		final Rectangle bounds = new Rectangle(100, 400, 120, 28);
+
+		assertEquals("the indent moves the first row", 100 + 14 + 18, ChatRows.of("ab cd", six, bounds, 14).x(3));
+		assertEquals("no indent is the old reading", 100 + 18, ChatRows.of("ab cd", six, bounds, 0).x(3));
+		assertEquals("the three-argument form means no indent", 100 + 18, ChatRows.of("ab cd", six, bounds).x(3));
+
+		final String eighteen = "aaaa bbbb cccc ddd";
+		assertEquals("18 characters are 108 px, one row at indent 0", 1, ChatRows.of(eighteen, six, bounds, 0).rows());
+		final ChatRows indented = ChatRows.of(eighteen, six, bounds, 14);
+		assertEquals("and two rows at indent 14, the first row having less room", 2, indented.rows());
+		assertEquals(14, indented.end(0));
+		assertEquals(15, indented.start(1));
+		assertEquals("an index on the second row has no indent", 100 + 18, indented.x(15 + 3));
+		assertEquals("the first row's end is the indent further right", 100 + 14 + 84, indented.x(14));
+	}
 }

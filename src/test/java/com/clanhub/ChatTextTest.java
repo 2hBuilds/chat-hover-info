@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.IntUnaryOperator;
+import java.util.function.ToIntFunction;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -171,5 +173,23 @@ public class ChatTextTest
 
 		assertEquals("no colour at all gives the marker close", "selling <col=3b82f6>tbow<colNORMAL>",
 			ChatText.colourSpans("selling tbow", Collections.singletonList(new int[] {8, 12}), BLUE));
+	}
+
+	@Test
+	public void leadWidthCountsTheIconsAndTheSpaces()
+	{
+		// Icon 2 is 11 px wide and icon 5 is 13; a character is 3 px.
+		final IntUnaryOperator icon = id -> id == 2 ? 11 : id == 5 ? 13 : 0;
+		final ToIntFunction<String> text = t -> t.length() * 3;
+
+		assertEquals("an icon and the space after it", 14, ChatText.leadWidth("<img=2> aetzli has reached", icon, text));
+		assertEquals("a line with nothing before its first character", 0, ChatText.leadWidth("aetzli", icon, text));
+		assertEquals("two icons, two spaces and a colour tag", 11 + 13 + 6,
+			ChatText.leadWidth("<col=ff0000><img=2><img=5>  x", icon, text));
+		assertEquals("a non-breaking space counts as a space", 14, ChatText.leadWidth("<img=2> x", icon, text));
+		assertEquals("the hidden prefix adds nothing", 14, ChatText.leadWidth("CA_ID:12|<img=2> x", icon, text));
+		assertEquals("an icon after the first character is not in the lead", 0,
+			ChatText.leadWidth("x <img=2> y", icon, text));
+		assertEquals("null", 0, ChatText.leadWidth(null, icon, text));
 	}
 }

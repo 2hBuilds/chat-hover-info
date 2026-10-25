@@ -117,6 +117,31 @@ public interface ClanHubConfig extends Config
 		}
 	}
 
+	/**
+	 * How a recent card's time reads in the sidebar: how long ago, or the clock time of the player's own zone in 24 or
+	 * 12 hours. The words are an example of each.
+	 */
+	enum CardTime
+	{
+		AGO("4m ago"),
+		CLOCK_24("14:32"),
+		CLOCK_12("2:32 PM");
+
+		private final String text;
+
+		CardTime(String text)
+		{
+			this.text = text;
+		}
+
+		/** The words the settings show for the choice. */
+		@Override
+		public String toString()
+		{
+			return text;
+		}
+	}
+
 	/** Whether the item card shows when the mouse is on a recognised chat line. */
 	@ConfigItem(
 		keyName = "showCards",
@@ -288,12 +313,36 @@ public interface ClanHubConfig extends Config
 		return CardWidth.MEDIUM;
 	}
 
+	/** How a recent card's time reads in the sidebar. */
+	@ConfigItem(
+		keyName = "cardTime",
+		name = "Card time",
+		description = "How a recent card's time reads in the sidebar: how long ago, or the clock time in 24 or 12 hours.",
+		position = 15
+	)
+	default CardTime cardTime()
+	{
+		return CardTime.AGO;
+	}
+
+	/** The colour of the player's name in the sidebar's recent cards: the 2h orange, the brand's own. */
+	@ConfigItem(
+		keyName = "nameColour",
+		name = "Name colour",
+		description = "The colour of the player's name in the sidebar's recent cards.",
+		position = 16
+	)
+	default Color nameColour()
+	{
+		return new Color(220, 138, 0);
+	}
+
 	/** Whether the level and XP phrases that have a card carry a line under them at all times. */
 	@ConfigItem(
 		keyName = "alwaysUnderlineLevels",
 		name = "Underline level-ups",
 		description = "Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them.",
-		position = 15
+		position = 17
 	)
 	default boolean alwaysUnderlineLevels()
 	{
@@ -305,7 +354,7 @@ public interface ClanHubConfig extends Config
 		keyName = "alwaysUnderlineColour",
 		name = "Underline colour",
 		description = "The colour of that line.",
-		position = 16
+		position = 18
 	)
 	default Color alwaysUnderlineColour()
 	{
@@ -314,7 +363,7 @@ public interface ClanHubConfig extends Config
 
 	/**
 	 * Whether the sidebar's "How to use" box is folded to its header. The panel's own memory, not a setting the player
-	 * sees: hidden from RuneLite's settings page, so the settings stay sixteen.
+	 * sees: hidden from RuneLite's settings page, so the settings stay eighteen.
 	 */
 	@ConfigItem(
 		keyName = "howToFolded",

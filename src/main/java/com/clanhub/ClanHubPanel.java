@@ -1,12 +1,14 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -15,6 +17,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.LayoutManager;
 import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Rectangle;
@@ -26,6 +30,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
@@ -83,14 +88,14 @@ import net.runelite.client.util.LinkBrowser;
  * small grey heading ("WHAT IT WORKS ON") and an icon list of what gets a card, one row per kind (the game's icon, a
  * bold label, a grey rest). Under it the recent cards: a header ("Recent cards", how many are kept this session,
  * "Clear") and a scrolling list of rows, one per chat line that gave a card, newest first, the whole session up to
- * {@link CardHistory#CAP}. A row shows the card's picture, its title, how long ago the line came and the line itself;
+ * {@link CardHistory#CAP}. A row shows the card's picture, its title, when the line came (how long ago, or the clock time, as set) and the line itself;
  * under the mouse it shows the card beside the sidebar, as in game (what a {@link CardViewer} does), and a right-click on
  * it offers "Open wiki" and "Copy", as the game's own menu does.
  *
- * <p>The settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the four
+ * <p>The settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the five
  * choice submenus, the card key box and the two number boxes (when a card opens, the key that opens it, its delay,
- * where it opens, how wide it grows, how an examine line reads, its text size), the two colour rows (the hover colour and the underline colour,
- * each a swatch that opens RuneLite's colour picker), then the OK row.
+ * where it opens, how wide it grows, how an examine line reads, how a row's time reads, its text size), the three colour rows (the hover colour, the underline colour
+ * and the name colour, each a swatch that opens RuneLite's colour picker), then the OK row.
  *
  * <p>Everything here runs on the event thread. A chat line arrives on the client thread, so the history's change is
  * handed to the event thread before the list is brought up to date.
@@ -122,9 +127,11 @@ public class ClanHubPanel extends PluginPanel
 	static final String CARD_PLACE_TEXT = "Card place";
 	static final String CARD_WIDTH_TEXT = "Card width";
 	static final String EXAMINE_LINE_TEXT = "Examine line";
+	static final String CARD_TIME_TEXT = "Card time";
 	static final String CARD_SIZE_TEXT = "Card text size";
 	static final String HOVER_COLOUR_TEXT = "Hover colour";
 	static final String UNDERLINE_COLOUR_TEXT = "Underline colour";
+	static final String NAME_COLOUR_TEXT = "Name colour";
 
 	/** The card text size's smallest, default and largest, in px: the setting's own range. */
 	static final int MIN_CARD_SIZE = 8;
@@ -192,6 +199,9 @@ public class ClanHubPanel extends PluginPanel
 	/** A row's picture box, in px: the picture is scaled to fit it and never drawn larger than it is. */
 	private static final int PICTURE_WIDTH = 36;
 	private static final int PICTURE_HEIGHT = 32;
+	/** A row's second line: who in the name colour, what in grey, the time at the right in grey, and the room between them, in px. */
+	private static final Color ROW_WHAT_COLOUR = ColorScheme.LIGHT_GRAY_COLOR;
+	private static final int ROW_WORDS_GAP = 6;
 	/** The bar at a hovered row's left edge, in px. */
 	private static final int BAR_WIDTH = 2;
 	/** The history list's wheel step, in px. */
@@ -268,6 +278,7 @@ public class ClanHubPanel extends PluginPanel
 	private final JMenu placeMenu;
 	private final JMenu widthMenu;
 	private final JMenu examineLineMenu;
+	private final JMenu cardTimeMenu;
 	private final JSpinner delaySpinner;
 	private final JSpinner sizeSpinner;
 	private final JPopupMenu menu;
@@ -360,6 +371,11 @@ public class ClanHubPanel extends PluginPanel
 		this.widthMenu = choices(CARD_WIDTH_TEXT, CardWidth.values(), settings::cardWidth, settings::setCardWidth);
 		this.examineLineMenu = choices(EXAMINE_LINE_TEXT, ExamineLine.values(), settings::examineLine,
 			settings::setExamineLine);
+		this.cardTimeMenu = choices(CARD_TIME_TEXT, CardTime.values(), settings::cardTime, time ->
+		{
+			settings.setCardTime(time);
+			historyList.repaint();
+		});
 		this.delaySpinner = spinner(0, 0, MAX_CARD_DELAY, CARD_DELAY_STEP, 4, settings::setCardDelayMs);
 		this.sizeSpinner = spinner(DEFAULT_CARD_SIZE, MIN_CARD_SIZE, MAX_CARD_SIZE, 1, 2, settings::setCardFontSize);
 		this.menu = buildMenu();
@@ -1116,10 +1132,11 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * Draws an entry of the history as a row: the picture box at the left (36 x 32 px, the entry's picture in it), the
-	 * card's title in bold white with the "ago" words at the row's right, and under it the line in grey
-	 * ({@link CardHistory#withoutName} takes off a leading "title: ", so that an examine line does not say its name twice),
-	 * cut with "..." where it does not fit. The hovered entry's row takes the hover ground and an orange bar at its left
-	 * edge. Under the row, inside the cell, the gap to the next row in the list's own ground.
+	 * card's title in bold white on the first line across the row's whole width, and under it the second line: who the line
+	 * is about in the name colour as the settings have it at the moment of the draw, what kind of card it gave in grey ({@link RowWords}), and when it came (how long ago, or the clock time, as set) at the row's
+	 * right. Each is cut with "..." where it does not fit, and on the second line the kind goes first and then the name, so
+	 * that the time keeps its room. The hovered entry's row takes the hover ground and an orange bar at its left edge. Under
+	 * the row, inside the cell, the gap to the next row in the list's own ground.
 	 *
 	 * <p>Choice: one component is built, once, and set from the entry at every draw, which is how a list draws only the rows
 	 * on screen at the cost of those rows; the "ago" words are worked out here, at draw time, so that a timer's repaint is
@@ -1131,8 +1148,9 @@ public class ClanHubPanel extends PluginPanel
 		private final JPanel row = new JPanel(new BorderLayout(6, 0));
 		private final JLabel picture = new JLabel();
 		private final JLabel title = boldLabel("", 12f, Color.WHITE);
-		private final JLabel ago = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
-		private final JLabel line = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
+		private final JLabel who = label("", 12f, settings.nameColour());
+		private final JLabel what = label("", 12f, ROW_WHAT_COLOUR);
+		private final JLabel ago = label("", 11f, ROW_WHAT_COLOUR);
 
 		RowRenderer()
 		{
@@ -1146,15 +1164,15 @@ public class ClanHubPanel extends PluginPanel
 			pictureBox.add(picture);
 			row.add(pictureBox, BorderLayout.WEST);
 
-			ago.setBorder(new EmptyBorder(0, 6, 0, 0));
-			final JPanel top = new JPanel(new BorderLayout());
-			top.setOpaque(false);
-			top.add(title, BorderLayout.CENTER);
-			top.add(ago, BorderLayout.EAST);
+			final JPanel words = new JPanel(new RowWordsLayout(who, what, ago));
+			words.setOpaque(false);
+			words.add(who);
+			words.add(what);
+			words.add(ago);
 			final JPanel text = new JPanel(new GridLayout(2, 1));
 			text.setOpaque(false);
-			text.add(top);
-			text.add(line);
+			text.add(title);
+			text.add(words);
 			row.add(text, BorderLayout.CENTER);
 			cell.add(row, BorderLayout.CENTER);
 		}
@@ -1169,9 +1187,109 @@ public class ClanHubPanel extends PluginPanel
 			row.setBorder(hot ? ROW_HOT_BORDER : ROW_BORDER);
 			picture.setIcon(pictures.get(entry));
 			title.setText(card.title());
-			ago.setText(CardHistory.ago(System.currentTimeMillis(), entry.at()));
-			line.setText(CardHistory.withoutName(entry.line(), card.title()));
+			who.setForeground(settings.nameColour());
+			who.setText(RowWords.who(entry.line()));
+			what.setText(RowWords.what(entry.line()));
+			ago.setText(CardHistory.timeOf(entry.at(), settings.cardTime(), ZoneId.systemDefault(), System.currentTimeMillis()));
 			return cell;
+		}
+	}
+
+	/**
+	 * Lays out a row's second line: the name, the kind and the time on one baseline. The time sits at the right with its own
+	 * width; the name and the kind follow at the left with {@link ClanHubPanel#ROW_WORDS_GAP} between them. When the two do not fit
+	 * beside the time, the kind is cut first (it keeps the room that is left, and none at all when that is less than the
+	 * width of "..."), then the name; a label given less than its own width cuts its text with "...".
+	 */
+	private static final class RowWordsLayout implements LayoutManager
+	{
+		private final JLabel who;
+		private final JLabel what;
+		private final JLabel ago;
+
+		RowWordsLayout(JLabel who, JLabel what, JLabel ago)
+		{
+			this.who = who;
+			this.what = what;
+			this.ago = ago;
+		}
+
+		@Override
+		public void addLayoutComponent(String name, Component comp)
+		{
+		}
+
+		@Override
+		public void removeLayoutComponent(Component comp)
+		{
+		}
+
+		@Override
+		public Dimension preferredLayoutSize(Container parent)
+		{
+			final Insets in = parent.getInsets();
+			final Dimension w = who.getPreferredSize();
+			final Dimension k = what.getPreferredSize();
+			final Dimension t = ago.getPreferredSize();
+			final boolean hasWhat = !what.getText().isEmpty();
+			final int width = w.width + (hasWhat ? ROW_WORDS_GAP + k.width : 0) + ROW_WORDS_GAP + t.width;
+			return new Dimension(in.left + in.right + width,
+				in.top + in.bottom + Math.max(w.height, Math.max(k.height, t.height)));
+		}
+
+		@Override
+		public Dimension minimumLayoutSize(Container parent)
+		{
+			final Insets in = parent.getInsets();
+			return new Dimension(in.left + in.right, in.top + in.bottom);
+		}
+
+		@Override
+		public void layoutContainer(Container parent)
+		{
+			final Insets in = parent.getInsets();
+			final int width = Math.max(0, parent.getWidth() - in.left - in.right);
+			final Dimension w = who.getPreferredSize();
+			final Dimension k = what.getPreferredSize();
+			final Dimension t = ago.getPreferredSize();
+
+			final int agoWidth = Math.min(t.width, width);
+			final int room = Math.max(0, width - agoWidth - ROW_WORDS_GAP);
+			final boolean hasWhat = !what.getText().isEmpty();
+			final int whoWidth = Math.min(w.width, room);
+			int whatWidth = 0;
+			if (hasWhat && w.width + ROW_WORDS_GAP <= room)
+			{
+				whatWidth = Math.min(k.width, room - w.width - ROW_WORDS_GAP);
+				final int ellipsis = what.getFontMetrics(what.getFont()).stringWidth("...");
+				if (whatWidth < k.width && whatWidth < ellipsis)
+				{
+					whatWidth = 0;
+				}
+			}
+
+			// One baseline: each label sits so that its text's baseline is the lowest of the three, then the block is centred.
+			final int whoBase = baselineOf(who, w);
+			final int whatBase = baselineOf(what, k);
+			final int agoBase = baselineOf(ago, t);
+			final int base = Math.max(whoBase, Math.max(whatBase, agoBase));
+			final int whoY = base - whoBase;
+			final int whatY = base - whatBase;
+			final int agoY = base - agoBase;
+			final int blockHeight = Math.max(whoY + w.height, Math.max(whatY + k.height, agoY + t.height));
+			final int top = in.top + Math.max(0, (parent.getHeight() - in.top - in.bottom - blockHeight) / 2);
+
+			final int whoX = in.left;
+			final int whatX = whoX + whoWidth + (whatWidth > 0 ? ROW_WORDS_GAP : 0);
+			who.setBounds(whoX, top + whoY, whoWidth, w.height);
+			what.setBounds(whatX, top + whatY, whatWidth, k.height);
+			ago.setBounds(in.left + width - agoWidth, top + agoY, agoWidth, t.height);
+		}
+
+		/** Where the text's baseline is in a label of size {@code size}, from its top; 0 when it has none. */
+		private static int baselineOf(JLabel label, Dimension size)
+		{
+			return Math.max(0, label.getBaseline(Math.max(0, size.width), Math.max(0, size.height)));
 		}
 	}
 
@@ -1254,6 +1372,18 @@ public class ClanHubPanel extends PluginPanel
 		menu.show(anchor, 0, anchor.getHeight());
 	}
 
+	/**
+	 * Draws the sidebar again from the settings as they stand: the how-to's action line (its words follow the colouring
+	 * switch and the hover colour) and the list of recent cards (the rows follow the name colour and the time setting).
+	 * The plugin calls it when a setting of the plugin's group changes, whether the sidebar's menu wrote it or RuneLite's
+	 * own settings page did, so that a colour shows in the rows while a colour picker is still open. Event thread only.
+	 */
+	void settingsChanged()
+	{
+		refreshHowTo();
+		historyList.repaint();
+	}
+
 	/** Takes the menu down: OK, a link press, or the reset. */
 	private void closeMenu()
 	{
@@ -1261,10 +1391,10 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * The settings menu, in STANDARD A5's order: the header, a rule, the seven switches, a rule, the four choice submenus
+	 * The settings menu, in STANDARD A5's order: the header, a rule, the seven switches, a rule, the five choice submenus
 	 * and the card key and the two number rows (when a card opens, the key that opens it, the delay, where it opens, how
-	 * wide it grows, how an examine line reads, the text size) and the two colour rows (the hover colour, the underline colour), a rule, then the OK
-	 * row. The header is focusable, so the menu's window takes the keyboard when the menu opens and gives it to the
+	 * wide it grows, how an examine line reads, how a row's time reads, the text size) and the three colour rows (the hover
+	 * colour, the underline colour, the name colour), a rule, then the OK row. The header is focusable, so the menu's window takes the keyboard when the menu opens and gives it to the
 	 * header, which shows no caret; no box is focusable at rest, and a press moves the keyboard to the box pressed.
 	 */
 	private JPopupMenu buildMenu()
@@ -1284,17 +1414,24 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(underlineCheck);
 		popup.addSeparator();
 		popup.add(triggerMenu);
-		popup.add(row(CARD_KEY_TEXT, keyBox));
-		popup.add(row(CARD_DELAY_TEXT, delaySpinner));
+		popup.add(closesSubmenu(row(CARD_KEY_TEXT, keyBox)));
+		popup.add(closesSubmenu(row(CARD_DELAY_TEXT, delaySpinner)));
 		popup.add(placeMenu);
 		popup.add(widthMenu);
 		popup.add(examineLineMenu);
-		popup.add(row(CARD_SIZE_TEXT, sizeSpinner));
-		popup.add(colourRow(HOVER_COLOUR_TEXT, settings::hoverColour, settings::setHoverColour, HOVER_COLOUR_TEXT));
-		popup.add(colourRow(UNDERLINE_COLOUR_TEXT, settings::alwaysUnderlineColour, settings::setAlwaysUnderlineColour,
-			UNDERLINE_COLOUR_TEXT));
+		popup.add(cardTimeMenu);
+		popup.add(closesSubmenu(row(CARD_SIZE_TEXT, sizeSpinner)));
+		popup.add(closesSubmenu(colourRow(HOVER_COLOUR_TEXT, settings::hoverColour, settings::setHoverColour,
+			HOVER_COLOUR_TEXT)));
+		popup.add(closesSubmenu(colourRow(UNDERLINE_COLOUR_TEXT, settings::alwaysUnderlineColour,
+			settings::setAlwaysUnderlineColour, UNDERLINE_COLOUR_TEXT)));
+		popup.add(closesSubmenu(colourRow(NAME_COLOUR_TEXT, settings::nameColour, colour ->
+		{
+			settings.setNameColour(colour);
+			historyList.repaint();
+		}, NAME_COLOUR_TEXT)));
 		popup.addSeparator();
-		popup.add(okRow());
+		popup.add(closesSubmenu(okRow()));
 		popup.addPopupMenuListener(new PopupMenuListener()
 		{
 			@Override
@@ -1316,6 +1453,44 @@ public class ClanHubPanel extends PluginPanel
 			}
 		});
 		return popup;
+	}
+
+	/**
+	 * Makes {@code row}, and every part in it, take down an open choice submenu when the mouse enters it, and gives the
+	 * row back. The menu is left up: the selected path is cut back to the menu alone, as a pick from a submenu does.
+	 *
+	 * <p>Choice: Swing closes a submenu only when another menu item is armed, and these rows are plain panels, not menu
+	 * items, so a submenu opened by a pass over a choice row stayed up over the rows below it. The listener goes on every
+	 * part, down to the spinners' text fields and arrows, because the entry is told to the part the mouse comes onto,
+	 * which is seldom the row itself.
+	 */
+	private JPanel closesSubmenu(JPanel row)
+	{
+		listenForEntry(row, new MouseAdapter()
+		{
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				if (MenuSelectionManager.defaultManager().getSelectedPath().length > 1)
+				{
+					MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
+				}
+			}
+		});
+		return row;
+	}
+
+	/** Adds {@code listener} to {@code part} and to every part inside it. */
+	private static void listenForEntry(Component part, MouseAdapter listener)
+	{
+		part.addMouseListener(listener);
+		if (part instanceof Container)
+		{
+			for (final Component child : ((Container) part).getComponents())
+			{
+				listenForEntry(child, listener);
+			}
+		}
 	}
 
 	/**
@@ -1661,8 +1836,9 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * A colour row: the caption at its left, a swatch of the setting's colour at its right. A press on the swatch takes
-	 * the menu down, opens the colour picker on that colour, writes each colour the picker settles on (the swatch
-	 * follows), and brings the menu back under the settings icon when the picker closes.
+	 * the menu down, opens the colour picker on that colour beside the swatch (the picker is told the swatch's centre on
+	 * the screen), writes each colour the picker settles on (the swatch follows), and brings the menu back under the
+	 * settings icon when the picker closes.
 	 *
 	 * <p>Choice: the menu goes while the picker is open because the picker is a window of its own; a menu left up under
 	 * a dialog is a menu nobody can use, and Swing would take it down on the first click in the dialog anyway.
@@ -1697,12 +1873,15 @@ public class ClanHubPanel extends PluginPanel
 		swatch.setBackground(read.get());
 		swatch.addActionListener(e ->
 		{
+			// Read before the menu goes: the swatch is on the screen only while the menu is up.
+			final Point at = new Point(swatch.getWidth() / 2, swatch.getHeight() / 2);
+			SwingUtilities.convertPointToScreen(at, swatch);
 			closeMenu();
 			picker.pick(this, pickerTitle, read.get(), colour ->
 			{
 				write.accept(colour);
 				swatch.setBackground(colour);
-			}, colour -> reopenMenu());
+			}, colour -> reopenMenu(), at);
 		});
 		swatchSyncs.add(() -> swatch.setBackground(read.get()));
 		return row(caption, swatch);

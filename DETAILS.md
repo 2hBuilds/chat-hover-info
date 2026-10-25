@@ -212,7 +212,7 @@ words of a card. With *Show hover cards* off there are none.
 
 ## Settings
 
-Sixteen settings, in the order of RuneLite's settings page. All sixteen are also controls in the sidebar's settings
+Eighteen settings, in the order of RuneLite's settings page. All eighteen are also controls in the sidebar's settings
 menu (below).
 
 | Setting | Default | What it does |
@@ -231,6 +231,8 @@ menu (below).
 | Examine line | Item name first | Put the examined item's or monster's name in front of its examine text, and hover the name; or keep the text alone and hover all of it. Choices: *Item name first*, *Description only*. |
 | Card place | Above the cursor | Where a card opens: centred above the cursor, or as wide as the chatbox and pinned above it. Choices: *Above the cursor*, *Above the chat*. |
 | Card width | Medium | How wide the card at the cursor may grow: wide, or two narrower widths that give the paragraph up to five lines. Choices: *Wide*, *Medium*, *Narrow*. |
+| Card time | 4m ago | How a recent card's time reads in the sidebar: how long ago, or the clock time in 24 or 12 hours. Choices: *4m ago*, *14:32*, *2:32 PM*. The clock is your own computer's time zone. |
+| Name colour | 2h orange (#DC8A00) | The colour of the player's name in the sidebar's recent cards. |
 | Underline level-ups | Off | Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them. |
 | Underline colour | Grey (#969696) | The colour of that line. |
 
@@ -252,9 +254,12 @@ settings menu.
   the casket icon), *Quests, tasks, diaries* (the quest icon), *Level-ups* and what they unlock (the total
   level icon), *Bosses*, kill counts, PBs (the combat icon) and *Examine* any item or monster (a magnifying glass).
 - **Recent cards** lists every chat line that gave a card this session, newest first, up to 5,000, in a list that
-  scrolls. Each row has the card's picture, its title, how long ago the line came (*just now*, *4m ago*, *2h ago*) and
-  the line itself (an examine line written name first shows only the text after the name, under the name), cut with
-  "..." where it does not fit. The header says how many are kept (*12 this session*) and has a **Clear** link that
+  scrolls. Each row has the card's picture and its title on the first line, across the row. Under it come who the line
+  is about (the player's name, or *You* for your own lines and examine lines, in the *Name colour*, the 2h orange at first),
+  what kind of card it gave (*drop*,
+  *medium task*, *level-up*, *pet*, *examined* and so on) and, at the right, when the line came - how long ago
+  (*just now*, *4m ago*, *2h ago*) or, as *Card time* is set, the clock time (*14:32* or *2:32 PM*) - cut with "..."
+  where they do not fit (the kind goes first, then the name). The header says how many are kept (*12 this session*) and has a **Clear** link that
   empties the list. Hover a row and its card shows beside the sidebar, as it does in game; right-click a row for *Open
   wiki* or *Copy*. The list draws only the rows on screen and a new card is one insert at its top, so a long session
   costs no more than a short one. The list is kept for the session only: it is never written anywhere, and it is gone
@@ -262,20 +267,22 @@ settings menu.
 **The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
 press it again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.5*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 0.0.6*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - seven **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
   *Examine cards*, *Underline level-ups*;
-- four **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*,
-  *Examine line*;
+- five **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*,
+  *Examine line*, *Card time*;
 - the **card key** box, right under *Show a card*: press it, then press the key to hold; Backspace or Delete clears the
   key, Escape keeps the old one. It is greyed unless *Show a card* is *While holding a key*;
 - two **rows**: *Card delay (ms)* and *Card text size* (number boxes, the delay stepping by 100); a number applies as you
   type it, and a number out of range is ignored. No box takes the keyboard until it is pressed, so nothing in the menu
   blinks a caret when it opens;
-- two **colours**: *Hover colour* and *Underline colour*, each a swatch; press it and the menu closes, RuneLite's colour
-  picker opens on that colour, and the menu comes back when the picker closes;
-- at the bottom, **Reset to default** on the left, which puts all sixteen settings back to their defaults, and **OK**
+- three **colours**: *Hover colour*, *Underline colour* and *Name colour*, each a swatch; press it and the menu closes,
+  RuneLite's colour picker opens on that colour, beside the swatch you pressed, and the menu comes back when the picker
+  closes. The picker paints live: the rows of the recent cards show the *Name colour* as you move through the picker,
+  before you press its OK, and a colour set on RuneLite's own settings page shows in the sidebar at once;
+- at the bottom, **Reset to default** on the left, which puts all eighteen settings back to their defaults, and **OK**
   on the right, which closes the menu.
 
 Everything in the menu saves itself as you set it, and the menu stays open while you work through the switches; OK,

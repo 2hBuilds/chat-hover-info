@@ -1,6 +1,7 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
@@ -79,6 +80,12 @@ interface PanelSettings
 	/** Writes how wide the card at the cursor may grow. */
 	void setCardWidth(CardWidth width);
 
+	/** How a recent card's time reads in the sidebar. */
+	CardTime cardTime();
+
+	/** Writes how a recent card's time reads in the sidebar. */
+	void setCardTime(CardTime time);
+
 	/** Whether the level and XP phrases that have a card carry a line under them at all times. */
 	boolean alwaysUnderlineLevels();
 
@@ -90,6 +97,12 @@ interface PanelSettings
 
 	/** Writes the colour of the words a card is about, and of the underline under the ones hovered. */
 	void setHoverColour(Color colour);
+
+	/** The colour of the player's name in the sidebar's recent cards. */
+	Color nameColour();
+
+	/** Writes the colour of the player's name in the sidebar's recent cards. */
+	void setNameColour(Color colour);
 
 	/** The colour of the line kept under the quiet phrases. */
 	Color alwaysUnderlineColour();

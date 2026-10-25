@@ -1,6 +1,7 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
@@ -106,6 +107,21 @@ public class ClanHubConfigTest
 	}
 
 	@Test
+	public void theCardTimeIsAgoByDefault()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertEquals("a recent card's time reads as how long ago", CardTime.AGO, config.cardTime());
+		assertArrayEquals("ago, the 24-hour clock, the 12-hour clock, in that order",
+			new CardTime[] {CardTime.AGO, CardTime.CLOCK_24, CardTime.CLOCK_12}, CardTime.values());
+		assertEquals("4m ago", CardTime.AGO.toString());
+		assertEquals("14:32", CardTime.CLOCK_24.toString());
+		assertEquals("2:32 PM", CardTime.CLOCK_12.toString());
+	}
+
+	@Test
 	public void theAlwaysUnderlineIsOffAndGrey()
 	{
 		final ClanHubConfig config = new ClanHubConfig()
@@ -114,6 +130,18 @@ public class ClanHubConfigTest
 
 		assertFalse("the quiet phrases are not underlined at all times", config.alwaysUnderlineLevels());
 		assertEquals("the line is grey", new Color(150, 150, 150), config.alwaysUnderlineColour());
+	}
+
+	/** Lot 10L: the player's name in a recent card's row is the brand orange until the player picks another. */
+	@Test
+	public void theNameColourIsTheBrandOrange()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		// Re-aimed by the lead, 2026-10-25 (lot 10M): the 2h orange, the user's word.
+		assertEquals("the name is the 2h orange", new Color(220, 138, 0), config.nameColour());
 	}
 
 	@Test

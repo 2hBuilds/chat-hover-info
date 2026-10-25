@@ -34,12 +34,15 @@ final class ChatRows
 	private final int[] ends;
 	/** The height of one row: the bounds' height over the rows, in whole pixels. */
 	private final int rowHeight;
+	/** How many pixels in the first row starts: the room of the icon the game draws before the text; 0 for none. */
+	private final int indent;
 
-	private ChatRows(String text, ToIntFunction<String> width, Rectangle bounds, List<int[]> rows)
+	private ChatRows(String text, ToIntFunction<String> width, Rectangle bounds, int indent, List<int[]> rows)
 	{
 		this.text = text;
 		this.width = width;
 		this.bounds = bounds;
+		this.indent = indent;
 		this.starts = new int[rows.size()];
 		this.ends = new int[rows.size()];
 		for (int row = 0; row < rows.size(); row++)
@@ -55,6 +58,17 @@ final class ChatRows
 	 * chat font.
 	 */
 	static ChatRows of(String text, ToIntFunction<String> width, Rectangle bounds)
+	{
+		return of(text, width, bounds, 0);
+	}
+
+	/**
+	 * The rows the text breaks into inside {@code bounds}, the first row starting {@code indent} px in: the room of the
+	 * icon the game draws before a line's text ({@link ChatText#leadWidth}), which the plain text leaves out. The wrap's
+	 * test on the first row is {@code indent + width(row so far) <= bounds.width}, every later row has no indent, and
+	 * {@link #x} adds the indent on the first row only. An indent of 0 is the three-argument reading.
+	 */
+	static ChatRows of(String text, ToIntFunction<String> width, Rectangle bounds, int indent)
 	{
 		final List<int[]> rows = new ArrayList<>();
 		final int length = text.length();
@@ -79,7 +93,7 @@ final class ChatRows
 				rowEnd = at;
 				any = true;
 			}
-			else if (width.applyAsInt(text.substring(rowStart, at)) <= bounds.width)
+			else if (width.applyAsInt(text.substring(rowStart, at)) <= bounds.width - (rows.isEmpty() ? indent : 0))
 			{
 				rowEnd = at;
 			}
@@ -91,7 +105,7 @@ final class ChatRows
 			}
 		}
 		rows.add(new int[] {rowStart, rowEnd});
-		return new ChatRows(text, width, bounds, Collections.unmodifiableList(rows));
+		return new ChatRows(text, width, bounds, indent, Collections.unmodifiableList(rows));
 	}
 
 	/** How many rows the text takes, at least one. */
@@ -128,12 +142,15 @@ final class ChatRows
 		return 0;
 	}
 
-	/** The x on screen of the place before the character at {@code index}, on the row that index is on. */
+	/**
+	 * The x on screen of the place before the character at {@code index}, on the row that index is on; the first row's
+	 * places are the indent further right.
+	 */
 	int x(int index)
 	{
 		final int row = rowOf(index);
 		final int at = Math.max(start(row), Math.min(index, text.length()));
-		return bounds.x + width.applyAsInt(text.substring(start(row), at));
+		return bounds.x + (row == 0 ? indent : 0) + width.applyAsInt(text.substring(start(row), at));
 	}
 
 	/** The row the height {@code y} falls on, the first row for a y above the widget and the last for one below it. */
