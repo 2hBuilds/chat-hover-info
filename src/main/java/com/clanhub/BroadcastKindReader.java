@@ -14,15 +14,17 @@ import net.runelite.api.gameval.ItemID;
  * The reader of the broadcast lines of the clan, guest clan, group ironman and friends chat channels that are about
  * something other than an item the {@link BroadcastItemReader} knows: a raid's special loot (an item card, through
  * {@link ItemCards}), a quest, a combat achievement task, a pet, a level, an XP milestone, a diary tier and a personal
- * best; and, from the player's own game lines, a boss kill count. The sentences are the research's
+ * best; and, from the player's own game lines, a boss kill count and the player's own level-up. The sentences are the research's
  * ({@code docs/data/broadcasts.md}, section 3) and are matched as they stand once the tags and a combat achievement
  * line's {@code CA_ID:<n>|} are taken off ({@link ChatText#plain}), the text the offsets index; the first kind that
  * matches wins. What the wiki says of a quest, task, pet or diary comes from the {@link CardTables}; for a name the table
  * does not know, or before it has loaded, the card is the plain one the line alone gives. On a level or XP line the
  * phrase is the card ("Smithing level 99", "200,000,000 XP in Cooking"): one card, over the phrase, and a quiet one,
  * whose words the chat does not colour; a level line of a skill the table knows gives the card of what is new at that
- * level, else the plain level card. A combat level line and a total level line carry nothing of their own and give no
- * card. A pet's picture is its item, whose id the table gives, else {@link ItemCards#idOf} finds by the name. A
+ * level, else the plain level card. The player's own level-up line ("Congratulations, you've just advanced your
+ * Sailing level. You are now level 47.") gives that same card, quiet, over "Sailing level. You are now level 47",
+ * the skill to the number as on a clan line. A combat level
+ * line and a total level line carry nothing of their own and give no card. A pet's picture is its item, whose id the table gives, else {@link ItemCards#idOf} finds by the name. A
  * personal best and a kill count name a boss: when the table knows it the card shows the boss's combat level,
  * hitpoints, max hit and quest after its first fact (the time, the count), and the picture is the wiki's own of the
  * boss's page, with the clue watch (a personal best) or the combat icon (a kill count) behind it until it comes. The
@@ -56,6 +58,15 @@ final class BroadcastKindReader implements LineReader
 	 */
 	private static final Pattern LEVEL = Pattern.compile(
 		"^(?<player>.+?) has reached (?:the highest possible )?(?<skill>[A-Za-z]+) level(?: of)? (?<level>\\d+)[.!]?$");
+	/**
+	 * The player's own game line for a level gained: "Congratulations, you've just advanced your Sailing level. You are
+	 * now level 47."; the card's words run from the skill to the number, "Sailing level. You are now level 47", as a clan
+	 * line's do. A combat level line, which the game words differently,
+	 * is not matched, and a skill word of "Combat" or "Total" gives no card all the same.
+	 */
+	private static final Pattern OWN_LEVEL = Pattern.compile(
+		"^Congratulations, you've just advanced (?:your|a) (?<skill>[A-Za-z]+) level\\. You are now "
+			+ "level (?<level>\\d+)\\.?$", Pattern.CASE_INSENSITIVE);
 	/** "Marsel has reached 200,000,000 XP in Cooking." */
 	private static final Pattern XP = Pattern.compile(
 		"^(?<player>.+?) has reached (?<xp>[\\d,]+) XP in (?<skill>[A-Za-z]+)[.!]?$");
@@ -89,7 +100,8 @@ final class BroadcastKindReader implements LineReader
 	/**
 	 * The card for the thing a line names, or none. The four broadcast channels' lines are tried against the kinds in
 	 * the order raid loot, quest, combat task, the three pet shapes, level, XP, diary, personal best, the first match
-	 * giving the one card; a {@code GAMEMESSAGE} line is tried against the kill count only; any other type, a line that
+	 * giving the one card; a {@code GAMEMESSAGE} line is tried against the kill count and then the player's own level-up
+	 * only; any other type, a line that
 	 * is none of these, and a combat level or total level line (which the level pattern matches and which gets no card),
 	 * gives an empty list.
 	 */
@@ -104,7 +116,16 @@ final class BroadcastKindReader implements LineReader
 		{
 			final String plain = ChatText.plain(message);
 			final Matcher kills = OWN_KC.matcher(plain);
-			return kills.matches() ? one(killCount(kills, plain)) : Collections.<HoverCard>emptyList();
+			if (kills.matches())
+			{
+				return one(killCount(kills, plain));
+			}
+			final Matcher own = OWN_LEVEL.matcher(plain);
+			if (own.matches())
+			{
+				return one(level(own.group("skill"), own.group("level"), plain, own.start("skill"), own.end("level")));
+			}
+			return Collections.<HoverCard>emptyList();
 		}
 		if (!isBroadcast(type))
 		{
@@ -144,7 +165,8 @@ final class BroadcastKindReader implements LineReader
 		found = LEVEL.matcher(plain);
 		if (found.matches())
 		{
-			return one(level(found, plain));
+			return one(level(found.group("skill"), found.group("level"), plain, found.start("skill"),
+				found.end("level")));
 		}
 		found = XP.matcher(plain);
 		if (found.matches())
@@ -247,39 +269,46 @@ final class BroadcastKindReader implements LineReader
 	}
 
 	/**
-	 * The level card, over the phrase "Defence level 70": for a skill the table knows, {@link #unlocks} ("Defence 70",
-	 * what is new at that level); for any other skill, or before the table has loaded, the plain card "Defence level 70"
-	 * with the skill's row and page. The combat level, which the pattern also reads, gets no card (null), nor does a
-	 * total level line that says "the highest possible", which the pattern reads as a skill called "Total". The card is
-	 * quiet.
+	 * The level card, over the phrase "Defence level 70" on a clan line or "Defence level. You are now level 70" on the
+	 * player's own: for a skill
+	 * the table knows, {@link #unlocks} ("Defence 70", what is new at that level); for any other skill, or before the
+	 * table has loaded, the plain card "Defence level 70" with the skill's row and page. The combat level, which the
+	 * pattern also reads, gets no card (null), nor does a total level line that says "the highest possible", which the
+	 * pattern reads as a skill called "Total". The card is quiet.
+	 *
+	 * @param word the skill's word as the line wrote it
+	 * @param digits the level's digits
+	 * @param plain the line's plain text, which the offsets index
+	 * @param start where the card's words start in {@code plain}
+	 * @param end where the card's words end in {@code plain}
 	 */
-	private HoverCard level(Matcher found, String plain)
+	private HoverCard level(String word, String digits, String plain, int start, int end)
 	{
-		final String skill = capitalised(found.group("skill"));
+		final String skill = capitalised(word);
 		if ("Combat".equals(skill) || "Total".equals(skill))
 		{
 			return null;
 		}
-		final List<String> unlocks = tables.unlocks(skill, levelOf(found.group("level")));
+		final List<String> unlocks = tables.unlocks(skill, levelOf(digits));
 		if (unlocks != null)
 		{
-			return unlocks(skill, found, plain, unlocks);
+			return unlocks(skill, digits, plain, start, end, unlocks);
 		}
-		return new InfoCard(skill + " level " + found.group("level"), Collections.singletonList(pair("Skill", skill)),
-			Collections.<String>emptyList(), InfoCard.pageFor(skill), plain, found.start("skill"), found.end("level"),
-			SkillSprites.spriteOf(skill), -1, false);
+		return new InfoCard(skill + " level " + digits, Collections.singletonList(pair("Skill", skill)),
+			Collections.<String>emptyList(), InfoCard.pageFor(skill), plain, start, end, SkillSprites.spriteOf(skill), -1,
+			false);
 	}
 
 	/**
 	 * The card of what is new at a level, "Defence 70": one row, "New unlocks" with "4", "1" or "None", its
 	 * unlocks under it as a list, and the skill's {@code Level_up_table} page. Its words are the phrase "Defence level
-	 * 70", and it is quiet.
+	 * 70" ("Defence level. You are now level 70" on the player's own line), and it is quiet.
 	 *
 	 * <p>Choice: every unlock is kept whole and trimmed, in the table's order, one note each, and no full stop is added;
 	 * the painter sets the notes as a numbered list under the card header, one to an item with a long one wrapping under
 	 * its own text, and cuts the list with "..." where it runs on.
 	 */
-	private HoverCard unlocks(String skill, Matcher found, String plain, List<String> unlocks)
+	private HoverCard unlocks(String skill, String digits, String plain, int start, int end, List<String> unlocks)
 	{
 		final int count = unlocks.size();
 		final List<String> notes = new ArrayList<>();
@@ -292,9 +321,8 @@ final class BroadcastKindReader implements LineReader
 			}
 		}
 		final String summary = count == 0 ? "None" : String.valueOf(count);
-		return new InfoCard(skill + " " + found.group("level"),
-			Collections.singletonList(pair("New unlocks", summary)), notes, skill + "/Level_up_table", plain,
-			found.start("skill"), found.end("level"), SkillSprites.spriteOf(skill), -1, false);
+		return new InfoCard(skill + " " + digits, Collections.singletonList(pair("New unlocks", summary)), notes,
+			skill + "/Level_up_table", plain, start, end, SkillSprites.spriteOf(skill), -1, false);
 	}
 
 	/** The level a group of digits spells, or 0 when it is too large to be one (the table then has nothing for it). */

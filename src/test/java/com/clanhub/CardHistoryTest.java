@@ -120,4 +120,54 @@ public class CardHistoryTest
 		assertEquals("the zone moves the clock", "10:32", CardHistory.timeOf(at, CardTime.CLOCK_24, ZoneOffset.ofHours(-4), at));
 		assertEquals("and the 12-hour one", "10:32 AM", CardHistory.timeOf(at, CardTime.CLOCK_12, ZoneOffset.ofHours(-4), at));
 	}
+
+	/** Lot 10O: one row per event, whichever channel the line came by and whether the player's own line or the clan's came first. */
+	@Test
+	public void oneRowPerEvent()
+	{
+		final CardHistory history = new CardHistory();
+		final List<Integer> told = new ArrayList<>();
+		history.listen(() -> told.add(told.size()));
+
+		final String own = "Congratulations, you've just advanced your Thieving level. You are now level 77.";
+		final String clan = "2hBuilds has reached Thieving level 77.";
+		history.add(own, Collections.singletonList(card("Thieving 77", own)), 1_000L, "2hBuilds");
+		history.add(clan, Collections.singletonList(card("Thieving 77", clan)), 2_000L, "2hBuilds");
+		assertEquals("the own line and the clan line are one event", 1, history.size());
+		assertEquals("the own line stays", own, history.entries().get(0).line());
+		assertEquals("and the listener was told once", 1, told.size());
+
+		final String klar = "Klar has reached Defence level 70.";
+		history.add(klar, Collections.singletonList(card("Defence 70", klar)), 3_000L, "2hBuilds");
+		history.add(klar, Collections.singletonList(card("Defence 70", klar)), 3_500L, "2hBuilds");
+		assertEquals("Klar's two lines are one more", 2, history.size());
+		assertEquals(2, told.size());
+
+		final String mossy = "Mossy Rock has reached Defence level 70.";
+		history.add(mossy, Collections.singletonList(card("Defence 70", mossy)), 4_000L, "2hBuilds");
+		assertEquals("another player's line is kept", 3, history.size());
+
+		history.add(klar, Collections.singletonList(card("Defence 70", klar)), 13_001L, "2hBuilds");
+		assertEquals("Klar's line again after ten seconds is kept", 4, history.size());
+		assertEquals(4, told.size());
+
+		final String pete = "Congratulations, you've just advanced your Cooking level. You are now level 50.";
+		final String petes = "iron pete has reached Cooking level 50.";
+		history.add(pete, Collections.singletonList(card("Cooking 50", pete)), 20_000L, "Iron Pete");
+		history.add(petes, Collections.singletonList(card("Cooking 50", petes)), 20_500L, "Iron Pete");
+		assertEquals("a name with a no-break space and one in lower case are the player", 5, history.size());
+
+		final String agilityClan = "2hBuilds has reached Agility level 60.";
+		final String agilityOwn = "Congratulations, you've just advanced your Agility level. You are now level 60.";
+		history.add(agilityClan, Collections.singletonList(card("Agility 60", agilityClan)), 30_000L, "2hBuilds");
+		history.add(agilityOwn, Collections.singletonList(card("Agility 60", agilityOwn)), 30_400L, "2hBuilds");
+		assertEquals("the clan line first and the own line second are one event too", 6, history.size());
+		assertEquals("the clan line stays", agilityClan, history.entries().get(0).line());
+		assertEquals(6, told.size());
+
+		final CardHistory plain = new CardHistory();
+		plain.add("one", Collections.singletonList(card("One", "one")), 1L);
+		plain.add("two", Collections.singletonList(card("Two", "two")), 2L);
+		assertEquals("the three-argument add still keeps two different titles", 2, plain.size());
+	}
 }

@@ -17,7 +17,7 @@ of the words a card is about, and that has its own switch.
   chat and friends chat**, and only their *broadcast* kind - the game's own announcements, such as *"... received a
   drop: Dragon claws (121,453,000 coins)"* or *"... has completed a quest: Dragon Slayer II"*.
 - **Your own game lines.** The lines the game writes to you alone: a valuable drop, an untradeable drop, a new
-  collection log item, and your own kill count.
+  collection log item, your own kill count and your own level-up.
 - **Your own examine text.** When you pick Examine on an item or a monster, RuneLite tells the plugin the pick, and
   the plugin remembers only which item or monster it was, for two game ticks (about a second). The examine line the
   game writes to you in answer is then read, once, for the card of that thing. The text does not name what it is
@@ -78,7 +78,8 @@ its unit from the line when the line gives one. A pet the table does not hold re
 as ten lines, the last cut with *...* when more remain, in the order of the wiki's level-up table for that
 skill; all the skills are in it. A level before the table has loaded gets a plain card with the skill and its level.
 A combat level line gets no card. The words are the phrase *"Defence level 70"*, and it is a *quiet* card (see *The
-underline*).
+underline*). Your own level-up line, *"Congratulations, you've just advanced your Sailing level. You are now level
+47."*, gives the same card, with *"Sailing level. You are now level 47"* as its words.
 
 **XP milestones.** *"... has reached 200,000,000 XP in Cooking."* gives a card naming the figure and the skill, with
 **Skill**. It is quiet. A total level line gets no card.
@@ -139,7 +140,47 @@ chat event to RuneLite's log for the developer; in a normal client they do nothi
   The same header row; the drops on a row of their own, headed *Drops* and spread across the width, all in grey; a
   rule; the paragraph in at most two lines; the hint.
 
-Both are drawn on a solid brown ground with a black edge, a lighter line inside it and the game's own type.
+Both are drawn in the look of the *Card theme* setting, in the game's own type. The description is white in every
+look but Wiki's, and in the twenty space and scene looks every line of text has a thin black outline, so the words
+read over the pictures. The twenty-four looks:
+
+- **Stone**: the game's own stone frame. A speckled brown ground, a black edge with three lines inside it
+  and a small rivet in each corner; the title in the game's orange, the values in yellow, the description in white, every
+  line of text with a black shadow, and the rules with a light line under them. It is 6 px wider and taller than Classic.
+- **Classic** (the default): the plain look the plugin first shipped. A solid brown ground with a black edge, a lighter line inside
+  it, white titles and values and grey labels.
+- **Void**: a purple card whose ground runs dark from the top to the bottom, with a scatter of stars over it, a light
+  purple edge with a line inside it, and a soft violet halo behind the title. It is 2 px wider and taller than Classic.
+- **Wiki**: the wiki's own infobox, in the wiki's type rather than the game's. A beige card with a thin brown edge; the
+  title in a bar across the top; the picture in a cell at the left with the facts as a two-column table beside it, one
+  row to a fact; for an item, the drops as a table of *Source* (in link blue) and *Rarity*; the description under it
+  (a paragraph, or the numbered list); and the hint with *Open wiki* as a link. The card is exactly as wide as the
+  *Card width* setting says, or as the chatbox above the chat.
+- **Eight space looks**, each a dark card, 2 px wider and taller than Classic, with a shadow under every line of text and
+  its own colours, a thin edge with a line inside it, and a picture of space under the words:
+  - **Nebula**: pink and blue clouds.
+  - **Aurora**: green lights across the top.
+  - **Galaxy**: a spiral galaxy on the right.
+  - **Planet rise**: a planet's edge, lit blue, in the bottom right corner.
+  - **Eclipse**: a ring of light behind the picture.
+  - **Constellation**: stars joined by thin lines.
+  - **Black hole**: a glowing disc on the right.
+  - **Cosmic edge**: a pink to violet to cyan edge, title and rules.
+- **Twelve scene looks**, each a dark card with an outline round every line of text, its own colours, a thin edge and a
+  picture of a scene under the words, the title in a gradient across the card (a halo, an outline or a split behind it
+  in some), and a little more room at the bottom in the ones with a picture there:
+  - **Forest**: god rays through the pines, vines, fireflies.
+  - **Ocean**: light rays and caustics, fish, kelp, bubbles.
+  - **Autumn**: a low sun, a bare branch, maple leaves.
+  - **Sakura**: a moonlit branch of blossom, a torii gate, falling petals.
+  - **Steampunk**: a brass frame, gears, a pressure gauge, steam.
+  - **Cyberpunk**: a neon city in the rain, HUD corners, a split title.
+  - **Synthwave**: a striped sun, mountains, a neon grid.
+  - **Volcano**: an erupting peak, a lava river, embers.
+  - **Runic**: carved stone, rune bands, a magic circle.
+  - **Spooky**: a full moon, a haunted house, bats, a lantern.
+  - **Garden**: a picket fence, tulips, roses, butterflies.
+  - **Lavender**: a dusk field, poppies, a lone tree.
 
 **Three ways to open** (the *Show a card* setting):
 
@@ -212,7 +253,7 @@ words of a card. With *Show hover cards* off there are none.
 
 ## Settings
 
-Eighteen settings, in the order of RuneLite's settings page. All eighteen are also controls in the sidebar's settings
+Twenty settings, in the order of RuneLite's settings page. All twenty are also controls in the sidebar's settings
 menu (below).
 
 | Setting | Default | What it does |
@@ -231,6 +272,8 @@ menu (below).
 | Examine line | Item name first | Put the examined item's or monster's name in front of its examine text, and hover the name; or keep the text alone and hover all of it. Choices: *Item name first*, *Description only*. |
 | Card place | Above the cursor | Where a card opens: centred above the cursor, or as wide as the chatbox and pinned above it. Choices: *Above the cursor*, *Above the chat*. |
 | Card width | Medium | How wide the card at the cursor may grow: wide, or two narrower widths that give the paragraph up to five lines. Choices: *Wide*, *Medium*, *Narrow*. |
+| Card theme | Classic | The look of the cards: *Classic*, *Stone* (the game's own frame), *Void*, *Wiki* (the wiki's infobox), or one of twenty scene looks: *Nebula*, *Aurora*, *Galaxy*, *Planet rise*, *Eclipse*, *Constellation*, *Black hole*, *Cosmic edge*, *Forest*, *Ocean*, *Autumn*, *Sakura*, *Steampunk*, *Cyberpunk*, *Synthwave*, *Volcano*, *Runic*, *Spooky*, *Garden*, *Lavender*. |
+| Sidebar theme | Same as cards | The look of the sidebar: the cards' theme, RuneLite's own, or a theme of its own. The top card, the bar over the how-to and the recent cards' rows are painted in that look, and the words in its colours. Choices: *Same as cards*, *RuneLite* (the sidebar's own greys), then every card theme from *Classic* to *Lavender*. |
 | Card time | 4m ago | How a recent card's time reads in the sidebar: how long ago, or the clock time in 24 or 12 hours. Choices: *4m ago*, *14:32*, *2:32 PM*. The clock is your own computer's time zone. |
 | Name colour | 2h orange (#DC8A00) | The colour of the player's name in the sidebar's recent cards. |
 | Underline level-ups | Off | Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them. |
@@ -260,21 +303,42 @@ settings menu.
   (a third line never: what is left after two is cut with "..."). Under the title come who the line is about (the
   player's name, or *You* for your own lines and examine lines, in the *Name colour*, the 2h orange at first) and what
   kind of card it gave (*drop*, *medium task*, *collection log*, *level-up*, *pet*, *examined* and so on), the kind in
-  full; only where the two do not fit is the kind cut with "...", then the name. The header says how many are kept
+  full; only where the two do not fit is the kind cut with "...", then the name. One row is kept for one event: the
+  same broadcast reaching your clan, guest clan, group and friends chats, or your own game line and the clan's
+  broadcast of it a second apart, is a single row when the player and the card are the same and the lines come within
+  ten seconds of each other (the chat itself still gives every line its cards). The header says how many are kept
   (*12 this session*) and has a **Clear** link that
   empties the list. Hover a row and its card shows beside the sidebar, as it does in game; right-click a row for *Open
   wiki* or *Copy*. The list draws only the rows on screen, a new card is one insert at its top and a row's lines are
   counted once, so a long session stays quick. The list is kept for the session only: it is never written anywhere, and
   it is gone when you turn the plugin off or close the client.
+- **The sidebar's look** is the *Sidebar theme*: *Same as cards* follows the *Card theme* (it does, at first), *RuneLite*
+  keeps RuneLite's own greys, and any theme in the list gives the sidebar that theme's look whatever the cards wear.
+  *Classic* leaves the sidebar as described above. *Stone* gives it the game's stone frame on the top card and a speckled stone
+  row for each recent card, a dark bar, the title in orange and the words in white and stone grey. *Void* gives it the
+  purple gradient with stars on the top card and the rows, a purple bar and light purple words. *Wiki* gives it the
+  wiki's beige: a beige card and rows with a thin brown edge, a darker bar, dark words and the row titles in the wiki's
+  blue. Each of the eight space looks and the twelve scene looks gives the top card and the rows its sky (the same
+  picture as on its cards), the bar its ground's top colour with its edge colour round it, and the words its card's
+  colours. The *Name colour* and the
+  *Hover colour* stay as you set them in every look. A theme picked in the menu or a change on RuneLite's settings page
+  takes effect at once. The settings menu itself keeps RuneLite's look.
+
 **The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
 press it again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.7*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 0.0.8*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - seven **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
   *Examine cards*, *Underline level-ups*;
-- five **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*,
-  *Examine line*, *Card time*;
+- seven **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*,
+  *Card theme*, *Sidebar theme*, *Examine line*, *Card time*. In the *Sidebar theme* list a rule sits after
+  *RuneLite*;
+- a **preview**: while a theme in the *Card theme* or the *Sidebar theme* list is under the mouse (or picked with the
+  keys), a picture of it shows beside the list, level with it - a sample card (the Abyssal whip) in the card theme, or
+  a small sidebar in the sidebar's look. It changes as you move down the list and goes when no theme is under the
+  mouse or the menu closes. The picture is drawn on your computer; nothing is fetched for it except the whip's own
+  item picture, which the game already has;
 - the **card key** box, right under *Show a card*: press it, then press the key to hold; Backspace or Delete clears the
   key, Escape keeps the old one. It is greyed unless *Show a card* is *While holding a key*;
 - two **rows**: *Card delay (ms)* and *Card text size* (number boxes, the delay stepping by 100); a number applies as you
@@ -284,7 +348,7 @@ press it again and it closes. The menu has:
   RuneLite's colour picker opens on that colour, beside the swatch you pressed, and the menu comes back when the picker
   closes. The picker paints live: the rows of the recent cards show the *Name colour* as you move through the picker,
   before you press its OK, and a colour set on RuneLite's own settings page shows in the sidebar at once;
-- at the bottom, **Reset to default** on the left, which puts all eighteen settings back to their defaults, and **OK**
+- at the bottom, **Reset to default** on the left, which puts all twenty settings back to their defaults, and **OK**
   on the right, which closes the menu.
 
 Everything in the menu saves itself as you set it, and the menu stays open while you work through the switches; OK,

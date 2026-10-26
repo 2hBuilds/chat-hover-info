@@ -1,5 +1,6 @@
 package com.clanhub;
 
+import com.clanhub.ClanHubConfig.CardTheme;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
@@ -14,6 +15,7 @@ import java.util.List;
 import net.runelite.client.ui.FontManager;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -104,7 +106,8 @@ public class CardPainterTest
 	{
 		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
 		final Graphics2D g = image.createGraphics();
-		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), fontSize, 0, 0, description, 480, 3);
+		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), fontSize, 0, 0, description, 480, 3,
+			CardStyle.CLASSIC);
 		g.dispose();
 		return new Object[]{image, size};
 	}
@@ -120,7 +123,8 @@ public class CardPainterTest
 	{
 		final BufferedImage image = new BufferedImage(600, 300, BufferedImage.TYPE_INT_RGB);
 		final Graphics2D g = image.createGraphics();
-		final Dimension size = CardPainter.paintWide(g, card, redSprite(), 16, width, 0, 0, description, ACCENT);
+		final Dimension size = CardPainter.paintWide(g, card, redSprite(), 16, width, 0, 0, description, ACCENT,
+			CardStyle.CLASSIC);
 		g.dispose();
 		return size;
 	}
@@ -233,7 +237,8 @@ public class CardPainterTest
 	{
 		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
 		final Graphics2D g = image.createGraphics();
-		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), 16, 0, 0, description, capAt16, lines);
+		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), 16, 0, 0, description, capAt16, lines,
+			CardStyle.CLASSIC);
 		g.dispose();
 		return size;
 	}
@@ -245,7 +250,7 @@ public class CardPainterTest
 
 		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D g = image.createGraphics();
-		CardPainter.paintSplit(g, claws(), redSprite(), 16, 0, 0, NONE, 480, 3);
+		CardPainter.paintSplit(g, claws(), redSprite(), 16, 0, 0, NONE, 480, 3, CardStyle.CLASSIC);
 		g.dispose();
 		// (4, 4) is inside the black edge and the line inside it, and before any text.
 		assertEquals("a pixel of the ground on a clear canvas is opaque", 255, image.getRGB(4, 4) >>> 24);
@@ -439,7 +444,8 @@ public class CardPainterTest
 	{
 		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
 		final Graphics2D g = image.createGraphics();
-		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), 16, 0, 0, description, capAt16, lines);
+		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), 16, 0, 0, description, capAt16, lines,
+			CardStyle.CLASSIC);
 		g.dispose();
 		return new Object[]{image, size};
 	}
@@ -625,7 +631,7 @@ public class CardPainterTest
 	{
 		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_RGB);
 		final Graphics2D g = image.createGraphics();
-		final Dimension size = CardPainter.paintSplit(g, card, picture, 16, LEFT, TOP, NONE, 480, 3);
+		final Dimension size = CardPainter.paintSplit(g, card, picture, 16, LEFT, TOP, NONE, 480, 3, CardStyle.CLASSIC);
 		g.dispose();
 		return new Object[]{image, size};
 	}
@@ -755,7 +761,8 @@ public class CardPainterTest
 		// The wide card's rates lose the accent.
 		final BufferedImage wide = new BufferedImage(600, 300, BufferedImage.TYPE_INT_RGB);
 		final Graphics2D g = wide.createGraphics();
-		final Dimension wideCard = CardPainter.paintWide(g, whip(), redSprite(), 16, 519, 0, 0, PARAGRAPH, ACCENT);
+		final Dimension wideCard = CardPainter.paintWide(g, whip(), redSprite(), 16, 519, 0, 0, PARAGRAPH, ACCENT,
+			CardStyle.CLASSIC);
 		g.dispose();
 		for (int y = 0; y < wideCard.height; y++)
 		{
@@ -771,4 +778,284 @@ public class CardPainterTest
 		assertTrue("and in the wide card it is never shorter", wideSize(whipWith(6), 519, PARAGRAPH).height
 			>= wideSize(whipWith(4), 519, PARAGRAPH).height);
 	}
+
+	/** The info card of lot 10P's tests: a short title, two facts, no notes. */
+	private static InfoCard twoFacts()
+	{
+		final List<HoverCard.Pair> row = Arrays.asList(new HoverCard.Pair("Price", "655", ""),
+			new HoverCard.Pair("High alch", "240", ""));
+		return new InfoCard("Bandos page 2", row, Collections.<String>emptyList(), "Bandos_page_2",
+			"Klar received a drop: Bandos page 2.", 24, 37, -1);
+	}
+
+	/**
+	 * The bright themes' words have a black outline (a black pixel left of the words, not only the shadow down-right),
+	 * and every theme's description is white; Classic keeps its shadow alone.
+	 */
+	@Test
+	public void theBrightThemesOutlineTheirWordsAndTheDescriptionIsWhite()
+	{
+		final String description = "A weapon from the abyss, whipped about in every direction by the demons that guard it.";
+		for (final CardStyle style : new CardStyle[] {CardStyle.of(ClanHubConfig.CardTheme.SYNTHWAVE),
+			CardStyle.of(ClanHubConfig.CardTheme.OCEAN), CardStyle.of(ClanHubConfig.CardTheme.NEBULA)})
+		{
+			final Object[] painted = splitIn(style, description);
+			final BufferedImage image = (BufferedImage) painted[0];
+			final Dimension size = (Dimension) painted[1];
+			assertTrue("the description is white", hasColour(image, size, Color.WHITE));
+			assertTrue("a black pixel sits left of a white one: the outline", whiteWithBlackOnItsLeft(image, size));
+		}
+		final Object[] voidCard = splitIn(CardStyle.of(ClanHubConfig.CardTheme.VOID), description);
+		assertTrue("Void's description is white too", hasColour((BufferedImage) voidCard[0], (Dimension) voidCard[1],
+			Color.WHITE));
+		final Object[] classic = splitIn(CardStyle.CLASSIC, description);
+		assertFalse("Classic has no outline, only its shadow down-right",
+			whiteWithBlackOnItsLeft((BufferedImage) classic[0], (Dimension) classic[1]));
+	}
+
+	/** Whether some pixel of the card is exactly white and the pixel left of it exactly black. */
+	private static boolean whiteWithBlackOnItsLeft(BufferedImage image, Dimension size)
+	{
+		for (int y = 0; y < size.height; y++)
+		{
+			for (int x = 1; x < size.width; x++)
+			{
+				if (isColour(image, x, y, Color.WHITE) && isColour(image, x - 1, y, Color.BLACK))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** The split card painted in {@code style} on a transparent 520 x 300 image; the image and the size it reports. */
+	private static Object[] splitIn(CardStyle style, String description)
+	{
+		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = image.createGraphics();
+		final Dimension size = CardPainter.paintSplit(g, twoFacts(), redSprite(), 16, 0, 0, description, 480, 3, style);
+		g.dispose();
+		return new Object[]{image, size};
+	}
+
+	/** Whether any pixel of the card, in its {@code size}, is exactly {@code colour}. */
+	private static boolean hasColour(BufferedImage image, Dimension size, Color colour)
+	{
+		for (int y = 0; y < size.height; y++)
+		{
+			for (int x = 0; x < size.width; x++)
+			{
+				if (isColour(image, x, y, colour))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** The sum of red, green and blue over the pixels of row {@code y} from {@code from} up to {@code to}. */
+	private static long rowSum(BufferedImage image, int y, int from, int to)
+	{
+		long sum = 0;
+		for (int x = from; x < to; x++)
+		{
+			final Color pixel = new Color(image.getRGB(x, y));
+			sum += pixel.getRed() + pixel.getGreen() + pixel.getBlue();
+		}
+		return sum;
+	}
+
+	/** Lot 10P: the Stone card is 6 px wider and taller, with the game's frame, orange title and yellow values. */
+	@Test
+	public void aStoneCardHasTheGamesFrame()
+	{
+		final Object[] classic = splitIn(CardStyle.of(ClanHubConfig.CardTheme.CLASSIC), THREE_LINES);
+		final Object[] stone = splitIn(CardStyle.of(ClanHubConfig.CardTheme.STONE), THREE_LINES);
+		final BufferedImage classicImage = (BufferedImage) classic[0];
+		final Dimension classicSize = (Dimension) classic[1];
+		final BufferedImage stoneImage = (BufferedImage) stone[0];
+		final Dimension stoneSize = (Dimension) stone[1];
+
+		assertEquals("6 px wider", classicSize.width + 6, stoneSize.width);
+		assertEquals("6 px taller", classicSize.height + 6, stoneSize.height);
+		assertTrue("the corner is black", isColour(stoneImage, 0, 0, Color.BLACK));
+		assertTrue("the light line is next", isColour(stoneImage, 1, 1, new Color(110, 98, 80)));
+		assertTrue("the rivet is in the corner", isColour(stoneImage, 3, 3, new Color(150, 132, 104)));
+		assertTrue("the far corner's rivet too",
+			isColour(stoneImage, stoneSize.width - 4, stoneSize.height - 4, new Color(150, 132, 104)));
+		assertTrue("the title is the game's orange", hasColour(stoneImage, stoneSize, new Color(255, 152, 31)));
+		assertTrue("the values are yellow", hasColour(stoneImage, stoneSize, new Color(255, 255, 0)));
+		assertTrue("the rule has its light line under it", hasColour(stoneImage, stoneSize, new Color(100, 90, 72)));
+		assertTrue("the Classic card has no orange title", !hasColour(classicImage, classicSize, new Color(255, 152, 31)));
+		assertTrue("nor yellow values", !hasColour(classicImage, classicSize, new Color(255, 255, 0)));
+	}
+
+	/** Lot 10P: the Void card is 2 px wider and taller, purple, darker towards the bottom, with a light title. */
+	@Test
+	public void aVoidCardIsPurple()
+	{
+		final Object[] classic = splitIn(CardStyle.of(ClanHubConfig.CardTheme.CLASSIC), THREE_LINES);
+		final Object[] voidCard = splitIn(CardStyle.of(ClanHubConfig.CardTheme.VOID), THREE_LINES);
+		final Dimension classicSize = (Dimension) classic[1];
+		final BufferedImage image = (BufferedImage) voidCard[0];
+		final Dimension size = (Dimension) voidCard[1];
+
+		assertEquals("2 px wider", classicSize.width + 2, size.width);
+		assertEquals("2 px taller", classicSize.height + 2, size.height);
+		assertTrue("the corner is the light purple edge", isColour(image, 0, 0, new Color(176, 118, 246)));
+		assertTrue("the line inside it", isColour(image, 1, 1, new Color(120, 80, 180)));
+		assertTrue("the title is the light violet", hasColour(image, size, new Color(228, 194, 255)));
+		// Row 2 is the first row inside the two purple lines and row height - 3 the last one inside them: both are padding
+		// with no text, and each is summed across the card so that no single star decides it.
+		final long top = rowSum(image, 2, 4, size.width - 4);
+		final long bottom = rowSum(image, size.height - 3, 4, size.width - 4);
+		assertTrue("the ground runs dark downwards: " + top + " vs " + bottom, bottom < top);
+	}
+
+	/**
+	 * Lot 10R: Cosmic edge's title is pink at the card's left and cyan at its right: among the title's pixels (the ones that
+	 * are the gradient's own colour where they stand) a short title has some with red above blue in the first half, and a
+	 * title long enough to reach the right half has some with blue above red there.
+	 */
+	@Test
+	public void aCosmicTitleRunsPinkToCyan()
+	{
+		final CardStyle cosmic = CardStyle.of(ClanHubConfig.CardTheme.COSMIC);
+		final Object[] shortCard = splitCardIn(cosmic, twoFacts(), PARAGRAPH);
+		final Dimension shortSize = (Dimension) shortCard[1];
+		assertTrue("some title pixel in the first half has red above blue",
+			titlePixels((BufferedImage) shortCard[0], shortSize.width, 0, shortSize.width / 2, true) > 0);
+
+		final Object[] longCard = splitCardIn(cosmic, dragonSlayerTwo(), PARAGRAPH);
+		final Dimension longSize = (Dimension) longCard[1];
+		assertTrue("some title pixel in the right half has blue above red",
+			titlePixels((BufferedImage) longCard[0], longSize.width, longSize.width / 2, longSize.width, false) > 0);
+	}
+
+	/** The split card of {@code card} painted in {@code style} on a transparent 520 x 300 image; the image and the size. */
+	private static Object[] splitCardIn(CardStyle style, HoverCard card, String description)
+	{
+		final BufferedImage image = new BufferedImage(520, 300, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = image.createGraphics();
+		final Dimension size = CardPainter.paintSplit(g, card, redSprite(), 16, 0, 0, description, 480, 3, style);
+		g.dispose();
+		return new Object[]{image, size};
+	}
+
+	/**
+	 * How many pixels of the title row between {@code from} and {@code to} are, within 10 per channel, the colour the
+	 * Cosmic gradient has where they stand in a card {@code width} px wide, and have red above blue ({@code pink}) or blue
+	 * above red. The title row starts at the card's inset and the title at the sprite box's right plus its gap.
+	 */
+	private static int titlePixels(BufferedImage image, int width, int from, int to, boolean pink)
+	{
+		int count = 0;
+		for (int y = 10; y < 10 + 18; y++)
+		{
+			for (int x = Math.max(from, 10 + 36 + 8); x < to; x++)
+			{
+				final Color expected = cosmicAt(x + 0.5, width);
+				final Color pixel = new Color(image.getRGB(x, y));
+				final boolean close = Math.abs(pixel.getRed() - expected.getRed()) <= 10
+					&& Math.abs(pixel.getGreen() - expected.getGreen()) <= 10
+					&& Math.abs(pixel.getBlue() - expected.getBlue()) <= 10;
+				if (close && (pink ? pixel.getRed() > pixel.getBlue() : pixel.getBlue() > pixel.getRed()))
+				{
+					count++;
+				}
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Lot 10T: the same card in Steampunk has its title's outline (40, 24, 8) somewhere in the title's row, and in
+	 * Cyberpunk its two split copies, (0, 240, 255) and (255, 40, 200). The title's row starts at the card's inset and the
+	 * title at the sprite box's right plus its gap.
+	 */
+	@Test
+	public void anOutlinedTitleAndASplitTitle()
+	{
+		final CardStyle steampunk = CardStyle.of(CardTheme.STEAMPUNK);
+		final BufferedImage outlined = (BufferedImage) splitCardIn(steampunk, twoFacts(), PARAGRAPH)[0];
+		assertTrue("the outline is in the title's row",
+			inTitleRow(outlined, steampunk.inset, new Color(40, 24, 8)));
+		final CardStyle classic = CardStyle.of(CardTheme.CLASSIC);
+		assertTrue("the Classic card has none of it", !inTitleRow((BufferedImage) splitCardIn(classic, twoFacts(), PARAGRAPH)[0],
+			classic.inset, new Color(40, 24, 8)));
+
+		final CardStyle cyberpunk = CardStyle.of(CardTheme.CYBERPUNK);
+		final BufferedImage split = (BufferedImage) splitCardIn(cyberpunk, twoFacts(), PARAGRAPH)[0];
+		assertTrue("the left copy is cyan in the title's row", inTitleRow(split, cyberpunk.inset, new Color(0, 240, 255)));
+		assertTrue("the right copy is pink in the title's row", inTitleRow(split, cyberpunk.inset, new Color(255, 40, 200)));
+	}
+
+	/** Whether a pixel of the header row of a card with {@code inset}, to the right of the sprite, is exactly {@code colour}. */
+	private static boolean inTitleRow(BufferedImage image, int inset, Color colour)
+	{
+		for (int y = inset; y < inset + 32; y++)
+		{
+			for (int x = inset + 36 + 8; x < image.getWidth(); x++)
+			{
+				if (isColour(image, x, y, colour))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Lot 10T: the same card is as much taller in Garden than in Forest (the same inset) as Garden's room under the hint,
+	 * 26 px at 16 px and 39 px at 24 px, and in Lavender 32 px at 16; the wide card too.
+	 */
+	@Test
+	public void theBottomExtraMakesRoom()
+	{
+		final CardStyle forest = CardStyle.of(CardTheme.FOREST);
+		final CardStyle garden = CardStyle.of(CardTheme.GARDEN);
+		final CardStyle lavender = CardStyle.of(CardTheme.LAVENDER);
+		assertEquals("the same inset", forest.inset, garden.inset);
+
+		assertEquals("26 px taller at 16 px", splitHeight(forest, 16) + 26, splitHeight(garden, 16));
+		assertEquals("39 px taller at 24 px (26 x 24 / 16)", splitHeight(forest, 24) + 39, splitHeight(garden, 24));
+		assertEquals("Lavender 32 px taller at 16 px", splitHeight(forest, 16) + 32, splitHeight(lavender, 16));
+		assertEquals("the wide card is 26 px taller too", wideHeight(forest) + 26, wideHeight(garden));
+	}
+
+	/** The height of the split card of {@link #twoFacts} painted in {@code style} at {@code fontSize}, a paragraph under it. */
+	private static int splitHeight(CardStyle style, int fontSize)
+	{
+		final BufferedImage image = new BufferedImage(800, 600, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = image.createGraphics();
+		final Dimension size = CardPainter.paintSplit(g, twoFacts(), redSprite(), fontSize, 0, 0, PARAGRAPH, 480, 3, style);
+		g.dispose();
+		return size.height;
+	}
+
+	/** The height of the wide card of {@link #twoFacts} painted in {@code style} at 16 px, a paragraph under it. */
+	private static int wideHeight(CardStyle style)
+	{
+		final BufferedImage image = new BufferedImage(600, 300, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = image.createGraphics();
+		final Dimension size = CardPainter.paintWide(g, twoFacts(), redSprite(), 16, 519, 0, 0, PARAGRAPH, ACCENT, style);
+		g.dispose();
+		return size.height;
+	}
+
+	/** The Cosmic gradient's colour at {@code x} across a card {@code width} px wide: pink, violet, cyan, evenly. */
+	private static Color cosmicAt(double x, int width)
+	{
+		final double t = Math.max(0, Math.min(1, x / width));
+		final Color from = t < 0.5 ? SpaceSky.COSMIC_PINK : SpaceSky.COSMIC_VIOLET;
+		final Color to = t < 0.5 ? SpaceSky.COSMIC_VIOLET : SpaceSky.COSMIC_CYAN;
+		final double u = t < 0.5 ? t * 2 : t * 2 - 1;
+		return new Color((int) Math.round(from.getRed() + (to.getRed() - from.getRed()) * u),
+			(int) Math.round(from.getGreen() + (to.getGreen() - from.getGreen()) * u),
+			(int) Math.round(from.getBlue() + (to.getBlue() - from.getBlue()) * u));
+	}
+
 }

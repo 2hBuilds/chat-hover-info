@@ -209,7 +209,8 @@ public class ChatCardOverlayTest
 		// the painter says for the same card at 16 px with no description, not a fixed 360.
 		final BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D scratchGraphics = scratch.createGraphics();
-		final int cardWidth = CardPainter.paintSplit(scratchGraphics, claws, null, 16, 0, 0, "", 480, 3).width;
+		final int cardWidth = CardPainter.paintSplit(scratchGraphics, claws, null, 16, 0, 0, "", 480, 3,
+			CardStyle.CLASSIC).width;
 		scratchGraphics.dispose();
 		final int left = Math.max(0, words - cardWidth / 2);
 		assertEquals("centred on the words' middle, held at the canvas's left edge", left, atCursor.x);
@@ -237,7 +238,8 @@ public class ChatCardOverlayTest
 
 		final BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D scratchGraphics = scratch.createGraphics();
-		final java.awt.Dimension size = CardPainter.paintSplit(scratchGraphics, claws, null, 16, 0, 0, "", 480, 3);
+		final java.awt.Dimension size = CardPainter.paintSplit(scratchGraphics, claws, null, 16, 0, 0, "", 480, 3,
+			CardStyle.CLASSIC);
 		scratchGraphics.dispose();
 		assertNotNull("a card gives an image", image);
 		assertEquals("as wide as the painter says", size.width, image.getWidth());

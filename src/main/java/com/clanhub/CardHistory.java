@@ -17,11 +17,21 @@ import java.util.Locale;
  * <p>Choice: every method is synchronized on the history itself, because a line arrives on the client thread and the
  * sidebar reads on the event thread; the listeners are told after the lock is let go, on the thread that changed the
  * history, so a listener never holds the lock while it works.
+ *
+ * <p>Choice: one row per event. The same broadcast reaches the clan, guest clan, group and friends channels, and the
+ * player's own game line for a level-up or a drop comes with its clan broadcast a second apart, so a line whose key
+ * (who it is about, the player reading as "you", and the first card's title) equals that of an entry added within
+ * {@link #SAME_EVENT_MS} of it adds nothing; ten seconds holds them all, and a real second event of the same thing by
+ * the same player within ten seconds is not a case worth a second row. Every chat line still gets its cards in the
+ * chat: only the history keeps one row.
  */
 final class CardHistory
 {
 	/** How many lines the history keeps at most: a safety cap, as the history is meant to hold the whole session. */
 	static final int CAP = 5000;
+
+	/** How close in time, either way, two lines of the same key are one event: ten seconds. */
+	static final long SAME_EVENT_MS = 10_000L;
 
 	/** What {@link #ago} says under a minute, and the word it ends with after a minute or an hour. */
 	private static final String JUST_NOW = "just now";
@@ -33,12 +43,15 @@ final class CardHistory
 		private final HoverCard card;
 		private final String line;
 		private final long at;
+		/** Who the line is about and the card's title: what {@link CardHistory#add} compares to keep one row per event. */
+		private final String key;
 
-		private Entry(HoverCard card, String line, long at)
+		private Entry(HoverCard card, String line, long at, String key)
 		{
 			this.card = card;
 			this.line = line;
 			this.at = at;
+			this.key = key;
 		}
 
 		/** The first card the line gave. */
@@ -68,23 +81,68 @@ final class CardHistory
 	/**
 	 * Keeps one entry for the line, holding its first card, as the newest; the oldest entry goes when more than
 	 * {@link #CAP} are held. Every listener is told afterwards. A null or empty list of cards adds nothing and tells
-	 * nobody, and a null line is kept as an empty one.
+	 * nobody, and a null line is kept as an empty one. The same as {@link #add(String, List, long, String)} with no
+	 * name for the player.
 	 */
 	void add(String line, List<HoverCard> cards, long at)
+	{
+		add(line, cards, at, null);
+	}
+
+	/**
+	 * Keeps one entry for the line as {@link #add(String, List, long)} does, unless it is the same event as an entry
+	 * already held: the same key, within {@link #SAME_EVENT_MS} of it, either way in time. Such a line adds nothing and
+	 * tells nobody. The key is who the line is about ({@link RowWords#who}), read as "you" when that is "You" or when it
+	 * is {@code self} once both are cleaned (a no-break space as a space, the spaces trimmed and collapsed, lower case),
+	 * and the first card's title.
+	 *
+	 * @param self the local player's name, or null when it is not known
+	 */
+	void add(String line, List<HoverCard> cards, long at, String self)
 	{
 		if (cards == null || cards.isEmpty())
 		{
 			return;
 		}
+		final String text = line == null ? "" : line;
+		final String key = keyOf(text, cards.get(0), self);
 		synchronized (this)
 		{
-			entries.add(0, new Entry(cards.get(0), line == null ? "" : line, at));
+			// The newest come first, so the look stops at the first entry older than the window.
+			for (final Entry entry : entries)
+			{
+				if (at - entry.at > SAME_EVENT_MS)
+				{
+					break;
+				}
+				if (entry.key.equals(key) && Math.abs(entry.at - at) <= SAME_EVENT_MS)
+				{
+					return;
+				}
+			}
+			entries.add(0, new Entry(cards.get(0), text, at, key));
 			if (entries.size() > CAP)
 			{
 				entries.remove(entries.size() - 1);
 			}
 		}
 		changed();
+	}
+
+	/** What two lines share when they are one event: see {@link #add(String, List, long, String)}. */
+	private static String keyOf(String line, HoverCard card, String self)
+	{
+		final String named = RowWords.who(line);
+		final String who = cleaned(named);
+		final String me = self == null ? "" : cleaned(self);
+		final boolean you = RowWords.YOU.equals(named) || (!me.isEmpty() && who.equals(me));
+		return (you ? "you" : who) + "|" + card.title();
+	}
+
+	/** A name as it is compared: a no-break space read as a space, the spaces trimmed and collapsed, in lower case. */
+	private static String cleaned(String name)
+	{
+		return name.replace((char) 160, ' ').trim().replaceAll(" +", " ").toLowerCase(Locale.ROOT);
 	}
 
 	/** A copy of the entries, the newest first. */

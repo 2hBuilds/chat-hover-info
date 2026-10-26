@@ -5,6 +5,8 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.Paint;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -26,11 +28,13 @@ import net.runelite.client.ui.FontManager;
  * the caller's cap at the 16 px text size. The wide card is as wide as it is asked: the same header row, the drops (grey too) spread along
  * a row of their own, a rule, the description in white over the full width, and the hint. A drop with no rate ("and 2
  * more") is drawn as grey words alone in either card. The painter wraps the description itself, by pixel width in the
- * real font.
+ * real font. The colours, the frame, the gap from the edge to the content and the rules come from a {@link CardStyle}, the
+ * card's theme; a style that is an infobox (Wiki) hands the whole card to {@link WikiCard}, which lays it out as the
+ * wiki's infobox with tables.
  */
 final class CardPainter
 {
-	/** The card's ground, solid: nothing of the game shows through it. */
+	/** The Classic card's ground, solid: nothing of the game shows through it. */
 	static final Color GROUND = new Color(70, 61, 50);
 	/** The line inside the black edge, and the rules across the text. */
 	static final Color LINE = new Color(118, 104, 82);
@@ -38,8 +42,13 @@ final class CardPainter
 	static final Color LABEL = new Color(165, 165, 165);
 	/** The hint's grey. */
 	static final Color HINT = new Color(135, 135, 135);
+	/**
+	 * The description's colour on every card this painter lays out (the Wiki infobox has its own): white, in every theme,
+	 * so the paragraph reads the same way whatever lies under it.
+	 */
+	static final Color DESCRIPTION = Color.WHITE;
 
-	/** The gap from the card's edge to its content: the black edge and the line inside it, then the padding, in px. */
+	/** The Classic card's gap from its edge to its content: the black edge and the line inside it, then the padding, in px. */
 	static final int INSET = 2 + 7;
 
 	/** The item sprite's box, in px. */
@@ -127,26 +136,34 @@ final class CardPainter
 	 *
 	 * <p>Choice: the measuring pass decides the width and the drawing pass lays out again at that width, so the one
 	 * layout serves both.
+	 *
+	 * <p>The colours, the frame and the inset are {@code style}'s (the words above are the Classic card's): the card is
+	 * {@code 2 * style.inset} wider and taller than its content, and the edge, the strings, the rules and the hint are
+	 * all in the style's own. The card is {@link CardStyle#bottomExtra} px taller (at 16 px, scaled with {@code fontSize})
+	 * under the hint when the style has room there.
 	 */
 	static Dimension paintSplit(Graphics2D g, HoverCard card, BufferedImage picture, int fontSize, int x, int y,
-		String description, int capAt16, int paragraphLines)
+		String description, int capAt16, int paragraphLines, CardStyle style)
 	{
+		if (style.infobox)
+		{
+			return WikiCard.paint(g, card, picture, fontSize, x, y, description, scaled(capAt16, fontSize), paragraphLines);
+		}
 		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		final Faces faces = new Faces(g, fontSize);
-		final Dimension content = splitContent(new Pen(g, false), faces, card, picture, fontSize, 0, 0, description, capAt16,
-			paragraphLines);
-		final int width = content.width + 2 * INSET;
-		final int height = 2 * INSET + content.height + RULE_AIR + 1 + RULE_AIR + faces.hintHeight;
+		final Dimension content = splitContent(new Pen(g, false, style), faces, card, picture, fontSize, 0, 0, description,
+			capAt16, paragraphLines);
+		final int width = content.width + 2 * style.inset;
+		final int height = 2 * style.inset + content.height + RULE_AIR + 1 + RULE_AIR + faces.hintHeight
+			+ scaled(style.bottomExtra, fontSize);
 
-		frame(g, x, y, width, height);
-		splitContent(new Pen(g, true), faces, card, picture, fontSize, x, y, description, capAt16, paragraphLines);
-		g.setColor(LINE);
-		int lineTop = y + INSET + content.height + RULE_AIR;
-		g.fillRect(x + INSET, lineTop, width - 2 * INSET, 1);
+		style.frame(g, x, y, width, height);
+		final Pen pen = new Pen(g, true, style, x, width);
+		splitContent(pen, faces, card, picture, fontSize, x, y, description, capAt16, paragraphLines);
+		int lineTop = y + style.inset + content.height + RULE_AIR;
+		pen.rule(x + style.inset, lineTop, width - 2 * style.inset, 1);
 		lineTop += 1 + RULE_AIR;
-		g.setFont(faces.hint);
-		g.setColor(HINT);
-		g.drawString(card.hint(), x + INSET, lineTop + faces.hintMetrics.getAscent());
+		pen.string(card.hint(), faces.hint, style.hint, x + style.inset, lineTop + faces.hintMetrics.getAscent());
 		return new Dimension(width, height);
 	}
 
@@ -162,39 +179,33 @@ final class CardPainter
 	 * {@link #layout}), wrapped to the full width in white, a paragraph in at most two lines and a list in at most
 	 * {@link #LIST_LINES}, the last line ending in "..." when the text goes on, and the hint. Fonts and colours as the
 	 * split card's. The {@code accent} no longer colours anything, the drops being grey now; the parameter stays only so
-	 * that the caller's signature does.
+	 * that the caller's signature does. The colours, the frame, the inset and the room under the hint are {@code style}'s.
 	 */
 	static Dimension paintWide(Graphics2D g, HoverCard card, BufferedImage picture, int fontSize, int width, int x, int y,
-		String description, Color accent)
+		String description, Color accent, CardStyle style)
 	{
+		if (style.infobox)
+		{
+			return WikiCard.paint(g, card, picture, fontSize, x, y, description, width, WIDE_LINES);
+		}
 		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 		final Faces faces = new Faces(g, fontSize);
-		final int content = wideContent(new Pen(g, false), faces, card, picture, fontSize, width, 0, 0, description, accent);
-		final int height = 2 * INSET + content + faces.hintHeight;
+		final int content = wideContent(new Pen(g, false, style), faces, card, picture, fontSize, width, 0, 0, description,
+			accent);
+		final int height = 2 * style.inset + content + faces.hintHeight + scaled(style.bottomExtra, fontSize);
 
-		frame(g, x, y, width, height);
-		wideContent(new Pen(g, true), faces, card, picture, fontSize, width, x, y, description, accent);
-		g.setFont(faces.hint);
-		g.setColor(HINT);
-		g.drawString(card.hint(), x + INSET, y + INSET + content + faces.hintMetrics.getAscent());
+		style.frame(g, x, y, width, height);
+		final Pen pen = new Pen(g, true, style, x, width);
+		wideContent(pen, faces, card, picture, fontSize, width, x, y, description, accent);
+		pen.string(card.hint(), faces.hint, style.hint, x + style.inset,
+			y + style.inset + content + faces.hintMetrics.getAscent());
 		return new Dimension(width, height);
 	}
 
 	/** A width given at 16 px, at {@code fontSize}. */
-	private static int scaled(int atBase, int fontSize)
+	static int scaled(int atBase, int fontSize)
 	{
 		return Math.round(atBase * fontSize / BASE_SIZE);
-	}
-
-	/** The card's ground, its black edge, and the line inside the edge. */
-	private static void frame(Graphics2D g, int x, int y, int width, int height)
-	{
-		g.setColor(GROUND);
-		g.fillRect(x, y, width, height);
-		g.setColor(Color.BLACK);
-		g.drawRect(x, y, width - 1, height - 1);
-		g.setColor(LINE);
-		g.drawRect(x + 1, y + 1, width - 3, height - 3);
 	}
 
 	/**
@@ -212,10 +223,11 @@ final class CardPainter
 		int oy, String description, int capAt16, int paragraphLines)
 	{
 		final FontMetrics body = faces.bodyMetrics;
-		final int innerMax = scaled(capAt16, fontSize) - 2 * INSET;
-		final int left = ox + INSET;
-		final int top = oy + INSET;
-		final List<Word> dropWords = dropWords(card);
+		final CardStyle style = pen.style;
+		final int innerMax = scaled(capAt16, fontSize) - 2 * style.inset;
+		final int left = ox + style.inset;
+		final int top = oy + style.inset;
+		final List<Word> dropWords = dropWords(card, style);
 
 		// The width: the widest of what the four parts ask for, held to the most.
 		final int paragraphNeed = Math.min(innerMax, descriptionNeed(description, body));
@@ -236,7 +248,7 @@ final class CardPainter
 				for (final Word word : line)
 				{
 					pen.string(word.text, faces.body, word.colour, x, y + body.getAscent());
-					pen.string(word.tail, faces.body, LABEL, x + body.stringWidth(word.text), y + body.getAscent());
+					pen.string(word.tail, faces.body, style.label, x + body.stringWidth(word.text), y + body.getAscent());
 					x += word.width(body) + body.stringWidth(LABEL_GAP);
 				}
 				y += faces.bodyHeight;
@@ -252,7 +264,7 @@ final class CardPainter
 			y += 1 + RULE_AIR;
 			for (final TextLine line : lines)
 			{
-				pen.string(line.text, faces.body, Color.WHITE, left + line.indent, y + body.getAscent());
+				pen.string(line.text, faces.body, DESCRIPTION, left + line.indent, y + body.getAscent());
 				y += faces.bodyHeight;
 			}
 		}
@@ -268,10 +280,11 @@ final class CardPainter
 	private static int wideContent(Pen pen, Faces faces, HoverCard card, BufferedImage picture, int fontSize, int width,
 		int ox, int oy, String description, Color accent)
 	{
-		final int left = ox + INSET;
-		final int innerWidth = Math.max(1, width - 2 * INSET);
+		final CardStyle style = pen.style;
+		final int left = ox + style.inset;
+		final int innerWidth = Math.max(1, width - 2 * style.inset);
 		final int right = left + innerWidth;
-		final int top = oy + INSET;
+		final int top = oy + style.inset;
 		final int dropGap = scaled(DROP_GAP, fontSize);
 		final FontMetrics body = faces.bodyMetrics;
 
@@ -282,7 +295,7 @@ final class CardPainter
 		final List<HoverCard.Pair> drops = dropsOf(card);
 		if (!drops.isEmpty())
 		{
-			pen.string(DROPS, faces.body, LABEL, left, y + body.getAscent());
+			pen.string(DROPS, faces.body, style.label, left, y + body.getAscent());
 			final int dropsLeft = left + body.stringWidth(DROPS) + dropGap;
 			final int available = Math.max(1, right - dropsLeft);
 			final int spaceWidth = body.stringWidth(LABEL_GAP);
@@ -317,13 +330,13 @@ final class CardPainter
 						: dropsLeft + before + Math.round(i * gap);
 					if (drop.value.isEmpty())
 					{
-						pen.string(fit(drop.label, body, Math.max(1, w)), faces.body, LABEL, dropX, y + body.getAscent());
+						pen.string(fit(drop.label, body, Math.max(1, w)), faces.body, style.label, dropX, y + body.getAscent());
 					}
 					else
 					{
 						final int rateWidth = body.stringWidth(drop.value);
-						pen.string(drop.value, faces.body, LABEL, dropX, y + body.getAscent());
-						pen.string(fit(drop.label, body, Math.max(1, w - rateWidth - spaceWidth)), faces.body, LABEL,
+						pen.string(drop.value, faces.body, style.wideRate, dropX, y + body.getAscent());
+						pen.string(fit(drop.label, body, Math.max(1, w - rateWidth - spaceWidth)), faces.body, style.label,
 							dropX + rateWidth + spaceWidth, y + body.getAscent());
 					}
 					before += w;
@@ -337,7 +350,7 @@ final class CardPainter
 		y += 1 + RULE_AIR;
 		for (final TextLine line : layout(description, body, innerWidth, WIDE_LINES))
 		{
-			pen.string(line.text, faces.body, Color.WHITE, left + line.indent, y + body.getAscent());
+			pen.string(line.text, faces.body, DESCRIPTION, left + line.indent, y + body.getAscent());
 			y += faces.bodyHeight;
 		}
 		return y - top;
@@ -380,10 +393,11 @@ final class CardPainter
 			pen.picture(picture, left, top);
 		}
 		final int titleTop = under ? top : top + (rowHeight - faces.titleHeight) / 2;
-		pen.string(name, faces.title, Color.WHITE, textLeft, titleTop + faces.titleMetrics.getAscent());
+		pen.title(name, faces.title, textLeft, titleTop + faces.titleMetrics.getAscent());
 		if (stack != null)
 		{
-			pen.string(LABEL_GAP + stack, faces.body, LABEL, textLeft + nameWidth, titleTop + faces.titleMetrics.getAscent());
+			pen.string(LABEL_GAP + stack, faces.body, pen.style.label, textLeft + nameWidth,
+				titleTop + faces.titleMetrics.getAscent());
 		}
 		if (under)
 		{
@@ -469,7 +483,7 @@ final class CardPainter
 	 * rate in white (none for a drop with no rate), a comma in the label grey after every drop but the last, attached to
 	 * the word before it. No words when the card has no drops.
 	 */
-	private static List<Word> dropWords(HoverCard card)
+	private static List<Word> dropWords(HoverCard card, CardStyle style)
 	{
 		final List<Word> words = new ArrayList<>();
 		final List<HoverCard.Pair> drops = dropsOf(card);
@@ -477,7 +491,7 @@ final class CardPainter
 		{
 			return words;
 		}
-		words.add(new Word(DROPS + ":", LABEL, ""));
+		words.add(new Word(DROPS + ":", style.label, ""));
 		for (int i = 0; i < drops.size(); i++)
 		{
 			final HoverCard.Pair drop = drops.get(i);
@@ -485,12 +499,12 @@ final class CardPainter
 			{
 				if (!part.isEmpty())
 				{
-					words.add(new Word(part, LABEL, ""));
+					words.add(new Word(part, style.label, ""));
 				}
 			}
 			if (!drop.value.isEmpty())
 			{
-				words.add(new Word(drop.value, Color.WHITE, ""));
+				words.add(new Word(drop.value, style.value, ""));
 			}
 			if (i < drops.size() - 1)
 			{
@@ -542,7 +556,7 @@ final class CardPainter
 	}
 
 	/** The card's title without the stack ("Dragon platelegs x7" is "Dragon platelegs"). */
-	private static String nameOf(HoverCard card)
+	static String nameOf(HoverCard card)
 	{
 		final String title = card.title();
 		final String stack = stackOf(card);
@@ -551,20 +565,20 @@ final class CardPainter
 	}
 
 	/** The stack as "x7", or null for a card that is not a stack. */
-	private static String stackOf(HoverCard card)
+	static String stackOf(HoverCard card)
 	{
 		return card.quantity() > 1 ? "x" + card.quantity() : null;
 	}
 
 	/** The pairs of the card's first row, the facts; none when it has no rows. */
-	private static List<HoverCard.Pair> factsOf(HoverCard card)
+	static List<HoverCard.Pair> factsOf(HoverCard card)
 	{
 		final List<List<HoverCard.Pair>> rows = card.rows();
 		return rows.isEmpty() ? new ArrayList<HoverCard.Pair>() : rows.get(0);
 	}
 
 	/** The drops: the first pair of each row after the first, the source as its label and the rate as its value. */
-	private static List<HoverCard.Pair> dropsOf(HoverCard card)
+	static List<HoverCard.Pair> dropsOf(HoverCard card)
 	{
 		final List<HoverCard.Pair> drops = new ArrayList<>();
 		final List<List<HoverCard.Pair>> rows = card.rows();
@@ -736,7 +750,7 @@ final class CardPainter
 	}
 
 	/** The text as it is when it fits in {@code width} px, else cut from its end and ending in "...". */
-	private static String fit(String text, FontMetrics metrics, int width)
+	static String fit(String text, FontMetrics metrics, int width)
 	{
 		if (metrics.stringWidth(text) <= width)
 		{
@@ -774,11 +788,11 @@ final class CardPainter
 		for (final HoverCard.Pair pair : row)
 		{
 			final String head = pair.label + LABEL_GAP;
-			pen.string(head, faces.body, LABEL, x, baseline);
+			pen.string(head, faces.body, pen.style.label, x, baseline);
 			x += faces.bodyMetrics.stringWidth(head);
-			pen.string(pair.value, faces.body, Color.WHITE, x, baseline);
+			pen.string(pair.value, faces.body, pen.style.value, x, baseline);
 			x += faces.bodyMetrics.stringWidth(pair.value);
-			pen.string(pair.note, faces.body, LABEL, x, baseline);
+			pen.string(pair.note, faces.body, pen.style.label, x, baseline);
 			x += faces.bodyMetrics.stringWidth(pair.note) + gap;
 		}
 	}
@@ -857,32 +871,141 @@ final class CardPainter
 	 */
 	private static final class Pen
 	{
+		/** The offsets of the eight copies a title's halo is drawn at, in px. */
+		private static final int[][] AROUND = {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}};
+		/** The offsets of the five copies a title's outline is drawn at, in px: left, right, up, down and down-right. */
+		private static final int[][] OUTLINE = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {1, 1}};
+		/** How far to the left and to the right of the title its two split copies are drawn, in px. */
+		private static final int SPLIT = 2;
+
 		private final Graphics2D g;
 		private final boolean draw;
+		/** The colours and the shadow this pen draws in. */
+		final CardStyle style;
+		/** The card's left edge and its width, in px, which a style's gradient runs across. */
+		private final int cardLeft;
+		private final int cardWidth;
 
-		Pen(Graphics2D g, boolean draw)
+		Pen(Graphics2D g, boolean draw, CardStyle style)
+		{
+			this(g, draw, style, 0, 1);
+		}
+
+		Pen(Graphics2D g, boolean draw, CardStyle style, int cardLeft, int cardWidth)
 		{
 			this.g = g;
 			this.draw = draw;
+			this.style = style;
+			this.cardLeft = cardLeft;
+			this.cardWidth = cardWidth;
 		}
 
+		/**
+		 * Draws the string, first a black outline round it when the style has one (the space and scene looks), else a black
+		 * copy 1 px to the right and down when it asks for a shadow.
+		 */
 		void string(String text, Font font, Color colour, int x, int baseline)
+		{
+			paintString(text, font, colour, x, baseline, true);
+		}
+
+		/** Draws the string in {@code paint}; {@code edged} false leaves out the outline or the shadow. */
+		private void paintString(String text, Font font, Paint paint, int x, int baseline, boolean edged)
 		{
 			if (draw)
 			{
+				final Paint before = g.getPaint();
 				g.setFont(font);
-				g.setColor(colour);
+				if (edged && style.outline)
+				{
+					g.setColor(Color.BLACK);
+					g.drawString(text, x - 1, baseline);
+					g.drawString(text, x + 1, baseline);
+					g.drawString(text, x, baseline - 1);
+					g.drawString(text, x, baseline + 1);
+					g.drawString(text, x + 1, baseline + 1);
+				}
+				else if (edged && style.shadow)
+				{
+					g.setColor(Color.BLACK);
+					g.drawString(text, x + 1, baseline + 1);
+				}
+				g.setPaint(paint);
 				g.drawString(text, x, baseline);
+				g.setPaint(before);
 			}
 		}
 
+		/**
+		 * Draws the card's title in the style's title colour, or in its gradient across the card when it has one. Behind it,
+		 * in this order, the style's halo, its outline and its split, each when it has one.
+		 */
+		void title(String text, Font font, int x, int baseline)
+		{
+			if (draw && style.titleGlow != null)
+			{
+				g.setFont(font);
+				g.setColor(style.titleGlow);
+				for (final int[] offset : AROUND)
+				{
+					g.drawString(text, x + offset[0], baseline + offset[1]);
+				}
+			}
+			if (draw && style.titleOutline != null)
+			{
+				g.setFont(font);
+				g.setColor(style.titleOutline);
+				for (final int[] offset : OUTLINE)
+				{
+					g.drawString(text, x + offset[0], baseline + offset[1]);
+				}
+			}
+			if (draw && style.titleSplit != null)
+			{
+				g.setFont(font);
+				g.setColor(style.titleSplit[0]);
+				g.drawString(text, x - SPLIT, baseline);
+				g.setColor(style.titleSplit[1]);
+				g.drawString(text, x + SPLIT, baseline);
+			}
+			if (draw)
+			{
+				// A title with an outline of its own (Steampunk's brown, Synthwave's plum) takes no black one over it.
+				paintString(text, font, style.titleGradient == null ? style.title : across(), x, baseline,
+					style.titleOutline == null);
+			}
+		}
+
+		/**
+		 * Draws a rule in the style's rule colour, or in its gradient across the card when its rules take it, and the style's
+		 * light rule on the pixel row under it when it has one.
+		 */
 		void rule(int x, int y, int width, int height)
 		{
 			if (draw)
 			{
-				g.setColor(LINE);
+				final Paint before = g.getPaint();
+				g.setPaint(style.gradientRules ? across() : style.rule);
 				g.fillRect(x, y, width, height);
+				if (style.ruleLight != null)
+				{
+					g.setColor(style.ruleLight);
+					g.fillRect(x, y + height, width, 1);
+				}
+				g.setPaint(before);
 			}
+		}
+
+		/** The style's gradient colours, left to right across the card, evenly spaced. */
+		private Paint across()
+		{
+			final Color[] colours = style.titleGradient;
+			final float[] fractions = new float[colours.length];
+			for (int i = 0; i < colours.length; i++)
+			{
+				fractions[i] = i / (float) (colours.length - 1);
+			}
+			return new LinearGradientPaint(cardLeft, 0f, cardLeft + Math.max(2, cardWidth), 0f, fractions, colours);
 		}
 
 		void picture(BufferedImage image, int x, int y)

@@ -52,7 +52,8 @@ public class DemoLinesTest
 		// Re-aimed by the lead, 2026-10-08 (lot 8R): the fifth item line makes 16 in all.
 		// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card, so 14 in all.
 		// Re-aimed by the lead, 2026-10-09 (lot 9E): a second quest line, in the game's string-variable form.
-		assertEquals("15 lines in all", 15, all.size());
+		// Re-aimed by the lead, 2026-10-25 (lot 10O): the own level-up line.
+		assertEquals("16 lines in all", 16, all.size());
 
 		final ItemCards itemCards = Mockito.mock(ItemCards.class);
 		when(itemCards.forName(anyString(), anyInt(), anyString(), anyInt(), anyInt())).thenAnswer(call ->
@@ -73,14 +74,18 @@ public class DemoLinesTest
 	{
 		// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card, so seven kinds.
 		// Re-aimed by the lead, 2026-10-09 (lot 9E): a second quest line, in the game's string-variable form.
-		assertEquals(8, DemoLines.KINDS.size());
-		for (final DemoLines.Line line : DemoLines.KINDS)
+		// Re-aimed by the lead, 2026-10-25 (lot 10O): the own level-up line.
+		assertEquals(9, DemoLines.KINDS.size());
+		for (int i = 0; i < DemoLines.KINDS.size(); i++)
 		{
-			assertEquals(ChatMessageType.CLAN_MESSAGE, line.type);
+			final DemoLines.Line line = DemoLines.KINDS.get(i);
+			assertEquals(i < 8 ? ChatMessageType.CLAN_MESSAGE : ChatMessageType.GAMEMESSAGE, line.type);
 			assertEquals("a broadcast has no speaker", "", line.name);
 		}
+		assertEquals("the ninth is the own Sailing level-up",
+			"Congratulations, you've just advanced your Sailing level. You are now level 47.", DemoLines.KINDS.get(8).text);
 		final List<DemoLines.Line> all = DemoLines.lines();
-		assertEquals("lines() ends with the kinds", DemoLines.KINDS, all.subList(all.size() - 8, all.size()));
+		assertEquals("lines() ends with the kinds", DemoLines.KINDS, all.subList(all.size() - 9, all.size()));
 
 		final CardTables tables;
 		try (Reader in = new InputStreamReader(DemoLinesTest.class.getResourceAsStream("/com/clanhub/cards-fixture.json"),

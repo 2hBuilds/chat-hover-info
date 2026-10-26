@@ -478,4 +478,36 @@ public class BroadcastKindReaderTest
 		assertEquals(ItemID.TRAIL_WATCH, unknownBest.itemId());
 		assertTrue("and so does an unknown personal best", unknownBest.wikiPicture());
 	}
+
+	/** Lot 10O: the player's own level-up game line gives the level card, its words from the skill to the number. */
+	@Test
+	public void anOwnLevelUpGivesTheLevelCard() throws Exception
+	{
+		// Re-aimed by the lead, 2026-10-25 (lot 10O): the words run from the skill to the number, the user's pick.
+		final BroadcastKindReader reader = reader(Mockito.mock(ItemCards.class));
+		final String own = "Congratulations, you've just advanced your Defence level. You are now level 70.";
+
+		final HoverCard card = theCard(reader, ChatMessageType.GAMEMESSAGE, own);
+		assertEquals("Defence 70", card.title());
+		assertEquals("New unlocks 4", rowOf(card));
+		assertFalse("quiet", card.marked());
+		assertEquals("Defence level. You are now level 70", own.substring(card.start(), card.end()));
+		assertEquals("the words index the plain line", "Defence level. You are now level 70",
+			card.plainLine().substring(card.start(), card.end()));
+		assertTrue(card.wikiUrl().endsWith("/w/Defence/Level_up_table"));
+
+		final HoverCard clanCard = theCard(reader, ChatMessageType.CLAN_MESSAGE, "Klar has reached Defence level 70.");
+		assertEquals("the clan line gives a card of the same title", card.title(), clanCard.title());
+
+		assertTrue("the own text as a clan line is no level-up", reader.read(ChatMessageType.CLAN_MESSAGE, own).isEmpty());
+		assertTrue("a combat level gives no card", reader.read(ChatMessageType.GAMEMESSAGE,
+			"Congratulations, you've just advanced your Combat level. You are now level 100.").isEmpty());
+
+		final String sailing = "Congratulations, you've just advanced your Sailing level. You are now level 47.";
+		final HoverCard plain = theCard(reader, ChatMessageType.GAMEMESSAGE, sailing);
+		assertEquals("a skill the table lacks gives the plain card", "Sailing level 47", plain.title());
+		assertEquals("Skill Sailing", rowOf(plain));
+		assertEquals("Sailing level. You are now level 47", sailing.substring(plain.start(), plain.end()));
+		assertFalse("quiet", plain.marked());
+	}
 }

@@ -203,11 +203,12 @@ public class ChatCardOverlay extends Overlay
 		final String description = descriptionOf(card);
 		final int fontSize = config.cardFontSize();
 		final ClanHubConfig.CardWidth width = config.cardWidth();
+		final CardStyle style = CardStyle.of(config.cardTheme());
 		final Graphics2D measure = scratch.createGraphics();
 		final Dimension size;
 		try
 		{
-			size = CardPainter.paintSplit(measure, card, picture, fontSize, 0, 0, description, width.cap, width.lines);
+			size = CardPainter.paintSplit(measure, card, picture, fontSize, 0, 0, description, width.cap, width.lines, style);
 		}
 		finally
 		{
@@ -217,7 +218,7 @@ public class ChatCardOverlay extends Overlay
 		final Graphics2D g = image.createGraphics();
 		try
 		{
-			CardPainter.paintSplit(g, card, picture, fontSize, 0, 0, description, width.cap, width.lines);
+			CardPainter.paintSplit(g, card, picture, fontSize, 0, 0, description, width.cap, width.lines, style);
 		}
 		finally
 		{
@@ -365,6 +366,7 @@ public class ChatCardOverlay extends Overlay
 
 		final BufferedImage picture = pictureOf(shown);
 		final int fontSize = config.cardFontSize();
+		final CardStyle style = CardStyle.of(config.cardTheme());
 		final Graphics2D measure = scratch.createGraphics();
 		measure.setRenderingHints(g.getRenderingHints());
 		if (config.cardPlace() == ClanHubConfig.CardPlace.CHAT)
@@ -375,20 +377,20 @@ public class ChatCardOverlay extends Overlay
 			final String description = descriptionOf(shown);
 			final Color accent = config.hoverColour();
 			final Dimension size = CardPainter.paintWide(measure, shown, picture, fontSize, chat.width, 0, 0, description,
-				accent);
+				accent, style);
 			measure.dispose();
 			final Rectangle at = CardPainter.placeAboveChat(chat, size);
-			CardPainter.paintWide(g, shown, picture, fontSize, chat.width, at.x, at.y, description, accent);
+			CardPainter.paintWide(g, shown, picture, fontSize, chat.width, at.x, at.y, description, accent, style);
 			return null;
 		}
 		final String description = descriptionOf(shown);
 		final ClanHubConfig.CardWidth width = config.cardWidth();
 		final Dimension size = CardPainter.paintSplit(measure, shown, picture, fontSize, 0, 0, description, width.cap,
-			width.lines);
+			width.lines, style);
 		measure.dispose();
 		final Rectangle at = CardPainter.placeCentred(new Point(mouseX, mouseY), size,
 			new Dimension(client.getCanvasWidth(), client.getCanvasHeight()));
-		CardPainter.paintSplit(g, shown, picture, fontSize, at.x, at.y, description, width.cap, width.lines);
+		CardPainter.paintSplit(g, shown, picture, fontSize, at.x, at.y, description, width.cap, width.lines, style);
 		return null;
 	}
 

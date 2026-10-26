@@ -94,6 +94,112 @@ public interface ClanHubConfig extends Config
 	}
 
 	/**
+	 * The look of the cards: Classic is the plain brown card the plugin first shipped, Stone the game's own stone frame
+	 * with its orange title and yellow values, Void a purple card with stars, Wiki the wiki's own infobox, and the eight
+	 * after it (Nebula to Cosmic edge) dark cards with a picture of space; {@link SpaceSky} paints those. The twelve after
+	 * those (Forest to Lavender) are scenes: nature and craft pictures, which {@link SceneSky} paints. {@link CardStyle}
+	 * holds what each paints with.
+	 */
+	enum CardTheme
+	{
+		CLASSIC("Classic"),
+		STONE("Stone"),
+		VOID("Void"),
+		WIKI("Wiki"),
+		NEBULA("Nebula"),
+		AURORA("Aurora"),
+		GALAXY("Galaxy"),
+		PLANET("Planet rise"),
+		ECLIPSE("Eclipse"),
+		CONSTELLATION("Constellation"),
+		BLACK_HOLE("Black hole"),
+		COSMIC("Cosmic edge"),
+		FOREST("Forest"),
+		OCEAN("Ocean"),
+		AUTUMN("Autumn"),
+		SAKURA("Sakura"),
+		STEAMPUNK("Steampunk"),
+		CYBERPUNK("Cyberpunk"),
+		SYNTHWAVE("Synthwave"),
+		VOLCANO("Volcano"),
+		RUNIC("Runic"),
+		SPOOKY("Spooky"),
+		GARDEN("Garden"),
+		LAVENDER("Lavender");
+
+		private final String text;
+
+		CardTheme(String text)
+		{
+			this.text = text;
+		}
+
+		/** The words the settings show for the choice. */
+		@Override
+		public String toString()
+		{
+			return text;
+		}
+	}
+
+	/**
+	 * The look of the sidebar: the card theme's own ({@link #SAME}), RuneLite's own greys ({@link #RUNELITE}), or a theme of
+	 * its own, one value for each {@link CardTheme} in the same order and with the same words. {@link #card} names the card
+	 * theme whose look the sidebar then wears, or is null for the first two.
+	 */
+	enum SidebarTheme
+	{
+		SAME("Same as cards", null),
+		RUNELITE("RuneLite", null),
+		CLASSIC("Classic", CardTheme.CLASSIC),
+		STONE("Stone", CardTheme.STONE),
+		VOID("Void", CardTheme.VOID),
+		WIKI("Wiki", CardTheme.WIKI),
+		NEBULA("Nebula", CardTheme.NEBULA),
+		AURORA("Aurora", CardTheme.AURORA),
+		GALAXY("Galaxy", CardTheme.GALAXY),
+		PLANET("Planet rise", CardTheme.PLANET),
+		ECLIPSE("Eclipse", CardTheme.ECLIPSE),
+		CONSTELLATION("Constellation", CardTheme.CONSTELLATION),
+		BLACK_HOLE("Black hole", CardTheme.BLACK_HOLE),
+		COSMIC("Cosmic edge", CardTheme.COSMIC),
+		FOREST("Forest", CardTheme.FOREST),
+		OCEAN("Ocean", CardTheme.OCEAN),
+		AUTUMN("Autumn", CardTheme.AUTUMN),
+		SAKURA("Sakura", CardTheme.SAKURA),
+		STEAMPUNK("Steampunk", CardTheme.STEAMPUNK),
+		CYBERPUNK("Cyberpunk", CardTheme.CYBERPUNK),
+		SYNTHWAVE("Synthwave", CardTheme.SYNTHWAVE),
+		VOLCANO("Volcano", CardTheme.VOLCANO),
+		RUNIC("Runic", CardTheme.RUNIC),
+		SPOOKY("Spooky", CardTheme.SPOOKY),
+		GARDEN("Garden", CardTheme.GARDEN),
+		LAVENDER("Lavender", CardTheme.LAVENDER);
+
+		private final String text;
+		private final CardTheme card;
+
+		SidebarTheme(String text, CardTheme card)
+		{
+			this.text = text;
+			this.card = card;
+		}
+
+		/** The card theme this look wears, or null for "Same as cards" and "RuneLite". */
+		CardTheme card()
+		{
+			return card;
+		}
+
+		/** The words the settings show for the choice. */
+		@Override
+		public String toString()
+		{
+			return text;
+		}
+	}
+
+	/**
 	 * How an examine line you asked for reads: with the thing's name written in front of its text, the name alone the
 	 * hover words, or the text alone, all of it the hover words.
 	 */
@@ -313,12 +419,36 @@ public interface ClanHubConfig extends Config
 		return CardWidth.MEDIUM;
 	}
 
+	/** The look of the cards. */
+	@ConfigItem(
+		keyName = "cardTheme",
+		name = "Card theme",
+		description = "The look of the cards: Classic, Stone (the game's own frame), Void, Wiki (the wiki's infobox) or one of twenty scene looks.",
+		position = 15
+	)
+	default CardTheme cardTheme()
+	{
+		return CardTheme.CLASSIC;
+	}
+
+	/** The look of the sidebar: the cards' theme, RuneLite's own, or a theme of its own. */
+	@ConfigItem(
+		keyName = "sidebarLook",
+		name = "Sidebar theme",
+		description = "The look of the sidebar: the cards' theme, RuneLite's own, or a theme of its own.",
+		position = 16
+	)
+	default SidebarTheme sidebarLook()
+	{
+		return SidebarTheme.SAME;
+	}
+
 	/** How a recent card's time reads in the sidebar. */
 	@ConfigItem(
 		keyName = "cardTime",
 		name = "Card time",
 		description = "How a recent card's time reads in the sidebar: how long ago, or the clock time in 24 or 12 hours.",
-		position = 15
+		position = 17
 	)
 	default CardTime cardTime()
 	{
@@ -330,7 +460,7 @@ public interface ClanHubConfig extends Config
 		keyName = "nameColour",
 		name = "Name colour",
 		description = "The colour of the player's name in the sidebar's recent cards.",
-		position = 16
+		position = 18
 	)
 	default Color nameColour()
 	{
@@ -342,7 +472,7 @@ public interface ClanHubConfig extends Config
 		keyName = "alwaysUnderlineLevels",
 		name = "Underline level-ups",
 		description = "Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them.",
-		position = 17
+		position = 19
 	)
 	default boolean alwaysUnderlineLevels()
 	{
@@ -354,7 +484,7 @@ public interface ClanHubConfig extends Config
 		keyName = "alwaysUnderlineColour",
 		name = "Underline colour",
 		description = "The colour of that line.",
-		position = 18
+		position = 20
 	)
 	default Color alwaysUnderlineColour()
 	{
@@ -363,7 +493,7 @@ public interface ClanHubConfig extends Config
 
 	/**
 	 * Whether the sidebar's "How to use" box is folded to its header. The panel's own memory, not a setting the player
-	 * sees: hidden from RuneLite's settings page, so the settings stay eighteen.
+	 * sees: hidden from RuneLite's settings page, so the settings stay twenty.
 	 */
 	@ConfigItem(
 		keyName = "howToFolded",

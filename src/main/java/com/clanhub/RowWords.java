@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * <li>"medium task", "easy task" and the other tiers, in lower case: "GMucker has completed a medium combat task: Smite Fight."</li>
  * <li>"pet": "Clipper has a funny feeling like he's being followed: Pet snakeling at 2,678 killcount.", "... sneaking into ...", "... acquired something special ..."</li>
  * <li>"XP milestone": "FishStonks has reached 43,000,000 XP in Strength."</li>
- * <li>"level-up": "aetzli has reached Crafting level 50."</li>
+ * <li>"level-up": "aetzli has reached Crafting level 50." or the player's own "Congratulations, you've just advanced your Thieving level. You are now level 77."</li>
  * <li>"diary": "Klar has completed the Elite Ardougne diary."</li>
  * <li>"personal best": "Klar has achieved a new Vorkath personal best: 2:28"</li>
  * <li>"kill count": "Your Vorkath kill count is: 420."</li>
@@ -107,7 +107,8 @@ final class RowWords
 		{
 			return "XP milestone";
 		}
-		if (lower.contains("has reached") && lower.contains("level"))
+		if (lower.contains("level")
+			&& (lower.contains("has reached") || lower.contains("just advanced your") || lower.contains("just advanced a")))
 		{
 			return "level-up";
 		}

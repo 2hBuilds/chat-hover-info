@@ -1,16 +1,19 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTheme;
 import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
+import com.clanhub.ClanHubConfig.SidebarTheme;
 import java.awt.Color;
 import net.runelite.client.config.Keybind;
 import org.junit.Test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** {@link ClanHubConfig}: what a player who has never opened the settings gets. */
@@ -121,6 +124,32 @@ public class ClanHubConfigTest
 		assertEquals("2:32 PM", CardTime.CLOCK_12.toString());
 	}
 
+	/** Lot 10S: the sidebar is dressed in the card theme from the start. */
+	// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
+	@Test
+	public void theSidebarFollowsTheThemeByDefault()
+	{
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertEquals("the sidebar wears the card theme", SidebarTheme.SAME, config.sidebarLook());
+		final SidebarTheme[] looks = SidebarTheme.values();
+		final CardTheme[] themes = CardTheme.values();
+		assertEquals("Same as cards, RuneLite, then every card theme", 2 + themes.length, looks.length);
+		assertEquals("the first one's words", "Same as cards", looks[0].toString());
+		assertEquals("the second one's words", "RuneLite", looks[1].toString());
+		assertEquals("the first one", SidebarTheme.SAME, looks[0]);
+		assertEquals("the second one", SidebarTheme.RUNELITE, looks[1]);
+		assertNull("the first has no card theme", looks[0].card());
+		assertNull("nor the second", looks[1].card());
+		for (int i = 0; i < themes.length; i++)
+		{
+			assertEquals("the same words in the same order", themes[i].toString(), looks[2 + i].toString());
+			assertEquals("and its card theme", themes[i], looks[2 + i].card());
+		}
+	}
+
 	@Test
 	public void theAlwaysUnderlineIsOffAndGrey()
 	{
@@ -177,6 +206,51 @@ public class ClanHubConfigTest
 		assertEquals("Wide", CardWidth.WIDE.toString());
 		assertEquals("Medium", CardWidth.MEDIUM.toString());
 		assertEquals("Narrow", CardWidth.NARROW.toString());
+	}
+
+	/** Lot 10P: the cards open in the game's own stone frame until the player picks Classic or Void. */
+	// Re-aimed by the lead, 2026-10-25 (lot 10Q): a fourth theme, Wiki.
+	@Test
+	public void theCardThemeIsStone()
+	{
+		// Re-aimed by the lead, 2026-10-26: Classic is the default, the user's word; the name stays.
+		// Re-aimed by the lead, 2026-10-26 (lot 10R): eight space themes after Wiki.
+		// Re-aimed by the lead, 2026-10-26 (lot 10T): twelve scene themes after Cosmic edge.
+		final ClanHubConfig config = new ClanHubConfig()
+		{
+		};
+
+		assertEquals("the card is Classic by default", CardTheme.CLASSIC, config.cardTheme());
+		assertArrayEquals("Classic, Stone, Void, Wiki, the eight space looks, then the twelve scene looks, in that order",
+			new CardTheme[] {CardTheme.CLASSIC, CardTheme.STONE, CardTheme.VOID, CardTheme.WIKI, CardTheme.NEBULA,
+				CardTheme.AURORA, CardTheme.GALAXY, CardTheme.PLANET, CardTheme.ECLIPSE, CardTheme.CONSTELLATION,
+				CardTheme.BLACK_HOLE, CardTheme.COSMIC, CardTheme.FOREST, CardTheme.OCEAN, CardTheme.AUTUMN,
+				CardTheme.SAKURA, CardTheme.STEAMPUNK, CardTheme.CYBERPUNK, CardTheme.SYNTHWAVE, CardTheme.VOLCANO,
+				CardTheme.RUNIC, CardTheme.SPOOKY, CardTheme.GARDEN, CardTheme.LAVENDER}, CardTheme.values());
+		assertEquals("Classic", CardTheme.CLASSIC.toString());
+		assertEquals("Stone", CardTheme.STONE.toString());
+		assertEquals("Void", CardTheme.VOID.toString());
+		assertEquals("Wiki", CardTheme.WIKI.toString());
+		assertEquals("Nebula", CardTheme.NEBULA.toString());
+		assertEquals("Aurora", CardTheme.AURORA.toString());
+		assertEquals("Galaxy", CardTheme.GALAXY.toString());
+		assertEquals("Planet rise", CardTheme.PLANET.toString());
+		assertEquals("Eclipse", CardTheme.ECLIPSE.toString());
+		assertEquals("Constellation", CardTheme.CONSTELLATION.toString());
+		assertEquals("Black hole", CardTheme.BLACK_HOLE.toString());
+		assertEquals("Cosmic edge", CardTheme.COSMIC.toString());
+		assertEquals("Forest", CardTheme.FOREST.toString());
+		assertEquals("Ocean", CardTheme.OCEAN.toString());
+		assertEquals("Autumn", CardTheme.AUTUMN.toString());
+		assertEquals("Sakura", CardTheme.SAKURA.toString());
+		assertEquals("Steampunk", CardTheme.STEAMPUNK.toString());
+		assertEquals("Cyberpunk", CardTheme.CYBERPUNK.toString());
+		assertEquals("Synthwave", CardTheme.SYNTHWAVE.toString());
+		assertEquals("Volcano", CardTheme.VOLCANO.toString());
+		assertEquals("Runic", CardTheme.RUNIC.toString());
+		assertEquals("Spooky", CardTheme.SPOOKY.toString());
+		assertEquals("Garden", CardTheme.GARDEN.toString());
+		assertEquals("Lavender", CardTheme.LAVENDER.toString());
 	}
 
 	@Test

@@ -40,4 +40,11 @@ public class RowWordsTest
 		check("Rune scimitar: This sword has seen many battles.", "You", "examined");
 		check(null, "", "");
 	}
+
+	/** Lot 10O: the player's own level-up line, from the plugin's own trace, is theirs and a level-up. */
+	@Test
+	public void anOwnLevelUpIsYoursAndALevelUp()
+	{
+		check("Congratulations, you've just advanced your Thieving level. You are now level 77.", "You", "level-up");
+	}
 }

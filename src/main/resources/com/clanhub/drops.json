@@ -1,4 +1,4 @@
-{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki", "fetched": "2026-10-25",
+{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki", "fetched": "2026-10-26",
  "items": {
   "'perfect' gold ore": [{"from": "Gold rocks", "rate": "Always", "wiki": "Gold_rocks"}],
   "3rd Age amulet": [{"from": "The Mimic", "rate": "1/5750", "wiki": "The_Mimic"}, {"from": "Reward casket (hard)", "rate": "1/211250", "wiki": "Reward_casket_(hard)"}, {"from": "Reward casket (elite)", "rate": "1/249262.5", "wiki": "Reward_casket_(elite)"}, {"from": "Reward casket (master)", "rate": "1/313168", "wiki": "Reward_casket_(master)"}],
@@ -2364,6 +2364,7 @@
   "Orca blubber": [{"from": "Orca", "rate": "1/2", "wiki": "Orca"}],
   "Orca teeth": [{"from": "Orca", "rate": "1/10", "wiki": "Orca"}],
   "Orikalkum gravel": [{"from": "Maggot King", "rate": "1/39.8", "wiki": "Maggot_King"}, {"from": "Blood-starved venator", "rate": "1/43.7", "wiki": "Blood-starved_venator"}, {"from": "Venator", "rate": "1/131", "wiki": "Venator"}],
+  "Orion": [{"from": "The Fractured Archive", "rate": "Unknown", "wiki": "The_Fractured_Archive"}],
   "Osmumten's fang": [{"from": "Tombs of Amascut (per unique)", "rate": "1/3.4", "wiki": "Tombs_of_Amascut"}],
   "Osprey beak": [{"from": "Osprey", "rate": "1/10", "wiki": "Osprey"}],
   "Osprey feather": [{"from": "Osprey", "rate": "1/2", "wiki": "Osprey"}],

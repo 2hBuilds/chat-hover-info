@@ -1,10 +1,12 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTheme;
 import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
+import com.clanhub.ClanHubConfig.SidebarTheme;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.Color;
@@ -37,6 +39,7 @@ import javax.swing.SwingUtilities;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameTick;
@@ -517,6 +520,30 @@ public class ClanHubPlugin extends Plugin
 			}
 
 			@Override
+			public SidebarTheme sidebarLook()
+			{
+				return config.sidebarLook();
+			}
+
+			@Override
+			public void setSidebarLook(SidebarTheme look)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "sidebarLook", look);
+			}
+
+			@Override
+			public CardTheme cardTheme()
+			{
+				return config.cardTheme();
+			}
+
+			@Override
+			public void setCardTheme(CardTheme theme)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "cardTheme", theme);
+			}
+
+			@Override
 			public int cardDelayMs()
 			{
 				return config.cardDelayMs();
@@ -660,7 +687,19 @@ public class ClanHubPlugin extends Plugin
 		final CardHistory recent = history;
 		if (recent != null)
 		{
-			recent.add(plain, cards, System.currentTimeMillis());
+			// The local player's name lets the history count the player's own game line and the clan's broadcast of it as
+			// one event; the event comes on the client thread, where the local player may be read.
+			final Player me = client.getLocalPlayer();
+			final String self = me == null ? null : me.getName();
+			final long now = System.currentTimeMillis();
+			if (self == null)
+			{
+				recent.add(plain, cards, now);
+			}
+			else
+			{
+				recent.add(plain, cards, now, self);
+			}
 		}
 		log.debug("{} card(s) from a {} line", cards.size(), event.getType());
 		prefetch(cards);
@@ -838,10 +877,17 @@ public class ClanHubPlugin extends Plugin
 					{
 						if (cardAsks.get() == ask)
 						{
-							showCardWindow(image, rowOnScreen);
+							showCardWindow(image, rowOnScreen, false);
 						}
 					});
 				});
+			}
+
+			@Override
+			public void showPicture(BufferedImage picture, Rectangle besideOnScreen)
+			{
+				cardAsks.incrementAndGet();
+				onEventThread(() -> showCardWindow(picture, besideOnScreen, true));
 			}
 
 			@Override
@@ -861,11 +907,12 @@ public class ClanHubPlugin extends Plugin
 
 	/**
 	 * Puts {@code image} in the card window and shows it, its right edge {@link #CARD_GAP} px left of the row's left edge
-	 * and its middle level with the row's, kept on the row's screen. The window is made on first use, owned by the window
-	 * the sidebar is in when it has one, with no decorations and never taking the keyboard from the game. Runs on the event
-	 * thread.
+	 * and its middle level with the row's, kept on the row's screen; with {@code eitherSide} it goes right of the row
+	 * instead when there is room there, which a menu's item asks for ({@link #besideItem}). The window is made on first
+	 * use, owned by the window the sidebar is in when it has one, with no decorations and never taking the keyboard from
+	 * the game. Runs on the event thread.
 	 */
-	private void showCardWindow(BufferedImage image, Rectangle row)
+	private void showCardWindow(BufferedImage image, Rectangle row, boolean eitherSide)
 	{
 		if (cardWindow == null)
 		{
@@ -879,8 +926,25 @@ public class ClanHubPlugin extends Plugin
 		final Dimension size = new Dimension(image.getWidth(), image.getHeight());
 		cardLabel.setIcon(new ImageIcon(image));
 		cardWindow.setSize(size);
-		cardWindow.setLocation(besideRow(row, size, screenOf(row)));
+		cardWindow.setLocation(eitherSide ? besideItem(row, size, screenOf(row)) : besideRow(row, size, screenOf(row)));
 		cardWindow.setVisible(true);
+	}
+
+	/**
+	 * Where a picture of {@code card} size goes for the menu item {@code item}: {@link #CARD_GAP} px right of the item's
+	 * right edge when it fits on {@code screen} there, else {@link #CARD_GAP} px left of its left edge, its middle level
+	 * with the item's and the whole of it held inside {@code screen} (at its left and top edges when the picture is bigger
+	 * than the room).
+	 */
+	private static Point besideItem(Rectangle item, Dimension card, Rectangle screen)
+	{
+		final int right = item.x + item.width + CARD_GAP;
+		if (right + card.width <= screen.x + screen.width)
+		{
+			final int y = item.y + item.height / 2 - card.height / 2;
+			return new Point(right, Math.max(screen.y, Math.min(y, screen.y + screen.height - card.height)));
+		}
+		return besideRow(item, card, screen);
 	}
 
 	/**
@@ -990,7 +1054,7 @@ public class ClanHubPlugin extends Plugin
 		}
 	}
 
-	/** "Reset to default": the plugin's eighteen settings go back to their defaults, and the sidebar's how-to opens. */
+	/** "Reset to default": the plugin's twenty settings go back to their defaults, and the sidebar's how-to opens. */
 	private void resetSettings()
 	{
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "showCards");
@@ -1007,6 +1071,8 @@ public class ClanHubPlugin extends Plugin
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "examineLine");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardPlace");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardWidth");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardTheme");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "sidebarLook");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardTime");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "nameColour");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineLevels");

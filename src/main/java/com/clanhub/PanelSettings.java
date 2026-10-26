@@ -1,10 +1,12 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTheme;
 import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
+import com.clanhub.ClanHubConfig.SidebarTheme;
 import java.awt.Color;
 import net.runelite.client.config.Keybind;
 
@@ -79,6 +81,18 @@ interface PanelSettings
 
 	/** Writes how wide the card at the cursor may grow. */
 	void setCardWidth(CardWidth width);
+
+	/** The look of the cards. */
+	CardTheme cardTheme();
+
+	/** Writes the look of the cards. */
+	void setCardTheme(CardTheme theme);
+
+	/** The look of the sidebar: the cards' theme, RuneLite's own, or a theme of its own. */
+	SidebarTheme sidebarLook();
+
+	/** Writes the look of the sidebar. */
+	void setSidebarLook(SidebarTheme look);
 
 	/** How a recent card's time reads in the sidebar. */
 	CardTime cardTime();

@@ -1,10 +1,12 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardPlace;
+import com.clanhub.ClanHubConfig.CardTheme;
 import com.clanhub.ClanHubConfig.CardTime;
 import com.clanhub.ClanHubConfig.CardTrigger;
 import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
+import com.clanhub.ClanHubConfig.SidebarTheme;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -37,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import javax.swing.Box;
@@ -91,10 +94,17 @@ import net.runelite.client.util.LinkBrowser;
  * under the mouse it shows the card beside the sidebar, as in game (what a {@link CardViewer} does), and a right-click on
  * it offers "Open wiki" and "Copy", as the game's own menu does.
  *
- * <p>The settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the five
- * choice submenus, the card key box and the two number boxes (when a card opens, the key that opens it, its delay,
- * where it opens, how wide it grows, how an examine line reads, how a row's time reads, its text size), the three colour rows (the hover colour, the underline colour
- * and the name colour, each a swatch that opens RuneLite's colour picker), then the OK row.
+ * <p>The sidebar wears a {@link SidebarSkin}: the one the "Sidebar theme" choice names (the card theme's own, RuneLite's
+ * plain one, or a theme of its own). The three boxes (the top card, the how-to's bar and a row) paint themselves with it
+ * and the labels take its colours; the menu keeps RuneLite's own look. {@link #settingsChanged} works the skin out again.
+ *
+ * <p>The settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the choice
+ * submenus, the card key box and the two number boxes (when a card opens, the key that opens it, its delay,
+ * where it opens, how wide it grows, the card's theme, the sidebar's theme, how an examine line reads, how a row's time
+ * reads, its text size), the three colour rows (the hover colour, the underline colour
+ * and the name colour, each a swatch that opens RuneLite's colour picker), then the OK row. While a theme in the card
+ * theme's list or the sidebar theme's list is armed, a picture of it shows beside the list (a sample card, or a small
+ * sidebar), and goes when no theme is armed or the menu closes.
  *
  * <p>Everything here runs on the event thread. A chat line arrives on the client thread, so the history's change is
  * handed to the event thread before the list is brought up to date.
@@ -118,6 +128,7 @@ public class ClanHubPanel extends PluginPanel
 	static final String PICTURES_TEXT = "Wiki pictures";
 	static final String BOSS_TEXT = "Boss cards";
 	static final String ALWAYS_UNDERLINE_TEXT = "Underline level-ups";
+	static final String SIDEBAR_THEME_TEXT = "Sidebar theme";
 	static final String EXAMINE_TEXT = "Examine cards";
 	static final String CARD_TRIGGER_TEXT = "Show a card";
 	static final String CARD_KEY_TEXT = "Card key";
@@ -125,6 +136,7 @@ public class ClanHubPanel extends PluginPanel
 	static final String CARD_DELAY_TEXT = "Card delay (ms)";
 	static final String CARD_PLACE_TEXT = "Card place";
 	static final String CARD_WIDTH_TEXT = "Card width";
+	static final String CARD_THEME_TEXT = "Card theme";
 	static final String EXAMINE_LINE_TEXT = "Examine line";
 	static final String CARD_TIME_TEXT = "Card time";
 	static final String CARD_SIZE_TEXT = "Card text size";
@@ -217,10 +229,10 @@ public class ClanHubPanel extends PluginPanel
 	/**
 	 * A row's words: the title in bold white, the time small and light grey in the top right corner, the name in the name
 	 * colour and the kind in grey under the title, and the room between the name and the kind or the time and the title,
-	 * in px.
+	 * in px. The colours are the plain sidebar's ({@link SidebarSkin#PLAIN} reads the time's); a themed sidebar sets its own.
 	 */
 	private static final Color ROW_WHAT_COLOUR = ColorScheme.LIGHT_GRAY_COLOR;
-	private static final Color ROW_TIME_COLOUR = new Color(130, 130, 130);
+	static final Color ROW_TIME_COLOUR = new Color(130, 130, 130);
 	private static final float ROW_TIME_SIZE = 10f;
 	private static final int ROW_WORDS_GAP = 6;
 	/** The history list's wheel step, in px. */
@@ -232,21 +244,22 @@ public class ClanHubPanel extends PluginPanel
 	private static final int HOW_TO_ICON_GAP = 6;
 	/** The how-to's text size, in px, for the rows and the action line. */
 	private static final float HOW_TO_FONT_SIZE = 12f;
-	/** The how-to's title bar: its height, the room at each end before the title and the arrow, and its ground at rest, in px. */
+	/**
+	 * The how-to's title bar: its height, the room at each end before the title and the arrow, in px, and its ground at rest
+	 * in the plain sidebar ({@link SidebarSkin#PLAIN} paints it; the bar's own background keeps it for the component to report).
+	 */
 	private static final int HOW_TO_BAR_HEIGHT = 30;
 	private static final int HOW_TO_BAR_INSET = 10;
-	private static final Color HOW_TO_BAR_COLOUR = new Color(50, 50, 50);
+	static final Color HOW_TO_BAR_COLOUR = new Color(50, 50, 50);
 	/** The room between the support row and the bar, and between the bar and the action line, in px. */
 	private static final int HOW_TO_BAR_ABOVE = PADDING;
 	private static final int HOW_TO_BAR_BELOW = 10;
 	/** The item the first row's icon shows, the Casket (a small treasure chest, the user's pick), and its stack. */
 	private static final int CASKET_ITEM_ID = 405;
 	private static final int CASKET_STACK = 1;
-	/** The ink of a how-to row's label; the rest of the row is in the grey the label's own foreground gives. */
-	private static final String HOW_TO_LABEL_COLOUR = "#ffffff";
-	/** The how-to heading's text size, in px, and its grey. */
+	/** The how-to heading's text size, in px, and its grey in the plain sidebar. */
 	private static final float HOW_TO_HEADING_SIZE = 10f;
-	private static final Color HOW_TO_HEADING_COLOUR = new Color(125, 125, 125);
+	static final Color HOW_TO_HEADING_COLOUR = new Color(125, 125, 125);
 	/** The gap between two how-to rows, above the heading and between the heading and the first row, in px. */
 	private static final int HOW_TO_ROW_GAP = 4;
 	private static final int HOW_TO_HEADING_ABOVE = 8;
@@ -265,9 +278,6 @@ public class ClanHubPanel extends PluginPanel
 	private static final Border ROW_HOT_BORDER = new CompoundBorder(
 		new MatteBorder(0, BAR_WIDTH, 0, 0, ColorScheme.BRAND_ORANGE), new EmptyBorder(0, ROW_LEFT_INSET - BAR_WIDTH, 0,
 			ROW_RIGHT_INSET));
-	/** The fold arrow of the how-to's header: down when the lines show, right when they are folded. */
-	private static final Icon ARROW_OPEN = new FoldArrow(true);
-	private static final Icon ARROW_FOLDED = new FoldArrow(false);
 	/** The settings icon's size, in px. */
 	private static final int ICON_SIZE = 12;
 	/** A press on the settings icon this soon after the menu closed is the press that closed it, not a new open. */
@@ -297,6 +307,8 @@ public class ClanHubPanel extends PluginPanel
 	private final JMenu triggerMenu;
 	private final JMenu placeMenu;
 	private final JMenu widthMenu;
+	private final JMenu themeMenu;
+	private final JMenu sidebarThemeMenu;
 	private final JMenu examineLineMenu;
 	private final JMenu cardTimeMenu;
 	private final JSpinner delaySpinner;
@@ -315,15 +327,40 @@ public class ClanHubPanel extends PluginPanel
 	private Keybind shownKey = Keybind.NOT_SET;
 	/** True while the card key box waits for the key to take. */
 	private boolean keyArmed;
+	/**
+	 * The item of a theme list (the card theme's or the sidebar theme's) that is armed and whose picture is up, or null; and
+	 * whether a picture has been handed to the viewer and not yet taken down.
+	 */
+	private JMenuItem previewItem;
+	private boolean previewUp;
+	/** The whip's picture, the sample card's, once the icon source has given it; asked for once, at the first sample card. */
+	private volatile BufferedImage whip;
+	private boolean whipAsked;
+	/** The skin the sidebar is painted with now: the one the sidebar theme names; see {@link #applySkin}. */
+	private SidebarSkin skin;
+	/** The skin whose colours the labels and the grounds wear now, or null before the first dressing. */
+	private SidebarSkin dressed;
 	/** The how-to's action line, which {@link #refreshHowTo} sets, and the box of that line, the wiki line, the heading and the rows. */
 	private final JLabel howToAction = new JLabel();
 	private final JPanel howToLines = new JPanel();
+	/** The how-to bar's title, the second line, the small heading, the text of each row (in the rows' order) and the examine row's icon box. */
+	private final JLabel howToTitle = new JLabel();
+	private final JLabel howToWiki = new JLabel();
+	private final JLabel howToHeading = new JLabel();
+	private final List<JLabel> howToRowTexts = new ArrayList<>();
+	private JLabel examineIconBox;
 	/** The how-to bar's fold arrow. */
 	private final JLabel foldArrow = new JLabel();
 	/** Whether the how-to is folded to its bar, as last shown. */
 	private boolean howToFolded;
-	/** The history header's count, "N this session". */
+	/** Whether the mouse is on the how-to bar. */
+	private boolean barHot;
+	/** The recent cards' header: its title, its count, "N this session", and its clear link. */
+	private final JLabel recentTitle = new JLabel();
 	private final JLabel count = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
+	private final JLabel clearLabel = new JLabel();
+	/** The scroll pane of the recent cards, made with the history's view. */
+	private JScrollPane historyScroll;
 	/** The history's entries as the list shows them, newest first; changed only by {@link #syncList}. */
 	private final HistoryModel model = new HistoryModel();
 	/** The list of recent cards, which the history's scroll pane shows; a change of its width has every row measured again. */
@@ -377,6 +414,7 @@ public class ClanHubPanel extends PluginPanel
 		this.icons = icons;
 		this.browse = browse;
 		this.copy = copy;
+		this.skin = skinNow();
 		this.support = new SupportLinks("2h Chat Hover Info", Version.CURRENT, GITHUB_URL, LinkBrowser::browse, this::closeMenu);
 		this.showCheck = check(SHOW_CARDS_TEXT, settings::setShowCards);
 		this.colourCheck = check(COLOUR_TEXT, on ->
@@ -397,6 +435,16 @@ public class ClanHubPanel extends PluginPanel
 		});
 		this.placeMenu = choices(CARD_PLACE_TEXT, CardPlace.values(), settings::cardPlace, settings::setCardPlace);
 		this.widthMenu = choices(CARD_WIDTH_TEXT, CardWidth.values(), settings::cardWidth, settings::setCardWidth);
+		this.themeMenu = choices(CARD_THEME_TEXT, CardTheme.values(), settings::cardTheme, theme ->
+		{
+			settings.setCardTheme(theme);
+			settingsChanged();
+		}, theme -> ThemePreviews.card(theme, whipPicture()), -1);
+		this.sidebarThemeMenu = choices(SIDEBAR_THEME_TEXT, SidebarTheme.values(), settings::sidebarLook, look ->
+		{
+			settings.setSidebarLook(look);
+			settingsChanged();
+		}, look -> ThemePreviews.sidebar(skinOf(look, settings.cardTheme())), SidebarTheme.RUNELITE.ordinal());
 		this.examineLineMenu = choices(EXAMINE_LINE_TEXT, ExamineLine.values(), settings::examineLine,
 			settings::setExamineLine);
 		this.cardTimeMenu = choices(CARD_TIME_TEXT, CardTime.values(), settings::cardTime, time ->
@@ -409,11 +457,11 @@ public class ClanHubPanel extends PluginPanel
 		this.menu = buildMenu();
 
 		setLayout(new BorderLayout(0, PADDING));
-		setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		setBorder(new EmptyBorder(PADDING, PADDING, PADDING, PADDING));
 		add(topCard(), BorderLayout.NORTH);
 		add(historyView(), BorderLayout.CENTER);
 		applyFold(settings.howToFolded());
+		applySkin();
 		history.listen(this::queueSync);
 		syncList();
 	}
@@ -445,7 +493,14 @@ public class ClanHubPanel extends PluginPanel
 	 */
 	private JPanel topCard()
 	{
-		final JPanel card = new JPanel(new BorderLayout());
+		final JPanel card = new JPanel(new BorderLayout())
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				paintSkin(g, this, SidebarSkin.Box.CARD, false);
+			}
+		};
 		card.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		card.setBorder(new EmptyBorder(PADDING, PADDING, PADDING, PADDING));
 
@@ -462,7 +517,8 @@ public class ClanHubPanel extends PluginPanel
 	 * the action line in two parts (white, then grey), the small heading "WHAT IT WORKS ON" and the icon rows. A press
 	 * anywhere on the bar folds the lines away or brings them back and writes which; the arrow points down while they show
 	 * and right while they are folded. The bar's ground is a shade lighter than the card's, and lighter again under the
-	 * mouse.
+	 * mouse; the skin paints it ({@link #paintSkin}), and the bar keeps the plain look's two grounds as its background,
+	 * which is what it reports.
 	 *
 	 * <p>Choice: the bar's title and arrow take no mouse listener of their own, so a press anywhere on the bar, and the
 	 * mouse entering or leaving it, reaches the bar's one listener.
@@ -480,25 +536,37 @@ public class ClanHubPanel extends PluginPanel
 			{
 				return new Dimension(super.getPreferredSize().width, HOW_TO_BAR_HEIGHT);
 			}
+
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				paintSkin(g, this, SidebarSkin.Box.BAR, barHot);
+			}
 		};
 		bar.setName(HOW_TO_BAR_NAME);
 		bar.setBackground(HOW_TO_BAR_COLOUR);
 		bar.setBorder(new EmptyBorder(0, HOW_TO_BAR_INSET, 0, HOW_TO_BAR_INSET));
 		bar.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-		bar.add(boldLabel(HOW_TO_TEXT, 13f, Color.WHITE), BorderLayout.WEST);
+		howToTitle.setText(HOW_TO_TEXT);
+		howToTitle.setFont(FontManager.getDefaultBoldFont().deriveFont(13f));
+		bar.add(howToTitle, BorderLayout.WEST);
 		bar.add(foldArrow, BorderLayout.EAST);
 		bar.addMouseListener(new MouseAdapter()
 		{
 			@Override
 			public void mouseEntered(MouseEvent e)
 			{
+				barHot = true;
 				bar.setBackground(ColorScheme.DARK_GRAY_HOVER_COLOR);
+				bar.repaint();
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
+				barHot = false;
 				bar.setBackground(HOW_TO_BAR_COLOUR);
+				bar.repaint();
 			}
 
 			@Override
@@ -518,15 +586,16 @@ public class ClanHubPanel extends PluginPanel
 		howToLines.setOpaque(false);
 		howToLines.add(Box.createVerticalStrut(HOW_TO_BAR_BELOW));
 		howToAction.setFont(FontManager.getDefaultFont().deriveFont(HOW_TO_FONT_SIZE));
-		howToAction.setForeground(Color.WHITE);
 		howToLines.add(actionLine(howToAction));
-		final JLabel wiki = label("", HOW_TO_FONT_SIZE, ColorScheme.LIGHT_GRAY_COLOR);
-		wiki.setText(howToHtml(List.of(new Run(HOW_TO_WIKI, "", "", wiki.getFontMetrics(wiki.getFont()))), HOW_TO_WIDTH));
-		howToLines.add(actionLine(wiki));
+		howToWiki.setFont(FontManager.getDefaultFont().deriveFont(HOW_TO_FONT_SIZE));
+		howToWiki.setText(howToHtml(List.of(new Run(HOW_TO_WIKI, "", "", howToWiki.getFontMetrics(howToWiki.getFont()))),
+			HOW_TO_WIDTH));
+		howToLines.add(actionLine(howToWiki));
 		howToLines.add(Box.createVerticalStrut(HOW_TO_HEADING_ABOVE));
-		final JLabel heading = boldLabel(HOW_TO_HEADING, HOW_TO_HEADING_SIZE, HOW_TO_HEADING_COLOUR);
-		heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-		howToLines.add(heading);
+		howToHeading.setText(HOW_TO_HEADING);
+		howToHeading.setFont(FontManager.getDefaultBoldFont().deriveFont(HOW_TO_HEADING_SIZE));
+		howToHeading.setAlignmentX(Component.LEFT_ALIGNMENT);
+		howToLines.add(howToHeading);
 		howToLines.add(Box.createVerticalStrut(HOW_TO_HEADING_BELOW));
 		for (int i = 0; i < HOW_TO_ROWS.size(); i++)
 		{
@@ -552,15 +621,10 @@ public class ClanHubPanel extends PluginPanel
 	/**
 	 * One row of the how-to, number {@code index} of {@link #HOW_TO_ROWS}: an icon box of {@link #HOW_TO_ICON_SIZE} px at
 	 * the left, empty until its picture comes, and beside it the row's label in bold white and its rest in grey, wrapped to
-	 * the room the icon leaves. The picture is asked for here, once.
-	 *
-	 * <p>Choice: the label is a bold run of the one HTML text, so that the rest wraps beside it as running text, and the
-	 * words are measured for the wrap in the client's bold face; RuneLite registers that face with the graphics
-	 * environment, which is what lets Swing's HTML draw {@code <b>} in it.
+	 * the room the icon leaves. The picture is asked for here, once; the words are set by {@link #styleHowToRow}.
 	 */
 	private JPanel howToRow(int index)
 	{
-		final HowToRow row = HOW_TO_ROWS.get(index);
 		final JPanel panel = new JPanel(new BorderLayout(HOW_TO_ICON_GAP, 0));
 		panel.setName(HOW_TO_ROW_NAME);
 		panel.setOpaque(false);
@@ -577,16 +641,38 @@ public class ClanHubPanel extends PluginPanel
 		final JLabel text = label("", HOW_TO_FONT_SIZE, ColorScheme.LIGHT_GRAY_COLOR);
 		text.setVerticalAlignment(SwingConstants.TOP);
 		text.setBorder(new EmptyBorder(HOW_TO_TEXT_DROP, 0, 0, 0));
+		howToRowTexts.add(text);
+		panel.add(text, BorderLayout.CENTER);
+		return panel;
+	}
+
+	/**
+	 * Sets the words of how-to row number {@code index} in the skin's colours: the label in bold in the skin's text colour
+	 * and the rest in its grey, wrapped to the room the icon leaves. Again, as the skin changes.
+	 *
+	 * <p>Choice: the label is a bold run of the one HTML text, so that the rest wraps beside it as running text, and the
+	 * words are measured for the wrap in the client's bold face; RuneLite registers that face with the graphics
+	 * environment, which is what lets Swing's HTML draw {@code <b>} in it. The rest is in the label's own foreground.
+	 */
+	private void styleHowToRow(int index)
+	{
+		final HowToRow row = HOW_TO_ROWS.get(index);
+		final JLabel text = howToRowTexts.get(index);
+		text.setForeground(skin.grey);
 		final Font bold = FontManager.getDefaultBoldFont().deriveFont(HOW_TO_FONT_SIZE);
 		final List<Run> runs = new ArrayList<>();
-		runs.add(new Run(row.label, "<b><font color='" + HOW_TO_LABEL_COLOUR + "'>", "</font></b>", text.getFontMetrics(bold)));
+		runs.add(new Run(row.label, "<b><font color='" + hex(skin.text) + "'>", "</font></b>", text.getFontMetrics(bold)));
 		if (!row.rest.isEmpty())
 		{
 			runs.add(new Run(row.rest, "", "", text.getFontMetrics(text.getFont())));
 		}
 		text.setText(howToHtml(runs, HOW_TO_ROW_TEXT_WIDTH));
-		panel.add(text, BorderLayout.CENTER);
-		return panel;
+	}
+
+	/** {@code colour} as the {@code #rrggbb} of an HTML colour. */
+	private static String hex(Color colour)
+	{
+		return String.format("#%02x%02x%02x", colour.getRed(), colour.getGreen(), colour.getBlue());
 	}
 
 	/**
@@ -612,7 +698,8 @@ public class ClanHubPanel extends PluginPanel
 				icons.sprite(SkillSprites.spriteOf("Combat"), picture);
 				break;
 			default:
-				box.setIcon(ExamineGlyph.icon(HOW_TO_ICON_SIZE, ColorScheme.LIGHT_GRAY_COLOR));
+				examineIconBox = box;
+				box.setIcon(ExamineGlyph.icon(HOW_TO_ICON_SIZE, skin.grey));
 				break;
 		}
 	}
@@ -748,7 +835,7 @@ public class ClanHubPanel extends PluginPanel
 	{
 		howToFolded = folded;
 		howToLines.setVisible(!folded);
-		foldArrow.setIcon(folded ? ARROW_FOLDED : ARROW_OPEN);
+		foldArrow.setIcon(new FoldArrow(!folded, skin.grey));
 		revalidate();
 		repaint();
 	}
@@ -778,7 +865,9 @@ public class ClanHubPanel extends PluginPanel
 		header.setLayout(new BoxLayout(header, BoxLayout.X_AXIS));
 		header.setOpaque(false);
 		header.setBorder(new EmptyBorder(0, 0, 6, 0));
-		header.add(boldLabel(RECENT_TEXT, 13f, Color.WHITE));
+		recentTitle.setText(RECENT_TEXT);
+		recentTitle.setFont(FontManager.getDefaultBoldFont().deriveFont(13f));
+		header.add(recentTitle);
 		header.add(Box.createHorizontalStrut(8));
 		header.add(count);
 		header.add(Box.createHorizontalGlue());
@@ -786,7 +875,6 @@ public class ClanHubPanel extends PluginPanel
 		view.add(header, BorderLayout.NORTH);
 
 		historyList.setName(HISTORY_LIST_NAME);
-		historyList.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		historyList.setFocusable(false);
 		historyList.setFixedCellWidth(0);
@@ -825,32 +913,33 @@ public class ClanHubPanel extends PluginPanel
 		};
 		historyList.addMouseListener(mouse);
 		historyList.addMouseMotionListener(mouse);
-		final JScrollPane scroll = new JScrollPane(historyList, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+		historyScroll = new JScrollPane(historyList, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
 			ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-		scroll.setBorder(null);
-		scroll.getViewport().setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		scroll.getVerticalScrollBar().setUnitIncrement(SCROLL_STEP);
-		view.add(scroll, BorderLayout.CENTER);
+		historyScroll.setBorder(null);
+		historyScroll.getVerticalScrollBar().setUnitIncrement(SCROLL_STEP);
+		view.add(historyScroll, BorderLayout.CENTER);
 		return view;
 	}
 
-	/** The history header's "Clear": grey at rest, white under the mouse; a left press empties the history. */
+	/** The history header's "Clear": grey at rest, in the skin's text colour under the mouse; a left press empties the history. */
 	private JLabel clearLink()
 	{
-		final JLabel clear = label(CLEAR_TEXT, 12f, ColorScheme.LIGHT_GRAY_COLOR);
+		final JLabel clear = clearLabel;
+		clear.setText(CLEAR_TEXT);
+		clear.setFont(FontManager.getDefaultFont().deriveFont(12f));
 		clear.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 		clear.addMouseListener(new MouseAdapter()
 		{
 			@Override
 			public void mouseEntered(MouseEvent e)
 			{
-				clear.setForeground(Color.WHITE);
+				clear.setForeground(skin.text);
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
-				clear.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+				clear.setForeground(skin.grey);
 			}
 
 			@Override
@@ -1219,7 +1308,16 @@ public class ClanHubPanel extends PluginPanel
 	private final class RowRenderer implements ListCellRenderer<CardHistory.Entry>
 	{
 		private final JPanel cell;
-		private final JPanel row = new JPanel(new BorderLayout(ROW_PICTURE_GAP, 0));
+		/** Whether the row drawn now is the hovered one; the row is painted by the skin, which lays its hover ground over it. */
+		private boolean rowHot;
+		private final JPanel row = new JPanel(new BorderLayout(ROW_PICTURE_GAP, 0))
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				paintSkin(g, this, SidebarSkin.Box.ROW, rowHot);
+			}
+		};
 		private final JLabel picture = new JLabel();
 		private final JLabel titleFirst = boldLabel("", 12f, Color.WHITE);
 		private final JLabel titleRest = boldLabel("", 12f, Color.WHITE);
@@ -1269,9 +1367,15 @@ public class ClanHubPanel extends PluginPanel
 		{
 			final HoverCard card = entry.card();
 			final boolean hot = entry == hovered;
+			rowHot = hot;
+			cell.setBackground(skin.page);
 			row.setBackground(hot ? ColorScheme.DARK_GRAY_HOVER_COLOR : ColorScheme.DARK_GRAY_COLOR);
 			row.setBorder(hot ? ROW_HOT_BORDER : ROW_BORDER);
 			picture.setIcon(pictures.get(entry));
+			titleFirst.setForeground(skin.rowTitle);
+			titleRest.setForeground(skin.rowTitle);
+			time.setForeground(skin.time);
+			what.setForeground(skin.grey);
 			time.setText(CardHistory.timeOf(entry.at(), settings.cardTime(), ZoneId.systemDefault(), System.currentTimeMillis()));
 			who.setForeground(settings.nameColour());
 			who.setText(RowWords.who(entry.line()));
@@ -1505,15 +1609,17 @@ public class ClanHubPanel extends PluginPanel
 		return Math.max(0, label.getBaseline(Math.max(0, size.width), Math.max(0, size.height)));
 	}
 
-	/** The how-to bar's fold arrow: a small solid triangle in the captions' grey, pointing down or right. */
+	/** The how-to bar's fold arrow: a small solid triangle in the skin's grey (the captions' grey in the plain sidebar), pointing down or right. */
 	private static final class FoldArrow implements Icon
 	{
 		private static final int SIZE = 10;
 		private final boolean down;
+		private final Color colour;
 
-		FoldArrow(boolean down)
+		FoldArrow(boolean down, Color colour)
 		{
 			this.down = down;
+			this.colour = colour;
 		}
 
 		@Override
@@ -1535,7 +1641,7 @@ public class ClanHubPanel extends PluginPanel
 			try
 			{
 				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-				g2.setColor(ColorScheme.LIGHT_GRAY_COLOR);
+				g2.setColor(colour);
 				final Polygon triangle = down
 					? new Polygon(new int[] {x, x + SIZE, x + SIZE / 2}, new int[] {y + 2, y + 2, y + SIZE - 2}, 3)
 					: new Polygon(new int[] {x + 2, x + 2, x + SIZE - 2}, new int[] {y, y + SIZE, y + SIZE / 2}, 3);
@@ -1585,15 +1691,95 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * Draws the sidebar again from the settings as they stand: the how-to's action line (its words follow the colouring
-	 * switch and the hover colour) and the list of recent cards (the rows follow the name colour and the time setting).
-	 * The plugin calls it when a setting of the plugin's group changes, whether the sidebar's menu wrote it or RuneLite's
-	 * own settings page did, so that a colour shows in the rows while a colour picker is still open. Event thread only.
+	 * Draws the sidebar again from the settings as they stand: its skin (the one the sidebar theme names), the how-to's action line (its words follow the colouring switch and the hover
+	 * colour) and the list of recent cards (the rows follow the name colour and the time setting). The plugin calls it
+	 * when a setting of the plugin's group changes, whether the sidebar's menu wrote it or RuneLite's own settings page
+	 * did, so that a colour shows in the rows while a colour picker is still open and a theme shows at once. Event thread
+	 * only.
 	 */
 	void settingsChanged()
 	{
-		refreshHowTo();
+		applySkin();
 		historyList.repaint();
+	}
+
+	/** The skin the sidebar is painted with by the settings as they stand. */
+	private SidebarSkin skinNow()
+	{
+		return skinOf(settings.sidebarLook(), settings.cardTheme());
+	}
+
+	/**
+	 * The skin the sidebar wears for {@code look} while the cards are in {@code cardTheme}: "Same as cards" gives the card
+	 * theme's, "RuneLite" the plain one, and any other theme its own card theme's.
+	 */
+	private static SidebarSkin skinOf(SidebarTheme look, CardTheme cardTheme)
+	{
+		if (look == SidebarTheme.RUNELITE)
+		{
+			return SidebarSkin.PLAIN;
+		}
+		return SidebarSkin.of(look == null || look == SidebarTheme.SAME ? cardTheme : look.card());
+	}
+
+	/**
+	 * Works the skin out again and puts its colours on everything that has one: the panel's ground and the list's, the
+	 * how-to's bar, lines, heading and rows (their HTML is built again), the recent cards' header and the examine icon,
+	 * all of it only when the skin is not the one the components already wear. The boxes themselves are painted by the
+	 * skin as they draw ({@link #paintSkin}), so they are only asked to draw again.
+	 */
+	private void applySkin()
+	{
+		skin = skinNow();
+		if (skin != dressed)
+		{
+			dressed = skin;
+			setBackground(skin.page);
+			historyList.setBackground(skin.page);
+			historyScroll.setBackground(skin.page);
+			historyScroll.getViewport().setBackground(skin.page);
+			howToTitle.setForeground(skin.title);
+			howToAction.setForeground(skin.text);
+			howToWiki.setForeground(skin.grey);
+			howToHeading.setForeground(skin.heading);
+			for (int i = 0; i < howToRowTexts.size(); i++)
+			{
+				styleHowToRow(i);
+			}
+			if (examineIconBox != null)
+			{
+				examineIconBox.setIcon(ExamineGlyph.icon(HOW_TO_ICON_SIZE, skin.grey));
+			}
+			foldArrow.setIcon(new FoldArrow(!howToFolded, skin.grey));
+			recentTitle.setForeground(skin.title);
+			count.setForeground(skin.grey);
+			clearLabel.setForeground(skin.grey);
+			revalidate();
+		}
+		refreshHowTo();
+		repaint();
+	}
+
+	/**
+	 * Paints one of the sidebar's three boxes into {@code box}: the skin's look of {@code kind} at the box's size and, while
+	 * the mouse is on it ({@code hot}), the skin's hover ground over that.
+	 */
+	private void paintSkin(Graphics g, JComponent box, SidebarSkin.Box kind, boolean hot)
+	{
+		final Graphics2D g2 = (Graphics2D) g.create();
+		try
+		{
+			skin.paintBox(g2, box.getWidth(), box.getHeight(), kind);
+			if (hot)
+			{
+				g2.setColor(skin.hot);
+				g2.fillRect(0, 0, box.getWidth(), box.getHeight());
+			}
+		}
+		finally
+		{
+			g2.dispose();
+		}
 	}
 
 	/** Takes the menu down: OK, a link press, or the reset. */
@@ -1603,9 +1789,9 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * The settings menu, in STANDARD A5's order: the header, a rule, the seven switches, a rule, the five choice submenus
+	 * The settings menu, in STANDARD A5's order: the header, a rule, the seven switches, a rule, the seven choice submenus
 	 * and the card key and the two number rows (when a card opens, the key that opens it, the delay, where it opens, how
-	 * wide it grows, how an examine line reads, how a row's time reads, the text size) and the three colour rows (the hover
+	 * wide it grows, the card's theme, the sidebar's theme, how an examine line reads, how a row's time reads, the text size) and the three colour rows (the hover
 	 * colour, the underline colour, the name colour), a rule, then the OK row. The header is focusable, so the menu's window takes the keyboard when the menu opens and gives it to the
 	 * header, which shows no caret; no box is focusable at rest, and a press moves the keyboard to the box pressed.
 	 */
@@ -1630,6 +1816,8 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(closesSubmenu(row(CARD_DELAY_TEXT, delaySpinner)));
 		popup.add(placeMenu);
 		popup.add(widthMenu);
+		popup.add(themeMenu);
+		popup.add(sidebarThemeMenu);
 		popup.add(examineLineMenu);
 		popup.add(cardTimeMenu);
 		popup.add(closesSubmenu(row(CARD_SIZE_TEXT, sizeSpinner)));
@@ -1656,12 +1844,14 @@ public class ClanHubPanel extends PluginPanel
 			public void popupMenuWillBecomeInvisible(PopupMenuEvent e)
 			{
 				closedAtNanos = System.nanoTime();
+				hidePreview();
 			}
 
 			@Override
 			public void popupMenuCanceled(PopupMenuEvent e)
 			{
 				closedAtNanos = System.nanoTime();
+				hidePreview();
 			}
 		});
 		return popup;
@@ -1772,14 +1962,29 @@ public class ClanHubPanel extends PluginPanel
 	 */
 	private <T> JMenu choices(String caption, T[] values, Supplier<T> read, Consumer<T> write)
 	{
+		return choices(caption, values, read, write, null, -1);
+	}
+
+	/**
+	 * A choice row as {@link #choices(String, Object[], Supplier, Consumer)} makes it, which may also show a picture of a
+	 * choice while its item is armed (under the mouse, or picked with the keys) and hold a rule in its list.
+	 *
+	 * @param preview what makes the picture of a choice, or null for a list with no pictures; the picture shows beside the
+	 *        item, level with it, and goes when no item of a picture list is armed or the menu closes
+	 * @param ruleAfter the index of the choice after which the list holds a rule, or -1 for none
+	 */
+	private <T> JMenu choices(String caption, T[] values, Supplier<T> read, Consumer<T> write,
+		Function<T, BufferedImage> preview, int ruleAfter)
+	{
 		final Font font = FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE);
 		final JMenu submenu = new JMenu();
 		submenu.setFont(font);
 		submenu.setForeground(Color.WHITE);
 		final ButtonGroup group = new ButtonGroup();
 		final List<JRadioButtonMenuItem> items = new ArrayList<>();
-		for (final T value : values)
+		for (int at = 0; at < values.length; at++)
 		{
+			final T value = values[at];
 			final JRadioButtonMenuItem item = new JRadioButtonMenuItem(String.valueOf(value))
 			{
 				@Override
@@ -1803,9 +2008,17 @@ public class ClanHubPanel extends PluginPanel
 					MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
 				}
 			});
+			if (preview != null)
+			{
+				item.getModel().addChangeListener(e -> armChanged(item, () -> preview.apply(value)));
+			}
 			group.add(item);
 			submenu.add(item);
 			items.add(item);
+			if (at == ruleAfter)
+			{
+				submenu.addSeparator();
+			}
 		}
 		int width = 0;
 		int height = 0;
@@ -1838,6 +2051,70 @@ public class ClanHubPanel extends PluginPanel
 	private static String title(String caption, Object choice)
 	{
 		return caption + ": " + choice;
+	}
+
+	/**
+	 * A theme item's arming changed: its picture is handed to the viewer when it is armed and not the item already shown,
+	 * and when it is no longer armed a check for no armed item is queued.
+	 *
+	 * <p>Choice: the check is queued and not made at once, because moving from one item to the next un-arms the first
+	 * before it arms the second, and an immediate hide would take the picture down for the instant between; the check runs
+	 * after the event, when the second item has taken over. The picture is made only when the item arms.
+	 *
+	 * @param item the radio item whose model changed
+	 * @param picture makes the picture of the item's choice
+	 */
+	private void armChanged(JMenuItem item, Supplier<BufferedImage> picture)
+	{
+		if (item.getModel().isArmed())
+		{
+			if (previewItem != item && item.isShowing())
+			{
+				previewItem = item;
+				previewUp = true;
+				viewer.showPicture(picture.get(), new Rectangle(item.getLocationOnScreen(), item.getSize()));
+			}
+		}
+		else if (previewItem == item)
+		{
+			previewItem = null;
+			SwingUtilities.invokeLater(this::hidePreviewIfNoneArmed);
+		}
+	}
+
+	/** Takes the picture down when it is up and no theme item is armed. */
+	private void hidePreviewIfNoneArmed()
+	{
+		if (previewItem == null && previewUp)
+		{
+			previewUp = false;
+			viewer.hide();
+		}
+	}
+
+	/** Takes the picture down when it is up, whatever is armed: the menu has closed. */
+	private void hidePreview()
+	{
+		previewItem = null;
+		if (previewUp)
+		{
+			previewUp = false;
+			viewer.hide();
+		}
+	}
+
+	/**
+	 * The whip's picture for the sample card: asked for from the icon source the first time, once, and kept when it comes
+	 * (it may come later, more than once, on any thread); null until then, which leaves the card's picture box empty.
+	 */
+	private BufferedImage whipPicture()
+	{
+		if (!whipAsked)
+		{
+			whipAsked = true;
+			icons.item(ThemePreviews.WHIP_ITEM_ID, 1, image -> whip = image);
+		}
+		return whip;
 	}
 
 	/**

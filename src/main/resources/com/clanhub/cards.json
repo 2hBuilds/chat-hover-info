@@ -2,7 +2,7 @@
 "source": "Old School RuneScape Wiki",
 "licence": "CC BY-NC-SA 3.0",
 "url": "https://oldschool.runescape.wiki",
-"fetched": "2026-10-25",
+"fetched": "2026-10-26",
 "quests": [
   {"name": "A Kingdom Divided", "difficulty": "Experienced", "length": "Long", "members": true, "points": 2, "wiki": "A_Kingdom_Divided"},
   {"name": "A Night at the Theatre", "difficulty": "Master", "length": "Medium", "members": true, "points": 2, "wiki": "A_Night_at_the_Theatre"},
@@ -902,6 +902,7 @@
   {"name": "Nid", "source": "Araxxor", "wiki": "Nid", "item": 29836},
   {"name": "Noon", "source": "Grotesque Guardians", "wiki": "Noon", "item": 21748},
   {"name": "Olmlet", "source": "Chambers of Xeric", "wiki": "Olmlet", "item": 20851},
+  {"name": "Orion", "source": "The Fractured Archive", "wiki": "Orion", "item": 34648},
   {"name": "Pet chaos elemental", "source": "Chaos Elemental and Chaos Fanatic", "wiki": "Pet_chaos_elemental", "item": 11995},
   {"name": "Pet Dagannoth Prime", "source": "Dagannoth Prime", "wiki": "Pet_Dagannoth_Prime", "item": 12644},
   {"name": "Pet Dagannoth Rex", "source": "Dagannoth Rex", "wiki": "Pet_Dagannoth_Rex", "item": 12645},

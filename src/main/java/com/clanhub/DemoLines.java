@@ -49,7 +49,7 @@ final class DemoLines
 
 	/**
 	 * Eight clan broadcasts that are not about an item: two quests, one in the game's string-variable form, a combat
-	 * task, a pet, a level, XP, a diary and a best.
+	 * task, a pet, a level, XP, a diary and a best; and a ninth, the player's own game line for a level gained.
 	 */
 	static final List<Line> KINDS = Collections.unmodifiableList(Arrays.asList(
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar has completed a quest: Dragon Slayer II"),
@@ -62,7 +62,9 @@ final class DemoLines
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar has reached Defence level 70."),
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar has reached 200,000,000 XP in Cooking."),
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Mossy Rock has completed the Elite Ardougne diary."),
-		new Line(ChatMessageType.CLAN_MESSAGE, "", "Iron Pete has achieved a new Vorkath personal best: 2:28")));
+		new Line(ChatMessageType.CLAN_MESSAGE, "", "Iron Pete has achieved a new Vorkath personal best: 2:28"),
+		new Line(ChatMessageType.GAMEMESSAGE, "",
+			"Congratulations, you've just advanced your Sailing level. You are now level 47.")));
 
 	private DemoLines()
 	{
