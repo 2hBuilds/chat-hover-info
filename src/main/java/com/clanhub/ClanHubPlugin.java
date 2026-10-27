@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
 import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
 import net.runelite.api.ChatMessageType;
@@ -241,14 +243,8 @@ public class ClanHubPlugin extends Plugin
 	/** The window that shows a hovered sidebar row's card beside the sidebar, made on first use; the event thread only. */
 	private JWindow cardWindow;
 
-	/** What {@link #cardWindow} draws, the card's picture at device pixels; the event thread only. */
-	private SharpCardWindow.Surface cardLabel;
-
-	/**
-	 * The window the in-game card shows in while the game is stretched or scaled, made in {@link #startUp} and taken away
-	 * in {@link #shutDown}.
-	 */
-	private SharpCardWindow sharpWindow;
+	/** The label of {@link #cardWindow} that holds the card's picture; the event thread only. */
+	private JLabel cardLabel;
 
 	/**
 	 * Counts every ask of the sidebar's card viewer, a show or a hide, so that a card painted on the client thread is put
@@ -299,8 +295,6 @@ public class ClanHubPlugin extends Plugin
 		overlay.pictures(pictures);
 		overlay.tables(tables);
 		overlay.attach(store);
-		sharpWindow = new SharpCardWindow(client::getCanvas);
-		overlay.sharpCards(sharpWindow);
 		overlayManager.add(overlay);
 		cardKeyListener = new CardKeyListener(config::cardKey, config::cardTrigger, config::showCards, overlay::hovered,
 			overlay::keyHeld);
@@ -611,12 +605,6 @@ public class ClanHubPlugin extends Plugin
 		mouseManager.unregisterMouseListener(clickListener);
 		mouseManager.unregisterMouseWheelListener(wheelListener);
 		overlayManager.remove(overlay);
-		overlay.sharpCards(null);
-		if (sharpWindow != null)
-		{
-			sharpWindow.dispose();
-			sharpWindow = null;
-		}
 		if (navButton != null)
 		{
 			clientToolbar.removeNavigation(navButton);
@@ -932,14 +920,11 @@ public class ClanHubPlugin extends Plugin
 			final Window owner = sidebar == null ? null : SwingUtilities.getWindowAncestor(sidebar);
 			cardWindow = owner == null ? new JWindow() : new JWindow(owner);
 			cardWindow.setFocusableWindowState(false);
-			cardLabel = new SharpCardWindow.Surface();
+			cardLabel = new JLabel();
 			cardWindow.getContentPane().add(cardLabel);
 		}
-		// Choice: drawn at device pixels, a whole number of them to a card pixel, so it is sharp on a screen scaled above 100%.
-		final double deviceScale = SharpCardWindow.deviceScaleOf(cardWindow);
-		final int scale = SharpCardWindow.scaleFor(1, deviceScale);
-		final Dimension size = SharpCardWindow.sizeOf(new Dimension(image.getWidth(), image.getHeight()), scale, deviceScale);
-		cardLabel.set(image, scale);
+		final Dimension size = new Dimension(image.getWidth(), image.getHeight());
+		cardLabel.setIcon(new ImageIcon(image));
 		cardWindow.setSize(size);
 		cardWindow.setLocation(eitherSide ? besideItem(row, size, screenOf(row)) : besideRow(row, size, screenOf(row)));
 		cardWindow.setVisible(true);

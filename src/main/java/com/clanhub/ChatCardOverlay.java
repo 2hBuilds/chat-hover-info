@@ -1,16 +1,12 @@
 package com.clanhub;
 
-import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.GraphicsConfiguration;
-import java.awt.IllegalComponentStateException;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
-import java.util.Arrays;
 import java.util.List;
 import javax.inject.Inject;
 import net.runelite.api.Client;
@@ -49,8 +45,6 @@ import net.runelite.client.ui.overlay.OverlayPosition;
  * always-underline reaches it only after that. The card of a boss, monster, raid or chest shows the wiki's own picture of
  * its page in its big picture box while "Wiki pictures" is on, asked for as the card is hovered if the line's arrival
  * has not asked yet, with the card's own item or sprite in the box until the picture comes. It never changes the chat text.
- * While the game is stretched or scaled on the screen the card is not drawn in the game's picture, which the stretch
- * smooths, but handed to {@link SharpCards}, a small window drawn at screen size.
  * Everything here runs on the client thread, in the draw call.
  */
 public class ChatCardOverlay extends Overlay
@@ -135,22 +129,6 @@ public class ChatCardOverlay extends Overlay
 	 * <p>Choice: volatile, because the listener writes it on a thread other than the client thread that reads it.
 	 */
 	private volatile boolean wheelTurned;
-	/**
-	 * The window a card shows in while the game is stretched or scaled, handed over by the plugin; null means the card is
-	 * always drawn in the game.
-	 *
-	 * <p>Choice: volatile, because start-up writes it on a thread other than the client thread that reads it.
-	 */
-	private volatile SharpCards sharp;
-	/** What the last card shown in the window was made from; null when none was. */
-	private List<Object> sharpKey;
-	/** The card image the window shows, made for {@link #sharpKey}. */
-	private BufferedImage sharpImage;
-	/** The rectangle the window was last given, and the image it was given with; null when no card is up. */
-	private Rectangle sharpRect;
-	private BufferedImage sharpShown;
-	/** Whether the frame being drawn gave the window a card. */
-	private boolean sharpFrame;
 
 	@Inject
 	ChatCardOverlay(Client client, ClanHubConfig config, ItemManager itemManager, SpriteManager spriteManager)
@@ -200,24 +178,6 @@ public class ChatCardOverlay extends Overlay
 		this.tables = tables;
 	}
 
-	/**
-	 * Hands the overlay the window a card shows in while the game is stretched or scaled; null for none, which draws the
-	 * card in the game always: called when the plugin starts and shuts down. A card shown in the old window is taken down.
-	 */
-	void sharpCards(SharpCards cards)
-	{
-		final SharpCards old = sharp;
-		if (old != null && old != cards && sharpShown != null)
-		{
-			old.hide();
-		}
-		sharp = cards;
-		sharpImage = null;
-		sharpKey = null;
-		sharpShown = null;
-		sharpRect = null;
-	}
-
 	/** The card under the mouse as of the last frame, or null; what the menu reads. */
 	HoverCard hovered()
 	{
@@ -239,14 +199,11 @@ public class ChatCardOverlay extends Overlay
 		{
 			return null;
 		}
-		return splitImage(card, pictureOf(card), descriptionOf(card), config.cardFontSize(), config.cardWidth(),
-			CardStyle.of(config.cardTheme()));
-	}
-
-	/** The split card painted at (0, 0) into a new image of the size the painter measured. */
-	private BufferedImage splitImage(HoverCard card, BufferedImage picture, String description, int fontSize,
-		ClanHubConfig.CardWidth width, CardStyle style)
-	{
+		final BufferedImage picture = pictureOf(card);
+		final String description = descriptionOf(card);
+		final int fontSize = config.cardFontSize();
+		final ClanHubConfig.CardWidth width = config.cardWidth();
+		final CardStyle style = CardStyle.of(config.cardTheme());
 		final Graphics2D measure = scratch.createGraphics();
 		final Dimension size;
 		try
@@ -262,33 +219,6 @@ public class ChatCardOverlay extends Overlay
 		try
 		{
 			CardPainter.paintSplit(g, card, picture, fontSize, 0, 0, description, width.cap, width.lines, style);
-		}
-		finally
-		{
-			g.dispose();
-		}
-		return image;
-	}
-
-	/** The wide card of {@code width} px painted at (0, 0) into a new image of the size the painter measured. */
-	private BufferedImage wideImage(HoverCard card, BufferedImage picture, String description, int fontSize, int width,
-		Color accent, CardStyle style)
-	{
-		final Graphics2D measure = scratch.createGraphics();
-		final Dimension size;
-		try
-		{
-			size = CardPainter.paintWide(measure, card, picture, fontSize, width, 0, 0, description, accent, style);
-		}
-		finally
-		{
-			measure.dispose();
-		}
-		final BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
-		final Graphics2D g = image.createGraphics();
-		try
-		{
-			CardPainter.paintWide(g, card, picture, fontSize, width, 0, 0, description, accent, style);
 		}
 		finally
 		{
@@ -320,25 +250,6 @@ public class ChatCardOverlay extends Overlay
 
 	@Override
 	public Dimension render(Graphics2D g)
-	{
-		sharpFrame = false;
-		final Dimension result = draw(g);
-		// Choice: a card shown in the window goes down the first frame that gave it nothing, whatever the reason.
-		if (!sharpFrame && sharpShown != null)
-		{
-			final SharpCards cards = sharp;
-			sharpShown = null;
-			sharpRect = null;
-			if (cards != null)
-			{
-				cards.hide();
-			}
-		}
-		return result;
-	}
-
-	/** One frame: the hover-reveal and the card, in the game's picture or in the window. */
-	private Dimension draw(Graphics2D g)
 	{
 		if (!config.showCards())
 		{
@@ -456,22 +367,9 @@ public class ChatCardOverlay extends Overlay
 		final BufferedImage picture = pictureOf(shown);
 		final int fontSize = config.cardFontSize();
 		final CardStyle style = CardStyle.of(config.cardTheme());
-		final boolean wide = config.cardPlace() == ClanHubConfig.CardPlace.CHAT;
-		final SharpCards window = sharp;
-		final Canvas screen = window == null ? null : client.getCanvas();
-		if (screen != null && showsInWindow(screen))
-		{
-			final Point origin = originOf(screen);
-			if (origin != null)
-			{
-				sharpCard(window, shown, picture, fontSize, style, wide, areaBounds, mouseX, mouseY,
-					stretchRatio(), SharpCardWindow.deviceScaleOf(screen), origin);
-				return null;
-			}
-		}
 		final Graphics2D measure = scratch.createGraphics();
 		measure.setRenderingHints(g.getRenderingHints());
-		if (wide)
+		if (config.cardPlace() == ClanHubConfig.CardPlace.CHAT)
 		{
 			// Choice: the chatbox's whole frame sets the wide card's width and place, the scroll area's bounds when the
 			// frame is not shown.
@@ -494,117 +392,6 @@ public class ChatCardOverlay extends Overlay
 			new Dimension(client.getCanvasWidth(), client.getCanvasHeight()));
 		CardPainter.paintSplit(g, shown, picture, fontSize, at.x, at.y, description, width.cap, width.lines, style);
 		return null;
-	}
-
-	/**
-	 * How many times bigger than the game's own picture the game is drawn on the screen: 1, or in Stretched mode the
-	 * stretched width over the real width.
-	 */
-	private double stretchRatio()
-	{
-		if (!client.isStretchedEnabled())
-		{
-			return 1;
-		}
-		final Dimension stretched = client.getStretchedDimensions();
-		final Dimension real = client.getRealDimensions();
-		if (stretched == null || real == null || real.width <= 0 || stretched.width <= 0)
-		{
-			return 1;
-		}
-		return (double) stretched.width / real.width;
-	}
-
-	/**
-	 * Whether the card goes to the window this frame: the game is shown at other than 1:1 on the screen, the canvas is
-	 * showing, and no window is in exclusive full screen on the canvas's screen.
-	 */
-	private boolean showsInWindow(Canvas screen)
-	{
-		if (!screen.isShowing() || !SharpCardWindow.needsWindow(stretchRatio(), SharpCardWindow.deviceScaleOf(screen)))
-		{
-			return false;
-		}
-		final GraphicsConfiguration configuration = screen.getGraphicsConfiguration();
-		return configuration == null || configuration.getDevice().getFullScreenWindow() == null;
-	}
-
-	/** Where the canvas's top-left corner is on the screen; null when it cannot be told. */
-	private static Point originOf(Canvas screen)
-	{
-		try
-		{
-			return screen.getLocationOnScreen();
-		}
-		catch (IllegalComponentStateException e)
-		{
-			return null;
-		}
-	}
-
-	/**
-	 * Gives the window the card: made again only when what it shows changed, and handed over only when the image or its
-	 * rectangle changed. A game point is at the canvas's place on the screen plus the point times {@code ratio}; the image
-	 * is shown with {@code scale} device pixels to a pixel, so its window is its size times {@code scale} over the screen's
-	 * scale. The split card is placed around the cursor, the wide card above the chat frame and as wide as it, both kept to
-	 * the canvas.
-	 */
-	private void sharpCard(SharpCards window, HoverCard shown, BufferedImage picture, int fontSize, CardStyle style,
-		boolean wide, Rectangle areaBounds, int mouseX, int mouseY, double ratio, double deviceScale, Point origin)
-	{
-		final int scale = SharpCardWindow.scaleFor(ratio, deviceScale);
-		final String description = descriptionOf(shown);
-		final Rectangle chat = wide ? chatFrame(areaBounds) : null;
-		final int wideWidth = wide ? (int) Math.round(chat.width * ratio * deviceScale / scale) : 0;
-		final ClanHubConfig.CardWidth width = config.cardWidth();
-		final Color accent = config.hoverColour();
-		final List<Object> key = Arrays.<Object>asList(shown, description, signatureOf(picture), fontSize,
-			config.cardTheme(), wide ? null : width, wide, wideWidth, scale, wide ? accent : null);
-		if (!key.equals(sharpKey) || sharpImage == null)
-		{
-			sharpImage = wide ? wideImage(shown, picture, description, fontSize, wideWidth, accent, style)
-				: splitImage(shown, picture, description, fontSize, width, style);
-			sharpKey = key;
-		}
-		final BufferedImage image = sharpImage;
-		final Dimension size = SharpCardWindow.sizeOf(new Dimension(image.getWidth(), image.getHeight()), scale,
-			deviceScale);
-		final Rectangle at;
-		if (wide)
-		{
-			at = CardPainter.placeAboveChat(new Rectangle((int) Math.round(chat.x * ratio),
-				(int) Math.round(chat.y * ratio), (int) Math.round(chat.width * ratio),
-				(int) Math.round(chat.height * ratio)), size);
-		}
-		else
-		{
-			at = CardPainter.placeCentred(new Point((int) Math.round(mouseX * ratio), (int) Math.round(mouseY * ratio)),
-				size, new Dimension((int) Math.round(client.getCanvasWidth() * ratio),
-					(int) Math.round(client.getCanvasHeight() * ratio)));
-		}
-		final Rectangle onScreen = new Rectangle(origin.x + at.x, origin.y + at.y, at.width, at.height);
-		sharpFrame = true;
-		if (image != sharpShown || !onScreen.equals(sharpRect))
-		{
-			sharpShown = image;
-			sharpRect = onScreen;
-			window.show(image, scale, onScreen);
-		}
-	}
-
-	/**
-	 * A cheap fingerprint of a picture's pixels, so a picture that loads in place (an item's icon, which the manager hands
-	 * out before it has loaded) makes the card again; null for none.
-	 */
-	private static Integer signatureOf(BufferedImage picture)
-	{
-		if (picture == null)
-		{
-			return null;
-		}
-		final int w = picture.getWidth();
-		final int h = picture.getHeight();
-		return 31 * (31 * w + h) + Arrays.hashCode(picture.getRGB(0, 0, w, h, null, 0, w));
 	}
 
 	/** The bounds of the chatbox's frame, or {@code fallback} when the frame is not there or not shown. */
