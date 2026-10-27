@@ -851,4 +851,145 @@ public class ChatCardOverlayTest
 		assertSame("the mouse a little inside the words", quiet, frameAt(from + 3, 407));
 		assertNull("the mouse 11 px left of them, where the icon pushes them from", frameAt(from - 11, 407));
 	}
+
+	/** What a test window was told: each {@code show}'s card, scale and rectangle, and how many {@code hide}s. */
+	private static final class Recorder implements SharpCards
+	{
+		final List<BufferedImage> cards = new java.util.ArrayList<>();
+		final List<Integer> scales = new java.util.ArrayList<>();
+		final List<Rectangle> rects = new java.util.ArrayList<>();
+		int hides;
+
+		@Override
+		public void show(BufferedImage card, int scale, Rectangle onScreen)
+		{
+			cards.add(card);
+			scales.add(scale);
+			rects.add(onScreen);
+		}
+
+		@Override
+		public void hide()
+		{
+			hides++;
+		}
+	}
+
+	/** The game stretched to {@code factor} times its size, the canvas showing at screen (100, 50), a recorder as the window. */
+	private Recorder stretched(double factor)
+	{
+		final java.awt.Canvas screen = mock(java.awt.Canvas.class);
+		when(screen.isShowing()).thenReturn(true);
+		when(screen.getLocationOnScreen()).thenReturn(new java.awt.Point(100, 50));
+		when(client.getCanvas()).thenReturn(screen);
+		when(client.getRealDimensions()).thenReturn(new java.awt.Dimension(765, 503));
+		when(client.isStretchedEnabled()).thenReturn(factor != 1);
+		when(client.getStretchedDimensions()).thenReturn(
+			new java.awt.Dimension((int) Math.round(765 * factor), (int) Math.round(503 * factor)));
+		final Recorder recorder = new Recorder();
+		overlay.sharpCards(recorder);
+		return recorder;
+	}
+
+	/** The claws card as the painter sizes it at 16 px, Wide, Classic, no description. */
+	private java.awt.Dimension clawsSize()
+	{
+		final BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = scratch.createGraphics();
+		final java.awt.Dimension size = CardPainter.paintSplit(g, claws, null, 16, 0, 0, "", 480, 3, CardStyle.CLASSIC);
+		g.dispose();
+		return size;
+	}
+
+	/** Lot 11B: a stretched game gets the card in its own window, drawn at screen size, handed over only when it changed. */
+	@Test
+	public void aStretchedGameShowsTheCardInItsWindow()
+	{
+		final Recorder window = stretched(2);
+		when(config.cardPlace()).thenReturn(ClanHubConfig.CardPlace.CURSOR);
+		final int lineX = 150;
+		final Widget visible = line(new Rectangle(lineX, 400, 369, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, lineX);
+
+		assertSame("the card is hit", claws, frameAt(words, 407));
+		assertFalse("nothing of the card is drawn in the game", painted());
+		assertEquals("handed to the window once", 1, window.cards.size());
+		assertEquals("at scale 2", Integer.valueOf(2), window.scales.get(0));
+		final java.awt.Dimension size = clawsSize();
+		assertEquals("an image as big as the card in the game", size.width, window.cards.get(0).getWidth());
+		assertEquals(size.height, window.cards.get(0).getHeight());
+		final Rectangle expected = CardPainter.placeCentred(new java.awt.Point(words * 2, 407 * 2),
+			new java.awt.Dimension(size.width * 2, size.height * 2), new java.awt.Dimension(1530, 1006));
+		expected.translate(100, 50);
+		assertEquals("twice its size, centred around the cursor on the screen", expected, window.rects.get(0));
+		assertEquals(size.width * 2, window.rects.get(0).width);
+
+		frameAt(words, 407);
+		assertEquals("a second frame with nothing changed calls nothing", 1, window.cards.size());
+
+		assertSame("ten pixels along the words", claws, frameAt(words + 10, 407));
+		assertEquals("the window is asked again", 2, window.cards.size());
+		assertSame("with the same image", window.cards.get(0), window.cards.get(1));
+		final Rectangle moved = CardPainter.placeCentred(new java.awt.Point((words + 10) * 2, 407 * 2),
+			new java.awt.Dimension(size.width * 2, size.height * 2), new java.awt.Dimension(1530, 1006));
+		moved.translate(100, 50);
+		assertEquals("at the moved place", moved, window.rects.get(1));
+		assertFalse("the rectangle did move", moved.equals(expected));
+		assertEquals("nothing taken down", 0, window.hides);
+	}
+
+	@Test
+	public void aGameAtOneToOneDrawsTheCardInTheGame()
+	{
+		final Recorder window = stretched(1);
+		when(config.cardPlace()).thenReturn(ClanHubConfig.CardPlace.CURSOR);
+		final Widget visible = line(new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, 0);
+
+		assertSame("the card is hit", claws, frameAt(words, 407));
+		assertTrue("the card is in the game's picture", painted());
+		assertEquals("the window is never shown", 0, window.cards.size());
+		assertEquals("nor taken down", 0, window.hides);
+	}
+
+	@Test
+	public void theWindowGoesWhenTheCardGoes()
+	{
+		final Recorder window = stretched(2);
+		when(config.cardPlace()).thenReturn(ClanHubConfig.CardPlace.CURSOR);
+		final Widget visible = line(new Rectangle(150, 400, 369, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+
+		assertSame(claws, frameAt(wordsX(LINE, 22, 34, 150), 407));
+		assertEquals(1, window.cards.size());
+		assertEquals("up, not taken down yet", 0, window.hides);
+
+		assertNull("the mouse off the words", frameAt(5, 407));
+		assertEquals("taken down once", 1, window.hides);
+		frameAt(5, 407);
+		frameAt(6, 407);
+		assertEquals("and not again", 1, window.hides);
+	}
+
+	@Test
+	public void theWideCardFillsTheChatOnScreen()
+	{
+		final Recorder window = stretched(2);
+		final Widget frame = mock(Widget.class);
+		when(frame.isHidden()).thenReturn(false);
+		when(frame.getBounds()).thenReturn(new Rectangle(0, 338, 519, 142));
+		when(client.getWidget(InterfaceID.Chatbox.UNIVERSE)).thenReturn(frame);
+		when(config.cardPlace()).thenReturn(ClanHubConfig.CardPlace.CHAT);
+		final Widget visible = line(new Rectangle(0, 400, 500, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+
+		assertSame("the card is hit", claws, frameAt(wordsX(LINE, 22, 34, 0), 407));
+		assertEquals(1, window.cards.size());
+		assertEquals("at scale 2", Integer.valueOf(2), window.scales.get(0));
+		assertEquals("an image as wide as the chat", 519, window.cards.get(0).getWidth());
+		assertEquals("a window twice as wide", 1038, window.rects.get(0).width);
+		assertEquals("its left edge on the canvas's", 100, window.rects.get(0).x);
+	}
 }

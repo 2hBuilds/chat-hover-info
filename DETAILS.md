@@ -206,6 +206,11 @@ up), the card stays where it is until you move the mouse 3 px or more, turn the 
 the pointer off the words yourself closes it at once, as always. The plugin listens to the wheel only to know it turned;
 it reads nothing else from it and passes it on untouched.
 
+**Sharp in a stretched or scaled game.** When the game is stretched, or the screen is scaled above 100%, the game's
+own picture is smoothed on its way to the screen, which would blur the card's small type. So in that case the card
+shows in its own small window over the game, drawn at screen size; at 1:1 it is drawn in the game as always. There is
+nothing to set.
+
 **Wiki paragraph.** With *Wiki descriptions* on, a card shows the first paragraph of its wiki page; until the wiki
 has answered, it opens without one and asks again on the next hover. A task and a level with unlocks have their own text.
 
