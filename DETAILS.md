@@ -296,6 +296,7 @@ settings menu.
   five rows, each with the game's own icon, a bold label and a grey rest - *Drops & pets* (clan, friends or your chat;
   the casket icon), *Quests, tasks, diaries* (the quest icon), *Level-ups* and what they unlock (the total
   level icon), *Bosses*, kill counts, PBs (the combat icon) and *Examine* any item or monster (a magnifying glass).
+  Last comes one grey line: "**Tip:** change theme in settings."
 - **Recent cards** lists every chat line that gave a card this session, newest first, up to 5,000, in a list that
   scrolls. Each row has the card's picture and, beside it, the card's title in bold, with when the line came small and
   grey in the row's top right corner - how long ago (*now*, *4m*, *2h*) or, as *Card time* is set, the clock time
@@ -327,32 +328,40 @@ settings menu.
 **The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
 press it again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.8*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 0.0.9*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
-- seven **switches**: *Show hover cards*, *Colour hoverable words*, *Wiki descriptions*, *Wiki pictures*, *Boss cards*,
-  *Examine cards*, *Underline level-ups*;
-- seven **choices**, each a small submenu that shows its current value: *Show a card*, *Card place*, *Card width*,
-  *Card theme*, *Sidebar theme*, *Examine line*, *Card time*. In the *Sidebar theme* list a rule sits after
-  *RuneLite*;
+- the master switch, **Hover cards**;
+- two **theme rows**, *Card theme* and *Sidebar theme*, each a small submenu that shows its current theme in grey at the
+  right, before the arrow. In the *Sidebar theme* list a rule sits after *RuneLite*;
 - a **preview**: while a theme in the *Card theme* or the *Sidebar theme* list is under the mouse (or picked with the
   keys), a picture of it shows beside the list, level with it - a sample card (the Abyssal whip) in the card theme, or
   a small sidebar in the sidebar's look. It changes as you move down the list and goes when no theme is under the
   mouse or the menu closes. The picture is drawn on your computer; nothing is fetched for it except the whip's own
   item picture, which the game already has;
-- the **card key** box, right under *Show a card*: press it, then press the key to hold; Backspace or Delete clears the
-  key, Escape keeps the old one. It is greyed unless *Show a card* is *While holding a key*;
-- two **rows**: *Card delay (ms)* and *Card text size* (number boxes, the delay stepping by 100); a number applies as you
-  type it, and a number out of range is ignored. No box takes the keyboard until it is pressed, so nothing in the menu
-  blinks a caret when it opens;
-- three **colours**: *Hover colour*, *Underline colour* and *Name colour*, each a swatch; press it and the menu closes,
-  RuneLite's colour picker opens on that colour, beside the swatch you pressed, and the menu comes back when the picker
-  closes. The picker paints live: the rows of the recent cards show the *Name colour* as you move through the picker,
-  before you press its OK, and a colour set on RuneLite's own settings page shows in the sidebar at once;
+- four **groups** that open beside the menu, each with its settings under small headings:
+  - **Card**: *Width* (Wide, Medium, Narrow, as small buttons side by side), *Place* (Above the cursor, Above the chat),
+    *Time* (4m ago, 14:32, 2:32 PM, as small buttons) and *Text size* (a number box);
+  - **When it shows**: *Show* (On hover, While holding a key, On click), then *Key* and *Delay (ms)*. *Key* is a box:
+    press it, then press the key to hold; Backspace or Delete clears the key, Escape keeps the old one; it is greyed
+    unless *Show* is *While holding a key*. *Delay (ms)* is a number box stepping by 100;
+  - **What gets a card**: the switches *Boss cards*, *Examine cards*, *Wiki text* and *Wiki pictures*, then *Examine
+    line* (Item name first, Description only);
+  - **Colours**: the switch *Colour names*, *Hover colour*, the switch *Underline level-ups*, *Underline colour* and
+    *Sidebar names*. Each colour is a swatch; press it and the menu closes, RuneLite's colour picker opens on that
+    colour, beside the swatch you pressed, and the menu comes back, with this group open, when the picker closes. The
+    picker paints live: the rows of the recent cards show the colour of *Sidebar names* (the *Name colour* setting) as
+    you move through the picker, before you press its OK, and a colour set on RuneLite's own settings page shows in the
+    sidebar at once.
+
+  A number applies as you type it, and a number out of range is ignored. No box takes the keyboard until it is pressed,
+  so nothing in the menu blinks a caret when it opens. A click or a pick inside a group writes the setting and keeps the
+  group and the menu open;
 - at the bottom, **Reset to default** on the left, which puts all twenty settings back to their defaults, and **OK**
   on the right, which closes the menu.
 
-Everything in the menu saves itself as you set it, and the menu stays open while you work through the switches; OK,
-a link, or a click anywhere outside it closes it. Each is the same setting as on RuneLite's settings page.
+Everything in the menu saves itself as you set it, and the menu stays open while you work through the groups; OK,
+a link, or a click anywhere outside it closes it. Each is the same setting as on RuneLite's settings page, under the
+names given there.
 
 ## Data and credit
 
@@ -412,8 +421,8 @@ request they reach the wiki from your IP address.
   search, the first hit's picture when its title shares a word with the name, otherwise the game's icon.
 - **Capped.** At most 10 names wait for an answer at once, and at most 60 requests start in a minute (the page request
   the search and the picture request each count); a name let go because of the cap is asked for again by a later hover.
-- **Turn it off** with *Wiki descriptions* and *Wiki pictures*, on RuneLite's settings page or in the sidebar menu, and
-  nothing is sent for what each one covers. The cards then show without a paragraph (apart from a task's and a level's
+- **Turn it off** with *Wiki descriptions* and *Wiki pictures*, on RuneLite's settings page, or *Wiki text* and *Wiki
+  pictures* in the sidebar menu's *What gets a card* group, and nothing is sent for what each one covers. The cards then show without a paragraph (apart from a task's and a level's
   own bundled text), and with the game's icon in place of a picture. With *Show hover cards* off nothing is sent
   either: no card, no asking.
 

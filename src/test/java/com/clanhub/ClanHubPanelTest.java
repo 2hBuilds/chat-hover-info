@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +45,8 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JSpinner;
+import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.LayoutFocusTraversalPolicy;
 import javax.swing.MenuElement;
 import javax.swing.MenuSelectionManager;
@@ -433,6 +436,7 @@ public class ClanHubPanelTest
 		return new ClanHubPanel(() -> { }, settings, picker, history, viewer, source, browsed::add, copied::add);
 	}
 
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theMenuHoldsTheSwitchesTheRowsAndTheOkRow() throws Exception
 	{
@@ -452,110 +456,38 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 
 				final Component[] parts = menu.getComponents();
-				// Re-aimed by the lead, 2026-10-08 (lot 8b): a third check, "Wiki descriptions".
-				// Re-aimed by the lead, 2026-10-08 (lot 8c): a fourth row, "Card place".
-				// Re-aimed by the lead, 2026-10-08 (lot 8j): a fourth check, "Always underline level-ups".
-				// Re-aimed by the lead, 2026-10-08 (lot 8Q): a fifth row, "Card width".
-				// Re-aimed by the lead, 2026-10-08 (lot 8R): a fifth check, "Boss cards".
-				// Re-aimed by the lead, 2026-10-08 (lot 8U): a sixth check, "Wiki pictures".
-				// Re-aimed by the lead, 2026-10-09 (lot 9B): the choice rows are submenus with radio items.
-				// Re-aimed by the lead, 2026-10-09 (lot 9D): two colour rows after the number boxes.
-				// Re-aimed by the lead, 2026-10-09 (lot 9F): the card key row after the show submenu.
-				// Re-aimed by the lead, 2026-10-23 (lot 10A): a seventh check, "Examine cards".
-				// Re-aimed by the lead, 2026-10-24 (lot 10B): a fourth choice submenu, "Examine line".
-				// Re-aimed by the lead, 2026-10-25 (lot 10K): a fifth choice submenu, "Card time".
-				// Re-aimed by the lead, 2026-10-25 (lot 10L): a third colour row, "Name colour".
-				// Re-aimed by the lead, 2026-10-25 (lot 10M): the name swatch reads the 2h orange.
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				assertEquals("header, rule, seven checks, rule, the show submenu, the key row, the delay row, two submenus,"
-					+ " the card theme submenu, the sidebar theme submenu, the examine line submenu, the card time submenu,"
-					+ " the size row, three colour rows, rule, OK row", 25, parts.length);
+				assertEquals("header, rule, the Hover cards check, rule, the two theme rows, rule, four groups, rule, OK row", 13,
+					parts.length);
 				assertTrue("the header is the support header's one panel", parts[0] instanceof JPanel);
 				assertEquals("the header's title, version and links", 3, ((JPanel) parts[0]).getComponentCount());
 				assertTrue("a rule", parts[1] instanceof JPopupMenu.Separator);
-				assertTrue("the first check", parts[2] instanceof JCheckBoxMenuItem);
-				assertTrue("the second check", parts[3] instanceof JCheckBoxMenuItem);
-				assertTrue("the third check", parts[4] instanceof JCheckBoxMenuItem);
-				assertTrue("the fourth check", parts[5] instanceof JCheckBoxMenuItem);
-				assertTrue("the fifth check", parts[6] instanceof JCheckBoxMenuItem);
-				assertTrue("the sixth check", parts[7] instanceof JCheckBoxMenuItem);
-				assertTrue("the seventh check", parts[8] instanceof JCheckBoxMenuItem);
-				assertTrue("a rule", parts[9] instanceof JPopupMenu.Separator);
-				assertTrue("the show submenu", parts[10] instanceof JMenu);
-				assertTrue("the key row", parts[11] instanceof JPanel);
-				assertTrue("the delay row", parts[12] instanceof JPanel);
-				assertTrue("the place submenu", parts[13] instanceof JMenu);
-				assertTrue("the width submenu", parts[14] instanceof JMenu);
-				assertTrue("the card theme submenu", parts[15] instanceof JMenu);
-				assertTrue("the sidebar theme submenu", parts[16] instanceof JMenu);
-				assertTrue("the examine line submenu", parts[17] instanceof JMenu);
-				assertTrue("the card time submenu", parts[18] instanceof JMenu);
-				assertTrue("the size row", parts[19] instanceof JPanel);
-				assertTrue("the hover colour row", parts[20] instanceof JPanel);
-				assertTrue("the underline colour row", parts[21] instanceof JPanel);
-				assertTrue("the name colour row", parts[22] instanceof JPanel);
-				assertTrue("a rule", parts[23] instanceof JPopupMenu.Separator);
-				assertTrue("the OK row", parts[24] instanceof JPanel);
+				assertTrue("the Hover cards check", parts[2] instanceof JCheckBoxMenuItem);
+				assertTrue("a rule", parts[3] instanceof JPopupMenu.Separator);
+				assertTrue("the card theme row", parts[4] instanceof ValueMenu);
+				assertTrue("the sidebar theme row", parts[5] instanceof ValueMenu);
+				assertTrue("a rule", parts[6] instanceof JPopupMenu.Separator);
+				for (int i = 7; i <= 10; i++)
+				{
+					assertTrue("a group", parts[i] instanceof JMenu && !(parts[i] instanceof ValueMenu));
+				}
+				assertEquals("the four groups in order", List.of("Card", "When it shows", "What gets a card", "Colours"),
+					Arrays.asList(((JMenu) parts[7]).getText(), ((JMenu) parts[8]).getText(), ((JMenu) parts[9]).getText(),
+						((JMenu) parts[10]).getText()));
+				assertTrue("a rule", parts[11] instanceof JPopupMenu.Separator);
+				assertTrue("the OK row", parts[12] instanceof JPanel);
 
 				final JCheckBoxMenuItem showCheck = (JCheckBoxMenuItem) parts[2];
-				assertEquals("Show hover cards", showCheck.getText());
+				assertEquals("Hover cards", showCheck.getText());
 				assertTrue("ticked, as the setting is", showCheck.isSelected());
-				final JCheckBoxMenuItem colourCheck = (JCheckBoxMenuItem) parts[3];
-				assertEquals("Colour hoverable words", colourCheck.getText());
-				assertTrue("ticked, as the setting is", colourCheck.isSelected());
-				final JCheckBoxMenuItem wikiCheck = (JCheckBoxMenuItem) parts[4];
-				assertEquals("Wiki descriptions", wikiCheck.getText());
-				assertTrue("ticked, as the setting is", wikiCheck.isSelected());
-				final JCheckBoxMenuItem picturesCheck = (JCheckBoxMenuItem) parts[5];
-				assertEquals("Wiki pictures", picturesCheck.getText());
-				assertTrue("ticked, as the setting is", picturesCheck.isSelected());
-				final JCheckBoxMenuItem bossCheck = (JCheckBoxMenuItem) parts[6];
-				assertEquals("Boss cards", bossCheck.getText());
-				assertTrue("ticked, as the setting is", bossCheck.isSelected());
-				// Re-aimed by the lead, 2026-10-23 (lot 10A): "Examine cards" right after "Boss cards", as the settings page has it.
-				final JCheckBoxMenuItem underlineCheck = (JCheckBoxMenuItem) parts[8];
-				assertEquals("Underline level-ups", underlineCheck.getText());
-				assertFalse("not ticked, as the setting is", underlineCheck.isSelected());
-				final JCheckBoxMenuItem examineCheck = (JCheckBoxMenuItem) parts[7];
-				assertEquals("Examine cards", examineCheck.getText());
-				assertTrue("ticked, as the setting is", examineCheck.isSelected());
 
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JMenu showMenu = (JMenu) parts[10];
-				assertEquals("Show a card: On hover", showMenu.getText());
-				assertRadios(showMenu, CardTrigger.values(), CardTrigger.HOVER);
-
-				final JPanel keyRow = (JPanel) parts[11];
-				assertEquals("Card key", ((JLabel) keyRow.getComponent(0)).getText());
-				assertTrue("the key row ends in a button", lastOf(keyRow) instanceof JButton);
-				assertEquals("Alt", ((JButton) lastOf(keyRow)).getText());
-				assertFalse("greyed unless the show mode is 'While holding a key'", lastOf(keyRow).isEnabled());
-
-				final JPanel delayRow = (JPanel) parts[12];
-				assertEquals("Card delay (ms)", ((JLabel) delayRow.getComponent(0)).getText());
-				final JSpinner delaySpinner = (JSpinner) lastOf(delayRow);
-				assertEquals(0, delaySpinner.getValue());
-				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) delaySpinner.getEditor())
-					.getTextField().getColumns() <= 4);
-
-				final JMenu placeMenu = (JMenu) parts[13];
-				assertEquals("Card place: Above the cursor", placeMenu.getText());
-				assertRadios(placeMenu, CardPlace.values(), CardPlace.CURSOR);
-
-				final JMenu widthMenu = (JMenu) parts[14];
-				assertEquals("Card width: Wide", widthMenu.getText());
-				assertRadios(widthMenu, CardWidth.values(), CardWidth.WIDE);
-
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): the stub's theme starts at Classic.
-				final JMenu themeMenu = (JMenu) parts[15];
-				assertEquals("Card theme: Classic", themeMenu.getText());
+				final ValueMenu themeMenu = (ValueMenu) parts[4];
+				assertEquals("Card theme", themeMenu.getText());
+				assertEquals("Classic", themeMenu.value());
 				assertRadios(themeMenu, CardTheme.values(), CardTheme.CLASSIC);
 
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JMenu sidebarMenu = (JMenu) parts[16];
-				assertEquals("Sidebar theme: Same as cards", sidebarMenu.getText());
+				final ValueMenu sidebarMenu = (ValueMenu) parts[5];
+				assertEquals("Sidebar theme", sidebarMenu.getText());
+				assertEquals("Same as cards", sidebarMenu.value());
 				assertEquals("one radio item per look and a rule after the second", SidebarTheme.values().length + 1,
 					sidebarMenu.getMenuComponentCount());
 				assertTrue("the first look is Same as cards, selected", radio(sidebarMenu, 0).isSelected()
@@ -569,37 +501,62 @@ public class ClanHubPanelTest
 					assertFalse("none of them selected", radio(sidebarMenu, 3 + i).isSelected());
 				}
 
-				final JMenu examineLineMenu = (JMenu) parts[17];
-				assertEquals("Examine line: Item name first", examineLineMenu.getText());
-				assertRadios(examineLineMenu, ExamineLine.values(), ExamineLine.NAME_FIRST);
+				final JPopupMenu card = ((JMenu) parts[7]).getPopupMenu();
+				final JPopupMenu when = ((JMenu) parts[8]).getPopupMenu();
+				final JPopupMenu what = ((JMenu) parts[9]).getPopupMenu();
+				final JPopupMenu colours = ((JMenu) parts[10]).getPopupMenu();
 
-				final JMenu cardTimeMenu = (JMenu) parts[18];
-				assertEquals("Card time: 4m ago", cardTimeMenu.getText());
-				assertRadios(cardTimeMenu, CardTime.values(), CardTime.AGO);
+				final JCheckBoxMenuItem colourCheck = checkSaying(colours, "Colour names");
+				assertTrue("ticked, as the setting is", colourCheck.isSelected());
+				final JCheckBoxMenuItem wikiCheck = checkSaying(what, "Wiki text");
+				assertTrue("ticked, as the setting is", wikiCheck.isSelected());
+				final JCheckBoxMenuItem picturesCheck = checkSaying(what, "Wiki pictures");
+				assertTrue("ticked, as the setting is", picturesCheck.isSelected());
+				final JCheckBoxMenuItem bossCheck = checkSaying(what, "Boss cards");
+				assertTrue("ticked, as the setting is", bossCheck.isSelected());
+				final JCheckBoxMenuItem underlineCheck = checkSaying(colours, "Underline level-ups");
+				assertFalse("not ticked, as the setting is", underlineCheck.isSelected());
+				final JCheckBoxMenuItem examineCheck = checkSaying(what, "Examine cards");
+				assertTrue("ticked, as the setting is", examineCheck.isSelected());
 
-				final JPanel sizeRow = (JPanel) parts[19];
+				assertRadiosIn(when, CardTrigger.values(), CardTrigger.HOVER);
+
+				final JPanel keyRow = rowSaying(when, "Key");
+				assertTrue("the key row ends in a button", lastOf(keyRow) instanceof JButton);
+				assertEquals("Alt", ((JButton) lastOf(keyRow)).getText());
+				assertFalse("greyed unless the show mode is 'While holding a key'", lastOf(keyRow).isEnabled());
+
+				final JPanel delayRow = rowSaying(when, "Delay (ms)");
+				final JSpinner delaySpinner = (JSpinner) lastOf(delayRow);
+				assertEquals(0, delaySpinner.getValue());
+				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) delaySpinner.getEditor())
+					.getTextField().getColumns() <= 4);
+
+				assertRadiosIn(card, CardPlace.values(), CardPlace.CURSOR);
+				assertTogglesIn(card, 0, CardWidth.values(), CardWidth.WIDE);
+				assertTogglesIn(card, 1, CardTime.values(), CardTime.AGO);
+
+				assertRadiosIn(what, ExamineLine.values(), ExamineLine.NAME_FIRST);
+
+				final JPanel sizeRow = rowSaying(card, "Text size");
 				assertFalse("see-through", sizeRow.isOpaque());
-				assertEquals("Card text size", ((JLabel) sizeRow.getComponent(0)).getText());
 				final JSpinner sizeSpinner = (JSpinner) lastOf(sizeRow);
 				assertEquals(16, sizeSpinner.getValue());
 				assertTrue("no wider than four digits", ((JSpinner.DefaultEditor) sizeSpinner.getEditor())
 					.getTextField().getColumns() <= 4);
 
-				final JPanel hoverRow = (JPanel) parts[20];
-				assertEquals("Hover colour", ((JLabel) hoverRow.getComponent(0)).getText());
+				final JPanel hoverRow = rowSaying(colours, "Hover colour");
 				assertTrue("the hover colour row ends in a swatch", lastOf(hoverRow) instanceof JButton);
 				assertEquals(new Color(59, 130, 246), lastOf(hoverRow).getBackground());
-				final JPanel underlineRow = (JPanel) parts[21];
-				assertEquals("Underline colour", ((JLabel) underlineRow.getComponent(0)).getText());
+				final JPanel underlineRow = rowSaying(colours, "Underline colour");
 				assertTrue("the underline colour row ends in a swatch", lastOf(underlineRow) instanceof JButton);
 				assertEquals(new Color(150, 150, 150), lastOf(underlineRow).getBackground());
-				final JPanel nameRow = (JPanel) parts[22];
-				assertEquals("Name colour", ((JLabel) nameRow.getComponent(0)).getText());
+				final JPanel nameRow = rowSaying(colours, "Sidebar names");
 				assertTrue("the name colour row ends in a swatch", lastOf(nameRow) instanceof JButton);
 				assertEquals(new Color(220, 138, 0), lastOf(nameRow).getBackground());
 
 				final List<String> okRow = new ArrayList<>();
-				for (final Component part : ((JPanel) parts[24]).getComponents())
+				for (final Component part : ((JPanel) parts[12]).getComponents())
 				{
 					if (part instanceof JButton)
 					{
@@ -638,25 +595,23 @@ public class ClanHubPanelTest
 				assertEquals("nor the boss check", List.of(false), bosses);
 				radio(sidebarMenu, 1).doClick(0);
 				assertEquals("choosing 'RuneLite' says so, once", List.of(SidebarTheme.RUNELITE), sidebarLooks);
-				assertEquals("and the submenu says so", "Sidebar theme: RuneLite", sidebarMenu.getText());
+				assertEquals("and the row says so, its text unchanged", "RuneLite", sidebarMenu.value());
+				assertEquals("Sidebar theme", sidebarMenu.getText());
 				assertEquals("and the examine check was not touched again", List.of(false), examines);
-				radio(showMenu, 1).doClick(0);
+				radiosIn(when).get(1).doClick(0);
 				assertEquals("choosing 'While holding a key' says so", List.of(CardTrigger.HOLD_KEY), triggers);
-				assertEquals("and the submenu says so", "Show a card: While holding a key", showMenu.getText());
 				assertTrue("and the key box is enabled", lastOf(keyRow).isEnabled());
-				radio(placeMenu, 1).doClick(0);
+				radiosIn(card).get(1).doClick(0);
 				assertEquals("choosing 'Above the chat' says so, once", List.of(CardPlace.CHAT), places);
 				assertEquals("and the trigger was not touched again", List.of(CardTrigger.HOLD_KEY), triggers);
-				radio(widthMenu, 1).doClick(0);
+				togglesIn(card).get(1).doClick(0);
 				assertEquals("choosing 'Medium' says so, once", List.of(CardWidth.MEDIUM), widths);
 				assertEquals("and the place was not touched again", List.of(CardPlace.CHAT), places);
-				radio(examineLineMenu, 1).doClick(0);
+				radiosIn(what).get(1).doClick(0);
 				assertEquals("choosing 'Description only' says so, once", List.of(ExamineLine.DESCRIPTION), examineLines);
-				assertEquals("and the submenu says so", "Examine line: Description only", examineLineMenu.getText());
 				assertEquals("and the width was not touched again", List.of(CardWidth.MEDIUM), widths);
-				radio(cardTimeMenu, 1).doClick(0);
+				togglesIn(card).get(4).doClick(0);
 				assertEquals("choosing '14:32' says so, once", List.of(CardTime.CLOCK_24), cardTimes);
-				assertEquals("and the submenu says so", "Card time: 14:32", cardTimeMenu.getText());
 				assertEquals("and the examine line was not touched again", List.of(ExamineLine.DESCRIPTION), examineLines);
 				delaySpinner.setValue(300);
 				assertEquals("setting the delay spinner to 300 says 300", List.of(300), delays);
@@ -672,6 +627,7 @@ public class ClanHubPanelTest
 	}
 
 	/** Lot 9A: a click on a switch flips it and writes it once, and the menu stays up until OK takes it down. */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void aSwitchClickKeepsTheMenuOpen() throws Exception
 	{
@@ -691,25 +647,25 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final JCheckBoxMenuItem colourCheck = (JCheckBoxMenuItem) menu.getComponents()[3];
-				assertEquals("Colour hoverable words", colourCheck.getText());
+				final JPopupMenu colours = open(menu, groupOf(menu, "Colours"));
+				final JCheckBoxMenuItem colourCheck = checkSaying(colours, "Colour names");
 				final boolean before = colourCheck.isSelected();
 				assertTrue("ticked, as the setting is", before);
 
 				click(colourCheck);
 				assertTrue("the menu is still up after the click", menu.isVisible());
+				assertTrue("and the group", colours.isVisible());
 				assertEquals("the check flipped", !before, colourCheck.isSelected());
 				assertEquals("one write, un-ticked", List.of(false), coloured);
 
 				click(colourCheck);
 				assertTrue("the menu is still up after the second click", menu.isVisible());
+				assertTrue("and the group", colours.isVisible());
 				assertEquals("the check flipped back", before, colourCheck.isSelected());
 				assertEquals("a second write, ticked again", List.of(false, true), coloured);
 
 				JButton ok = null;
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				for (final Component part : ((JPanel) menu.getComponents()[24]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[12]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -728,9 +684,10 @@ public class ClanHubPanelTest
 	}
 
 	/**
-	 * Lot 9B: a click on a choice in a submenu writes it, retitles the submenu and closes the submenu alone; the menu
-	 * stays up until OK takes it down.
+	 * Lot 9B: a click on a choice writes it and the menu stays up until OK takes it down. Lot 11A: a choice is in a group
+	 * now, and the group stays up with the menu: nothing closes when it is picked.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void aChoiceClickKeepsTheMenuOpenAndClosesTheSubmenu() throws Exception
 	{
@@ -750,28 +707,19 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JMenu showMenu = (JMenu) menu.getComponents()[10];
-				assertEquals("Show a card: On hover", showMenu.getText());
-				MenuSelectionManager.defaultManager().setSelectedPath(
-					new MenuElement[] {menu, showMenu, showMenu.getPopupMenu()});
-				assertTrue("the submenu is up", showMenu.getPopupMenu().isVisible());
-				assertTrue("the menu is still up under it", menu.isVisible());
+				final JPopupMenu when = open(menu, groupOf(menu, "When it shows"));
 
-				final JRadioButtonMenuItem onClick = radio(showMenu, 2);
-				assertEquals("On click", onClick.getText());
+				final JRadioButtonMenuItem onClick = radioSaying(when, "On click");
+				assertFalse("not the selected one yet", onClick.isSelected());
 				click(onClick);
 
 				assertTrue("the menu is still up after the choice", menu.isVisible());
-				assertFalse("the submenu is down", showMenu.getPopupMenu().isVisible());
-				assertEquals("the submenu says the choice", "Show a card: On click", showMenu.getText());
+				assertTrue("the group is still up too", when.isVisible());
 				assertTrue("the chosen item is the selected one", onClick.isSelected());
 				assertEquals("one write, 'On click'", List.of(CardTrigger.CLICK), triggers);
 
 				JButton ok = null;
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				for (final Component part : ((JPanel) menu.getComponents()[24]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[12]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -781,6 +729,7 @@ public class ClanHubPanelTest
 				assertNotNull("the OK button is in the OK row", ok);
 				ok.doClick(0);
 				assertFalse("OK takes the menu down", menu.isVisible());
+				assertFalse("and the group with it", when.isVisible());
 			}
 			finally
 			{
@@ -797,6 +746,7 @@ public class ClanHubPanelTest
 	// Re-aimed by the lead, 2026-10-26 (lot 10R): eight space themes after Wiki.
 	// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
 	// Re-aimed by the lead, 2026-10-26 (lot 10T): twelve scene themes after Cosmic edge.
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theThemeSubmenuWritesTheTheme() throws Exception
 	{
@@ -816,9 +766,8 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JMenu themeMenu = (JMenu) menu.getComponents()[15];
-				assertEquals("Card theme: Classic", themeMenu.getText());
+				final ValueMenu themeMenu = valueMenuSaying(menu, "Card theme");
+				assertEquals("its value is the theme", "Classic", themeMenu.value());
 				assertEquals("one radio item per theme", 24, themeMenu.getMenuComponentCount());
 				assertEquals("Classic", radio(themeMenu, 0).getText());
 				assertEquals("Stone", radio(themeMenu, 1).getText());
@@ -857,7 +806,8 @@ public class ClanHubPanelTest
 				assertEquals("the stub is at Stone now", CardTheme.STONE, cardTheme);
 				assertTrue("Stone is the selected item", stone.isSelected());
 				assertFalse("Classic is not", radio(themeMenu, 0).isSelected());
-				assertEquals("the submenu says the choice", "Card theme: Stone", themeMenu.getText());
+				assertEquals("the row shows the choice at its right", "Stone", themeMenu.value());
+				assertEquals("and its text is still the caption", "Card theme", themeMenu.getText());
 				assertTrue("the menu is still up after the choice", menu.isVisible());
 				assertFalse("the submenu is down", themeMenu.getPopupMenu().isVisible());
 			}
@@ -872,6 +822,7 @@ public class ClanHubPanelTest
 	 * Lot 9D: a press on a colour swatch takes the menu down and asks the picker for that colour; each colour the picker
 	 * settles on is written and shown on the swatch; the picker closing brings the menu back.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void aSwatchOpensThePickerAndTheMenuComesBack() throws Exception
 	{
@@ -891,9 +842,8 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[20]);
+				final JPopupMenu colours = open(menu, groupOf(menu, "Colours"));
+				final JButton hoverSwatch = (JButton) lastOf(rowSaying(colours, "Hover colour"));
 				assertEquals(new Color(59, 130, 246), hoverSwatch.getBackground());
 				hoverSwatch.doClick(0);
 				assertFalse("the menu goes while the picker is open", menu.isVisible());
@@ -907,7 +857,7 @@ public class ClanHubPanelTest
 				pickerOnClose.accept(new Color(1, 2, 3));
 				assertTrue("the menu comes back when the picker closes", menu.isVisible());
 
-				final JButton underlineSwatch = (JButton) lastOf((JPanel) menu.getComponents()[21]);
+				final JButton underlineSwatch = (JButton) lastOf(rowSaying(colours, "Underline colour"));
 				assertEquals(new Color(150, 150, 150), underlineSwatch.getBackground());
 				underlineSwatch.doClick(0);
 				assertFalse("the menu goes again", menu.isVisible());
@@ -929,9 +879,11 @@ public class ClanHubPanelTest
 	}
 
 	/**
-	 * Lot 10M: a choice submenu left open closes when the mouse enters a plain row of the menu (a colour row, a
-	 * spinner, the OK row); the menu itself stays up, and with no submenu open entering a row changes nothing.
+	 * Lot 10M: a submenu left open closes when the mouse enters a plain row of the menu; the menu itself stays up, and
+	 * with no submenu open entering a row changes nothing. Lot 11A: the OK row is the one plain row of the menu now (the
+	 * others are in groups), and the rows inside a group close nothing, as the group they are in would go with it.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void aPlainRowClosesAnOpenSubmenu() throws Exception
 	{
@@ -951,50 +903,44 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				final Component[] parts = menu.getComponents();
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				final JMenu cardTimeMenu = (JMenu) parts[18];
-				assertEquals("Card time: 4m ago", cardTimeMenu.getText());
-				final JPanel nameRow = (JPanel) parts[22];
-				assertEquals("Name colour", ((JLabel) nameRow.getComponent(0)).getText());
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) parts[12]);
-				final JPanel okRow = (JPanel) parts[24];
+				final ValueMenu themeMenu = valueMenuSaying(menu, "Card theme");
+				final JMenu whenGroup = groupOf(menu, "When it shows");
+				final JMenu coloursGroup = groupOf(menu, "Colours");
+				final JPanel nameRow = rowSaying(coloursGroup.getPopupMenu(), "Sidebar names");
+				final JSpinner delaySpinner = (JSpinner) lastOf(rowSaying(whenGroup.getPopupMenu(), "Delay (ms)"));
+				final JPanel okRow = (JPanel) menu.getComponents()[12];
 
 				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
-				enter(nameRow);
-				enter(delaySpinner);
 				enter(okRow);
 				assertPathIsThe(menu);
 				assertTrue("with no submenu open nothing happens to the menu", menu.isVisible());
 
-				final MenuElement[] open = {menu, cardTimeMenu, cardTimeMenu.getPopupMenu()};
+				final MenuElement[] open = {menu, themeMenu, themeMenu.getPopupMenu()};
 				MenuSelectionManager.defaultManager().setSelectedPath(open);
-				assertTrue("the submenu is up", cardTimeMenu.getPopupMenu().isVisible());
-				enter(nameRow);
-				assertPathIsThe(menu);
-				assertFalse("the Name colour row took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
-				assertTrue("the menu is still up", menu.isVisible());
-
-				MenuSelectionManager.defaultManager().setSelectedPath(open);
-				assertTrue("the submenu is up again", cardTimeMenu.getPopupMenu().isVisible());
-				enter(delaySpinner);
-				assertPathIsThe(menu);
-				assertFalse("the delay row's spinner took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
-
-				MenuSelectionManager.defaultManager().setSelectedPath(open);
-				assertTrue("the submenu is up a third time", cardTimeMenu.getPopupMenu().isVisible());
-				enter(((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField());
-				assertPathIsThe(menu);
-				assertFalse("the spinner's text field took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
-
-				MenuSelectionManager.defaultManager().setSelectedPath(open);
-				assertTrue("the submenu is up a fourth time", cardTimeMenu.getPopupMenu().isVisible());
+				assertTrue("the theme submenu is up", themeMenu.getPopupMenu().isVisible());
 				enter(okRow);
 				assertPathIsThe(menu);
-				assertFalse("the OK row took the submenu down", cardTimeMenu.getPopupMenu().isVisible());
+				assertFalse("the OK row took the submenu down", themeMenu.getPopupMenu().isVisible());
+				assertTrue("the menu is still up", menu.isVisible());
+
+				final MenuElement[] openWhen = {menu, whenGroup, whenGroup.getPopupMenu()};
+				MenuSelectionManager.defaultManager().setSelectedPath(openWhen);
+				assertTrue("the When it shows group is up", whenGroup.getPopupMenu().isVisible());
+				enter(delaySpinner);
+				enter(((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField());
+				assertEquals("a row inside the group leaves the path as it was", 3,
+					MenuSelectionManager.defaultManager().getSelectedPath().length);
+				assertTrue("and the group up", whenGroup.getPopupMenu().isVisible());
+				enter(okRow);
+				assertPathIsThe(menu);
+				assertFalse("the OK row took the group down", whenGroup.getPopupMenu().isVisible());
 				assertTrue("the menu is still up after all of it", menu.isVisible());
+
+				MenuSelectionManager.defaultManager().setSelectedPath(
+					new MenuElement[] {menu, coloursGroup, coloursGroup.getPopupMenu()});
+				assertTrue("the Colours group is up", coloursGroup.getPopupMenu().isVisible());
+				enter(nameRow);
+				assertTrue("a colour row inside the group does not take it down", coloursGroup.getPopupMenu().isVisible());
 				menu.setVisible(false);
 			}
 			finally
@@ -1008,6 +954,7 @@ public class ClanHubPanelTest
 	 * Lot 10M: a press on a colour swatch hands the picker the swatch's centre on the screen, as it was before the menu
 	 * came down.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theSwatchTellsThePickerWhereItIs() throws Exception
 	{
@@ -1027,9 +974,8 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				final JButton hoverSwatch = (JButton) lastOf((JPanel) menu.getComponents()[20]);
+				final JPopupMenu colours = open(menu, groupOf(menu, "Colours"));
+				final JButton hoverSwatch = (JButton) lastOf(rowSaying(colours, "Hover colour"));
 				final Rectangle onScreen = new Rectangle(hoverSwatch.getLocationOnScreen(), hoverSwatch.getSize());
 				hoverSwatch.doClick(0);
 				assertFalse("the menu goes while the picker is open", menu.isVisible());
@@ -1051,6 +997,7 @@ public class ClanHubPanelTest
 	 * Lot 10L: a row's name is drawn in the name colour; the Name colour swatch opens the picker, and each colour the
 	 * picker settles on is written and shows in the rows at once, with the picker still open.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theNameColourPaintsLive() throws Exception
 	{
@@ -1079,9 +1026,8 @@ public class ClanHubPanelTest
 				press(settingsIcon(panel[0]));
 				final JPopupMenu menu = popupMenu(frame[0]);
 				assertNotNull("the menu is on screen", menu);
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				final JButton nameSwatch = (JButton) lastOf((JPanel) menu.getComponents()[22]);
+				final JPopupMenu colours = open(menu, groupOf(menu, "Colours"));
+				final JButton nameSwatch = (JButton) lastOf(rowSaying(colours, "Sidebar names"));
 				assertEquals(new Color(220, 138, 0), nameSwatch.getBackground());
 				nameSwatch.doClick(0);
 				assertFalse("the menu goes while the picker is open", menu.isVisible());
@@ -1159,6 +1105,7 @@ public class ClanHubPanelTest
 	 * Lot 9F: the card key box waits for a press, takes the next key (Escape keeps the old one, Backspace clears it, a
 	 * modifier alone is a key), and holds the keyboard only while it waits.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theKeyBoxTakesTheNextKey() throws Exception
 	{
@@ -1179,9 +1126,8 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[11]);
+				final JPopupMenu when = open(menu, groupOf(menu, "When it shows"));
+				final JButton box = (JButton) lastOf(rowSaying(when, "Key"));
 				assertEquals("Alt", box.getText());
 				assertTrue("enabled in the key mode", box.isEnabled());
 				assertFalse("not focusable at rest", box.isFocusable());
@@ -1253,6 +1199,7 @@ public class ClanHubPanelTest
 	 * Lot 9F: no number box takes the keyboard when the menu opens (a blinking caret in the delay box was the fault); a
 	 * left press gives it the keyboard, losing the keyboard takes it away again, and a typed number applies as it is typed.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theNumberBoxesTakeTheKeyboardOnlyWhenPressedAndWriteAsYouType() throws Exception
 	{
@@ -1272,11 +1219,8 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 				assertTrue("the menu is up", menu.isVisible());
 
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[12]);
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[19]);
+				final JSpinner delaySpinner = (JSpinner) lastOf(rowSaying(open(menu, groupOf(menu, "When it shows")), "Delay (ms)"));
+				final JSpinner sizeSpinner = (JSpinner) lastOf(rowSaying(open(menu, groupOf(menu, "Card")), "Text size"));
 				final JFormattedTextField delayField = ((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField();
 				final JFormattedTextField sizeField = ((JSpinner.DefaultEditor) sizeSpinner.getEditor()).getTextField();
 				assertFalse("the delay box is not focusable at rest", delayField.isFocusable());
@@ -1308,6 +1252,7 @@ public class ClanHubPanelTest
 	 * Lot 9G: the menu's header is the one focusable part at rest, so the menu's window takes the keyboard when the menu
 	 * opens and the boxes can take it from the window on a press; the boxes stay unfocusable at rest.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theHeaderHoldsTheKeyboardWhenTheMenuOpens() throws Exception
 	{
@@ -1334,17 +1279,14 @@ public class ClanHubPanelTest
 				assertEquals("the part the window gives the keyboard to is the header", header,
 					new LayoutFocusTraversalPolicy().getFirstComponent(SwingUtilities.getWindowAncestor(menu)));
 
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JSpinner delaySpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[12]);
-				// Re-aimed by the lead, 2026-10-25 (lot 10P): a sixth choice submenu, "Card theme".
-				// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
-				final JSpinner sizeSpinner = (JSpinner) lastOf((JPanel) menu.getComponents()[19]);
+				final JPopupMenu when = groupOf(menu, "When it shows").getPopupMenu();
+				final JSpinner delaySpinner = (JSpinner) lastOf(rowSaying(when, "Delay (ms)"));
+				final JSpinner sizeSpinner = (JSpinner) lastOf(rowSaying(groupOf(menu, "Card").getPopupMenu(), "Text size"));
 				assertFalse("the delay box is not focusable at rest",
 					((JSpinner.DefaultEditor) delaySpinner.getEditor()).getTextField().isFocusable());
 				assertFalse("the size box is not focusable at rest",
 					((JSpinner.DefaultEditor) sizeSpinner.getEditor()).getTextField().isFocusable());
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JButton box = (JButton) lastOf((JPanel) menu.getComponents()[11]);
+				final JButton box = (JButton) lastOf(rowSaying(when, "Key"));
 				assertFalse("the key box is not focusable at rest", box.isFocusable());
 
 				box.doClick(0);
@@ -1437,6 +1379,7 @@ public class ClanHubPanelTest
 	 * Lot 10D: with "Colour hoverable words" off the how-to's action line is the plain one, with no colour; ticking the switch
 	 * in the menu brings the coloured line at once, and un-ticking it the plain one again.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void theFirstLineFollowsTheColourSwitch() throws Exception
 	{
@@ -1456,8 +1399,7 @@ public class ClanHubPanelTest
 				press(settingsIcon(panel));
 				final JPopupMenu menu = popupMenu(frame);
 				assertNotNull("the menu is on screen", menu);
-				final JCheckBoxMenuItem colourCheck = (JCheckBoxMenuItem) menu.getComponents()[3];
-				assertEquals("Colour hoverable words", colourCheck.getText());
+				final JCheckBoxMenuItem colourCheck = checkSaying(open(menu, groupOf(menu, "Colours")), "Colour names");
 				assertFalse("not ticked, as the setting is", colourCheck.isSelected());
 
 				click(colourCheck);
@@ -2280,6 +2222,7 @@ public class ClanHubPanelTest
 	 * Lot 10S: a theme set while the sidebar shows is worn at once (a change told by {@code settingsChanged}), and the
 	 * menu's Sidebar theme submenu, at "RuneLite", takes the sidebar back to the plain look and writes the choice.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void aThemeChangeDressesTheSidebarAtOnce() throws Exception
 	{
@@ -2300,9 +2243,8 @@ public class ClanHubPanelTest
 				press(settingsIcon(panel));
 				final JPopupMenu menu = popupMenu(frame);
 				assertNotNull("the menu is on screen", menu);
-				// Re-aimed by the lead, 2026-10-26 (lot 10W): a Sidebar theme choice in place of the switch.
-				final JMenu sidebarMenu = (JMenu) menu.getComponents()[16];
-				assertEquals("Sidebar theme: Same as cards", sidebarMenu.getText());
+				final ValueMenu sidebarMenu = valueMenuSaying(menu, "Sidebar theme");
+				assertEquals("Same as cards", sidebarMenu.value());
 				assertTrue("Same as cards is the selected one", radio(sidebarMenu, 0).isSelected());
 				assertEquals("RuneLite", radio(sidebarMenu, 1).getText());
 				radio(sidebarMenu, 1).doClick(0);
@@ -2356,6 +2298,7 @@ public class ClanHubPanelTest
 	 * viewer, level with the item on the screen: a sample card in the theme, or a small sidebar in the look; arming
 	 * another gives another; closing the menu takes the picture down.
 	 */
+	// Re-aimed for lot 11A, 2026-10-26: the menu in groups.
 	@Test
 	public void hoveringAThemeShowsItsPreview() throws Exception
 	{
@@ -2368,10 +2311,10 @@ public class ClanHubPanelTest
 				press(settingsIcon(panel));
 				final JPopupMenu menu = popupMenu(frame);
 				assertNotNull("the menu is on screen", menu);
-				final JMenu themeMenu = (JMenu) menu.getComponents()[15];
-				final JMenu sidebarMenu = (JMenu) menu.getComponents()[16];
-				assertEquals("Card theme: Classic", themeMenu.getText());
-				assertEquals("Sidebar theme: Same as cards", sidebarMenu.getText());
+				final ValueMenu themeMenu = valueMenuSaying(menu, "Card theme");
+				final ValueMenu sidebarMenu = valueMenuSaying(menu, "Sidebar theme");
+				assertEquals("Classic", themeMenu.value());
+				assertEquals("Same as cards", sidebarMenu.value());
 				assertTrue("no picture before an item is armed", viewerPictures.isEmpty());
 
 				final JRadioButtonMenuItem synthwave = radio(themeMenu, CardTheme.SYNTHWAVE.ordinal());
@@ -2408,6 +2351,607 @@ public class ClanHubPanelTest
 				frame.dispose();
 			}
 		});
+	}
+
+	/**
+	 * The how-to ends with the theme tip, under the examine row: one grey line, "Tip:" in bold, no icon, on one line;
+	 * the five rows stay five, and the recent cards say nothing of themes.
+	 */
+	@Test
+	public void theHowToEndsWithTheThemeTip() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			cardTheme = CardTheme.STONE;
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			onEdt(() ->
+			{
+				final JLabel text = labelSaying(panel[0], "Tip: change theme in settings.");
+				assertTrue("the tip shows", text.isShowing());
+				assertNull("no icon", text.getIcon());
+				final Component tip = text.getParent();
+				final List<JPanel> rows = rowsOfTheHowTo(panel[0]);
+				assertEquals("the rows stay five", 5, rows.size());
+				final JPanel examine = rows.get(4);
+				assertSame("in the rows' box", examine.getParent(), tip.getParent());
+				final List<Component> lines = Arrays.asList(tip.getParent().getComponents());
+				assertTrue("under the examine row", lines.indexOf(tip) > lines.indexOf(examine));
+				assertEquals("as wide as the wiki line's box", labelSaying(panel[0], ClanHubPanel.HOW_TO_WIKI).getParent()
+					.getWidth(), tip.getWidth());
+				assertEquals("in Stone's grey", labelSaying(panel[0], ClanHubPanel.HOW_TO_WIKI).getForeground(),
+					text.getForeground());
+				assertTrue("'Tip:' in bold, in the line's own grey", text.getText().contains("<b>Tip:</b>"));
+				assertFalse("on one line", text.getText().contains("<br>"));
+				int themes = 0;
+				for (final JLabel label : labelsIn(panel[0]))
+				{
+					if (plain(label.getText()).contains("theme"))
+					{
+						themes++;
+					}
+				}
+				assertEquals("no other line speaks of themes", 1, themes);
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/**
+	 * Lot 11A: the Card group holds the width, the place and the time, then the text size; a click on a small button or a
+	 * pick of an item writes it, and the group and the menu stay up.
+	 */
+	@Test
+	public void theCardGroupHoldsWidthPlaceTimeAndSize() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				final JPopupMenu card = open(menu, groupOf(menu, "Card"));
+
+				assertEquals("the group's parts in order", List.of("WIDTH", "Wide|Medium|Narrow", "PLACE", "Above the cursor",
+					"Above the chat", "TIME", "4m ago|14:32|2:32 PM", "Text size"), wordsIn(card));
+				assertTogglesIn(card, 0, CardWidth.values(), CardWidth.WIDE);
+				assertRadiosIn(card, CardPlace.values(), CardPlace.CURSOR);
+				assertTogglesIn(card, 1, CardTime.values(), CardTime.AGO);
+				assertTrue("the text size row ends in a spinner", lastOf(rowSaying(card, "Text size")) instanceof JSpinner);
+
+				final JToggleButton narrow = toggleSaying(card, "Narrow");
+				narrow.doClick(0);
+				assertEquals("clicking 'Narrow' writes it", List.of(CardWidth.NARROW), widths);
+				assertTrue("and selects it", narrow.isSelected());
+				assertFalse("and not Wide", toggleSaying(card, "Wide").isSelected());
+
+				final JRadioButtonMenuItem chat = radioSaying(card, "Above the chat");
+				click(chat);
+				assertEquals("picking 'Above the chat' writes it", List.of(CardPlace.CHAT), places);
+				assertTrue("and selects it", chat.isSelected());
+
+				final JToggleButton clock = toggleSaying(card, "14:32");
+				clock.doClick(0);
+				assertEquals("clicking '14:32' writes it", List.of(CardTime.CLOCK_24), cardTimes);
+				assertTrue("and selects it", clock.isSelected());
+
+				assertTrue("the menu is still showing", menu.isVisible());
+				assertTrue("and the group", card.isVisible());
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 11A: the "When it shows" group holds the show mode, the key and the delay; the key box is greyed unless the mode is
+	 * "While holding a key"; a pick keeps the group and the menu up.
+	 */
+	@Test
+	public void theWhenGroupHoldsShowKeyAndDelay() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				final JPopupMenu when = open(menu, groupOf(menu, "When it shows"));
+
+				assertEquals("the group's parts in order", List.of("SHOW", "On hover", "While holding a key", "On click", "Key",
+					"Delay (ms)"), wordsIn(when));
+				assertRadiosIn(when, CardTrigger.values(), CardTrigger.HOVER);
+				final JButton keyBox = (JButton) lastOf(rowSaying(when, "Key"));
+				assertFalse("the key box is greyed at 'On hover'", keyBox.isEnabled());
+				assertTrue("the delay row ends in a spinner", lastOf(rowSaying(when, "Delay (ms)")) instanceof JSpinner);
+
+				click(radioSaying(when, "While holding a key"));
+				assertEquals("picking 'While holding a key' writes it", List.of(CardTrigger.HOLD_KEY), triggers);
+				assertTrue("and the key box is enabled", keyBox.isEnabled());
+				assertTrue("the menu is still showing", menu.isVisible());
+				assertTrue("and the group", when.isVisible());
+
+				click(radioSaying(when, "On click"));
+				assertEquals("picking 'On click' writes it", List.of(CardTrigger.HOLD_KEY, CardTrigger.CLICK), triggers);
+				assertFalse("and the key box is greyed again", keyBox.isEnabled());
+				assertTrue("the menu is still showing", menu.isVisible());
+				assertTrue("and the group", when.isVisible());
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 11A: the "What gets a card" group holds the four switches and the examine line's choice; a click keeps the group and
+	 * the menu up.
+	 */
+	@Test
+	public void theWhatGroupHoldsFourSwitchesAndTheExamineLine() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				final JPopupMenu what = open(menu, groupOf(menu, "What gets a card"));
+
+				assertEquals("the group's parts in order", List.of("Boss cards", "Examine cards", "Wiki text", "Wiki pictures",
+					"EXAMINE LINE", "Item name first", "Description only"), wordsIn(what));
+				for (int i = 0; i < 4; i++)
+				{
+					assertTrue("a switch, ticked", what.getComponent(i) instanceof JCheckBoxMenuItem
+						&& ((JCheckBoxMenuItem) what.getComponent(i)).isSelected());
+				}
+				assertRadiosIn(what, ExamineLine.values(), ExamineLine.NAME_FIRST);
+
+				click(checkSaying(what, "Boss cards"));
+				assertEquals("clicking 'Boss cards' writes false", List.of(false), bosses);
+				assertTrue("the menu is still showing", menu.isVisible());
+				assertTrue("and the group", what.isVisible());
+
+				click(radioSaying(what, "Description only"));
+				assertEquals("picking 'Description only' writes it", List.of(ExamineLine.DESCRIPTION), examineLines);
+				assertTrue("and selects it", radioSaying(what, "Description only").isSelected());
+				assertTrue("the menu is still showing", menu.isVisible());
+				assertTrue("and the group", what.isVisible());
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 11A: the "Colours" group holds the colouring switch, the hover colour, the underline switch and colour and the
+	 * sidebar's names; a press on the names' swatch takes the menu down for the picker (titled "Name colour"), and when the
+	 * picker closes the menu is back with the Colours group open.
+	 */
+	@Test
+	public void theColoursGroupBringsItselfBackAfterThePicker() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+				final JMenu group = groupOf(menu, "Colours");
+				final JPopupMenu colours = open(menu, group);
+
+				assertEquals("the group's parts in order", List.of("Colour names", "Hover colour", "Underline level-ups",
+					"Underline colour", "Sidebar names"), wordsIn(colours));
+				assertTrue("the first part is a switch", colours.getComponent(0) instanceof JCheckBoxMenuItem);
+				assertTrue("the third part is a switch", colours.getComponent(2) instanceof JCheckBoxMenuItem);
+
+				final JButton names = (JButton) lastOf(rowSaying(colours, "Sidebar names"));
+				assertEquals(new Color(220, 138, 0), names.getBackground());
+				names.doClick(0);
+				assertFalse("the menu goes while the picker is open", menu.isVisible());
+				assertEquals("the picker was asked once", 1, pickerCalls.size());
+				assertEquals("its title is still 'Name colour'", "Name colour", pickerCalls.get(0)[1]);
+
+				pickerOnClose.accept(new Color(220, 138, 0));
+				assertTrue("the menu comes back when the picker closes", menu.isVisible());
+				assertTrue("with the Colours group showing", group.getPopupMenu().isVisible());
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 11A: a theme row shows its theme in grey at the right and keeps its caption as its text; a pick changes the value
+	 * and never the row's text or width, and the value is drawn at the row's right side.
+	 */
+	@Test
+	public void aThemeRowShowsItsValueAtTheRight() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+
+				final ValueMenu theme = valueMenuSaying(menu, "Card theme");
+				assertEquals("Card theme", theme.getText());
+				assertEquals("Classic", theme.value());
+				final int themeWidth = theme.getPreferredSize().width;
+				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, theme, theme.getPopupMenu()});
+				click(radio(theme, CardTheme.STONE.ordinal()));
+				assertEquals("a pick makes the value 'Stone'", "Stone", theme.value());
+				assertEquals("and keeps the text", "Card theme", theme.getText());
+				assertEquals("and the width", themeWidth, theme.getPreferredSize().width);
+				assertEquals("and writes the pick", List.of(CardTheme.STONE), themes);
+
+				final ValueMenu sidebar = valueMenuSaying(menu, "Sidebar theme");
+				assertEquals("Sidebar theme", sidebar.getText());
+				assertEquals("Same as cards", sidebar.value());
+				final int sidebarWidth = sidebar.getPreferredSize().width;
+				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, sidebar, sidebar.getPopupMenu()});
+				click(radio(sidebar, SidebarTheme.RUNELITE.ordinal()));
+				assertEquals("a pick makes the value 'RuneLite'", "RuneLite", sidebar.value());
+				assertEquals("and keeps the text", "Sidebar theme", sidebar.getText());
+				assertEquals("and the width", sidebarWidth, sidebar.getPreferredSize().width);
+
+				// The value is drawn: a row with a value differs from the same row without one, on its right half only.
+				theme.setValue("Classic");
+				final BufferedImage again = paintOf(theme);
+				theme.setValue("");
+				final BufferedImage without = paintOf(theme);
+				theme.setValue("Stone");
+				int leftDiffs = 0;
+				int rightDiffs = 0;
+				for (int x = 0; x < again.getWidth(); x++)
+				{
+					for (int y = 0; y < again.getHeight(); y++)
+					{
+						if (again.getRGB(x, y) != without.getRGB(x, y))
+						{
+							if (x < again.getWidth() / 2)
+							{
+								leftDiffs++;
+							}
+							else
+							{
+								rightDiffs++;
+							}
+						}
+					}
+				}
+				assertEquals("the caption's side is the same", 0, leftDiffs);
+				assertTrue("the value is drawn on the right side", rightDiffs > 0);
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 11A: the groups that hold a typing box open with a focusable first part (a heading), so that the group's window takes
+	 * the keyboard and a press can move it to a box; no text field, spinner box, key box or small button in any group is
+	 * focusable at rest.
+	 */
+	@Test
+	public void theGroupsTakeTheKeyboardOnlyWhenPressed() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				press(settingsIcon(panel));
+				final JPopupMenu menu = popupMenu(frame);
+				assertNotNull("the menu is on screen", menu);
+
+				final JPopupMenu card = groupOf(menu, "Card").getPopupMenu();
+				final JPopupMenu when = groupOf(menu, "When it shows").getPopupMenu();
+				assertTrue("the Card group's first part is focusable", card.getComponent(0).isFocusable());
+				assertTrue("the When it shows group's first part is focusable", when.getComponent(0).isFocusable());
+				assertEquals("it is the heading", "WIDTH", wordsOf(card.getComponent(0)));
+				assertEquals("it is the heading", "SHOW", wordsOf(when.getComponent(0)));
+
+				for (final String name : List.of("Card", "When it shows", "What gets a card", "Colours"))
+				{
+					final JPopupMenu popup = groupOf(menu, name).getPopupMenu();
+					for (final JTextField field : textFieldsIn(popup))
+					{
+						assertFalse("a text field in '" + name + "' is not focusable at rest", field.isFocusable());
+					}
+					for (final JToggleButton toggle : togglesIn(popup))
+					{
+						assertFalse("a small button in '" + name + "' is not focusable", toggle.isFocusable());
+					}
+				}
+				assertFalse("the key box is not focusable at rest", lastOf(rowSaying(when, "Key")).isFocusable());
+				assertFalse("the delay box is not focusable at rest", ((JSpinner.DefaultEditor)
+					((JSpinner) lastOf(rowSaying(when, "Delay (ms)"))).getEditor()).getTextField().isFocusable());
+				assertFalse("the size box is not focusable at rest", ((JSpinner.DefaultEditor)
+					((JSpinner) lastOf(rowSaying(card, "Text size"))).getEditor()).getTextField().isFocusable());
+				menu.setVisible(false);
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/** The group of the menu whose text is {@code name}. */
+	private static JMenu groupOf(JPopupMenu menu, String name)
+	{
+		for (final Component part : menu.getComponents())
+		{
+			if (part instanceof JMenu && !(part instanceof ValueMenu) && name.equals(((JMenu) part).getText()))
+			{
+				return (JMenu) part;
+			}
+		}
+		throw new AssertionError("no group is called: " + name);
+	}
+
+	/**
+	 * Opens {@code group} the way the mouse does: the selected path runs through the menu, the group and its popup. Gives
+	 * the group's popup, which is up with the menu under it.
+	 */
+	private static JPopupMenu open(JPopupMenu menu, JMenu group)
+	{
+		MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, group, group.getPopupMenu()});
+		assertTrue("the group '" + group.getText() + "' is up", group.getPopupMenu().isVisible());
+		assertTrue("the menu is still up under it", menu.isVisible());
+		return group.getPopupMenu();
+	}
+
+	/** The theme row of the menu whose text is {@code text}. */
+	private static ValueMenu valueMenuSaying(JPopupMenu menu, String text)
+	{
+		for (final Component part : menu.getComponents())
+		{
+			if (part instanceof ValueMenu && text.equals(((ValueMenu) part).getText()))
+			{
+				return (ValueMenu) part;
+			}
+		}
+		throw new AssertionError("no theme row is called: " + text);
+	}
+
+	/**
+	 * The words of a part of the menu or of a group: a check, an item, a submenu or a small button says its text; a row of
+	 * small buttons says theirs, joined by bars; a heading or a row says the text of its first label.
+	 */
+	private static String wordsOf(Component part)
+	{
+		if (part instanceof AbstractButton)
+		{
+			return ((AbstractButton) part).getText();
+		}
+		if (part instanceof JPopupMenu.Separator)
+		{
+			return "-";
+		}
+		if (part instanceof Container)
+		{
+			final List<JToggleButton> toggles = togglesIn((Container) part);
+			if (!toggles.isEmpty())
+			{
+				final StringBuilder joined = new StringBuilder();
+				for (final JToggleButton toggle : toggles)
+				{
+					joined.append(joined.length() == 0 ? "" : "|").append(toggle.getText());
+				}
+				return joined.toString();
+			}
+			for (final JLabel label : labelsIn((Container) part))
+			{
+				return plain(label.getText());
+			}
+		}
+		return "";
+	}
+
+	/** The words of every part of the popup, in order. */
+	private static List<String> wordsIn(JPopupMenu popup)
+	{
+		final List<String> words = new ArrayList<>();
+		for (final Component part : popup.getComponents())
+		{
+			words.add(wordsOf(part));
+		}
+		return words;
+	}
+
+	/** The check of the popup whose text is {@code words}. */
+	private static JCheckBoxMenuItem checkSaying(JPopupMenu popup, String words)
+	{
+		for (final Component part : popup.getComponents())
+		{
+			if (part instanceof JCheckBoxMenuItem && words.equals(((JCheckBoxMenuItem) part).getText()))
+			{
+				return (JCheckBoxMenuItem) part;
+			}
+		}
+		throw new AssertionError("no check says: " + words);
+	}
+
+	/** The radio item of the popup whose text is {@code words}. */
+	private static JRadioButtonMenuItem radioSaying(JPopupMenu popup, String words)
+	{
+		for (final JRadioButtonMenuItem item : radiosIn(popup))
+		{
+			if (words.equals(item.getText()))
+			{
+				return item;
+			}
+		}
+		throw new AssertionError("no radio item says: " + words);
+	}
+
+	/** The radio items of the popup, in order. */
+	private static List<JRadioButtonMenuItem> radiosIn(JPopupMenu popup)
+	{
+		final List<JRadioButtonMenuItem> found = new ArrayList<>();
+		for (final Component part : popup.getComponents())
+		{
+			if (part instanceof JRadioButtonMenuItem)
+			{
+				found.add((JRadioButtonMenuItem) part);
+			}
+		}
+		return found;
+	}
+
+	/** The row of the popup whose caption (its first label) is {@code caption}. */
+	private static JPanel rowSaying(JPopupMenu popup, String caption)
+	{
+		for (final Component part : popup.getComponents())
+		{
+			if (part instanceof JPanel && togglesIn((JPanel) part).isEmpty() && caption.equals(wordsOf(part)))
+			{
+				return (JPanel) part;
+			}
+		}
+		throw new AssertionError("no row says: " + caption);
+	}
+
+	/** The small button of the popup whose text is {@code words}. */
+	private static JToggleButton toggleSaying(JPopupMenu popup, String words)
+	{
+		for (final JToggleButton toggle : togglesIn(popup))
+		{
+			if (words.equals(toggle.getText()))
+			{
+				return toggle;
+			}
+		}
+		throw new AssertionError("no small button says: " + words);
+	}
+
+	/** Every small button (toggle button) under {@code root}, in the tree's order. */
+	private static List<JToggleButton> togglesIn(Container root)
+	{
+		final List<JToggleButton> found = new ArrayList<>();
+		for (final Component child : root.getComponents())
+		{
+			if (child instanceof JToggleButton)
+			{
+				found.add((JToggleButton) child);
+			}
+			else if (child instanceof Container)
+			{
+				found.addAll(togglesIn((Container) child));
+			}
+		}
+		return found;
+	}
+
+	/** Every text field under {@code root}, in the tree's order. */
+	private static List<JTextField> textFieldsIn(Container root)
+	{
+		final List<JTextField> found = new ArrayList<>();
+		for (final Component child : root.getComponents())
+		{
+			if (child instanceof JTextField)
+			{
+				found.add((JTextField) child);
+			}
+			if (child instanceof Container)
+			{
+				found.addAll(textFieldsIn((Container) child));
+			}
+		}
+		return found;
+	}
+
+	/** The popup holds one radio item per value, in the enum's order, and only the current value's is selected. */
+	private static void assertRadiosIn(JPopupMenu popup, Object[] values, Object current)
+	{
+		final List<JRadioButtonMenuItem> items = radiosIn(popup);
+		assertEquals("one radio item per choice", values.length, items.size());
+		for (int i = 0; i < values.length; i++)
+		{
+			assertEquals("the choice's words, in the enum's order", String.valueOf(values[i]), items.get(i).getText());
+			assertEquals("only the current one is selected", values[i] == current, items.get(i).isSelected());
+		}
+	}
+
+	/**
+	 * The {@code rowIndex}th row of small buttons in the popup holds one button per value, in the enum's order, and only the
+	 * current value's is selected.
+	 */
+	private static void assertTogglesIn(JPopupMenu popup, int rowIndex, Object[] values, Object current)
+	{
+		final List<JPanel> rows = new ArrayList<>();
+		for (final Component part : popup.getComponents())
+		{
+			if (part instanceof JPanel && !togglesIn((JPanel) part).isEmpty())
+			{
+				rows.add((JPanel) part);
+			}
+		}
+		final List<JToggleButton> toggles = togglesIn(rows.get(rowIndex));
+		assertEquals("one small button per choice", values.length, toggles.size());
+		for (int i = 0; i < values.length; i++)
+		{
+			assertEquals("the choice's words, in the enum's order", String.valueOf(values[i]), toggles.get(i).getText());
+			assertEquals("only the current one is selected", values[i] == current, toggles.get(i).isSelected());
+		}
+	}
+
+	/** The component as it paints itself, at its own size. */
+	private static BufferedImage paintOf(Component part)
+	{
+		final BufferedImage image = new BufferedImage(Math.max(1, part.getWidth()), Math.max(1, part.getHeight()),
+			BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = image.createGraphics();
+		try
+		{
+			part.paint(g);
+		}
+		finally
+		{
+			g.dispose();
+		}
+		return image;
 	}
 
 	/** Arms {@code item} of {@code submenu} the way the mouse does: the selection path runs through the submenu to it. */

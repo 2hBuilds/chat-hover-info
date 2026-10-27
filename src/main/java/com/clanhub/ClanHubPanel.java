@@ -18,6 +18,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.LayoutManager;
 import java.awt.Point;
@@ -60,6 +61,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JToggleButton;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
 import javax.swing.MenuElement;
@@ -98,13 +100,15 @@ import net.runelite.client.util.LinkBrowser;
  * plain one, or a theme of its own). The three boxes (the top card, the how-to's bar and a row) paint themselves with it
  * and the labels take its colours; the menu keeps RuneLite's own look. {@link #settingsChanged} works the skin out again.
  *
- * <p>The settings menu the settings icon opens (STANDARD A4 and A5): the header, the seven switches, the choice
- * submenus, the card key box and the two number boxes (when a card opens, the key that opens it, its delay,
- * where it opens, how wide it grows, the card's theme, the sidebar's theme, how an examine line reads, how a row's time
- * reads, its text size), the three colour rows (the hover colour, the underline colour
- * and the name colour, each a swatch that opens RuneLite's colour picker), then the OK row. While a theme in the card
- * theme's list or the sidebar theme's list is armed, a picture of it shows beside the list (a sample card, or a small
- * sidebar), and goes when no theme is armed or the menu closes.
+ * <p>The settings menu the settings icon opens (STANDARD A4 and A5), about ten rows: the header, the "Hover cards"
+ * switch, the two theme submenus ("Card theme" and "Sidebar theme", each showing its current theme in grey at the right),
+ * four groups that open beside the menu, then the OK row. "Card" holds the width, the place and the time as small
+ * choices and the text size; "When it shows" holds when a card opens, the key and the delay; "What gets a card" holds the
+ * four switches of what a card carries and the examine line's choice; "Colours" holds the colour switch, the underline
+ * switch and the three colour rows (each a swatch that opens RuneLite's colour picker). A pick or a click in a group
+ * keeps the group and the menu open. While a theme in the card theme's list or the sidebar theme's list is armed, a
+ * picture of it shows beside the list (a sample card, or a small sidebar), and goes when no theme is armed or the menu
+ * closes.
  *
  * <p>Everything here runs on the event thread. A chat line arrives on the client thread, so the history's change is
  * handed to the event thread before the list is brought up to date.
@@ -122,27 +126,35 @@ public class ClanHubPanel extends PluginPanel
 	/** The menu's rows. */
 	static final String RESET_TEXT = "Reset to default";
 	static final String OK_TEXT = "OK";
-	static final String SHOW_CARDS_TEXT = "Show hover cards";
-	static final String COLOUR_TEXT = "Colour hoverable words";
-	static final String WIKI_TEXT = "Wiki descriptions";
+	static final String SHOW_CARDS_TEXT = "Hover cards";
+	static final String COLOUR_TEXT = "Colour names";
+	static final String WIKI_TEXT = "Wiki text";
 	static final String PICTURES_TEXT = "Wiki pictures";
 	static final String BOSS_TEXT = "Boss cards";
 	static final String ALWAYS_UNDERLINE_TEXT = "Underline level-ups";
 	static final String SIDEBAR_THEME_TEXT = "Sidebar theme";
 	static final String EXAMINE_TEXT = "Examine cards";
-	static final String CARD_TRIGGER_TEXT = "Show a card";
-	static final String CARD_KEY_TEXT = "Card key";
+	static final String CARD_KEY_TEXT = "Key";
 	static final String CARD_KEY_TIP = "Press, then the key to hold";
-	static final String CARD_DELAY_TEXT = "Card delay (ms)";
-	static final String CARD_PLACE_TEXT = "Card place";
-	static final String CARD_WIDTH_TEXT = "Card width";
+	static final String CARD_DELAY_TEXT = "Delay (ms)";
 	static final String CARD_THEME_TEXT = "Card theme";
-	static final String EXAMINE_LINE_TEXT = "Examine line";
-	static final String CARD_TIME_TEXT = "Card time";
-	static final String CARD_SIZE_TEXT = "Card text size";
+	static final String CARD_SIZE_TEXT = "Text size";
 	static final String HOVER_COLOUR_TEXT = "Hover colour";
 	static final String UNDERLINE_COLOUR_TEXT = "Underline colour";
+	/** The name colour row's caption in the menu; the picker it opens keeps the setting's name, {@link #NAME_COLOUR_TEXT}. */
+	static final String SIDEBAR_NAMES_TEXT = "Sidebar names";
 	static final String NAME_COLOUR_TEXT = "Name colour";
+	/** The four groups the menu opens beside it. */
+	static final String CARD_GROUP_TEXT = "Card";
+	static final String WHEN_GROUP_TEXT = "When it shows";
+	static final String WHAT_GROUP_TEXT = "What gets a card";
+	static final String COLOURS_GROUP_TEXT = "Colours";
+	/** The small headings inside the groups. */
+	static final String WIDTH_HEADING = "WIDTH";
+	static final String PLACE_HEADING = "PLACE";
+	static final String TIME_HEADING = "TIME";
+	static final String SHOW_HEADING = "SHOW";
+	static final String EXAMINE_LINE_HEADING = "EXAMINE LINE";
 
 	/** The card text size's smallest, default and largest, in px: the setting's own range. */
 	static final int MIN_CARD_SIZE = 8;
@@ -168,6 +180,9 @@ public class ClanHubPanel extends PluginPanel
 	static final String HOW_TO_ACTION_PLAIN = "Hover a name in a broadcast for its card.";
 	/** The how-to's second line, in grey, under the action line and over the heading. */
 	static final String HOW_TO_WIKI = "Right-click it for the wiki.";
+	/** The how-to's last line, in grey under its rows, its first word in bold: where the themes are. */
+	static final String HOW_TO_TIP_WORD = "Tip:";
+	static final String HOW_TO_TIP = " change theme in settings.";
 	/** The name the how-to's title bar carries, which the panel's tests find it by. */
 	static final String HOW_TO_BAR_NAME = "how-to-bar";
 
@@ -284,6 +299,11 @@ public class ClanHubPanel extends PluginPanel
 	private static final long REOPEN_GUARD_NANOS = 250_000_000L;
 	/** A colour swatch's side, in px. */
 	private static final int SWATCH_SIZE = 16;
+	/** The room above a group's heading, and between two small buttons of a row, in px. */
+	private static final int GROUP_HEADING_ABOVE = 6;
+	private static final int SEGMENT_GAP = 2;
+	/** The least room between a row's caption and its control, in px, so that a narrow group never joins them. */
+	private static final int ROW_CAPTION_GAP = 10;
 	/** What the card key box says while it waits for the key. */
 	private static final String KEY_PROMPT = "Press a key";
 
@@ -304,17 +324,14 @@ public class ClanHubPanel extends PluginPanel
 	private final JCheckBoxMenuItem underlineCheck;
 	private final JCheckBoxMenuItem examineCheck;
 	private final JButton keyBox;
-	private final JMenu triggerMenu;
-	private final JMenu placeMenu;
-	private final JMenu widthMenu;
-	private final JMenu themeMenu;
-	private final JMenu sidebarThemeMenu;
-	private final JMenu examineLineMenu;
-	private final JMenu cardTimeMenu;
+	private final ValueMenu themeMenu;
+	private final ValueMenu sidebarThemeMenu;
 	private final JSpinner delaySpinner;
 	private final JSpinner sizeSpinner;
 	private final JPopupMenu menu;
-	/** What sets each choice submenu from its setting: selects the current choice's item and retitles the submenu. */
+	/** The "Colours" group, which the menu comes back with open when a colour picker closes; set when the menu is built. */
+	private JMenu coloursGroup;
+	/** What sets each choice (a theme row, a group's radio items or small buttons) from its setting. */
 	private final List<Runnable> choiceSyncs = new ArrayList<>();
 	/** What sets each colour swatch from its setting. */
 	private final List<Runnable> swatchSyncs = new ArrayList<>();
@@ -347,6 +364,7 @@ public class ClanHubPanel extends PluginPanel
 	private final JLabel howToTitle = new JLabel();
 	private final JLabel howToWiki = new JLabel();
 	private final JLabel howToHeading = new JLabel();
+	private final JLabel howToTip = new JLabel();
 	private final List<JLabel> howToRowTexts = new ArrayList<>();
 	private JLabel examineIconBox;
 	/** The how-to bar's fold arrow. */
@@ -428,30 +446,16 @@ public class ClanHubPanel extends PluginPanel
 		this.underlineCheck = check(ALWAYS_UNDERLINE_TEXT, settings::setAlwaysUnderlineLevels);
 		this.examineCheck = check(EXAMINE_TEXT, settings::setExamineCards);
 		this.keyBox = buildKeyBox();
-		this.triggerMenu = choices(CARD_TRIGGER_TEXT, CardTrigger.values(), settings::cardTrigger, trigger ->
-		{
-			settings.setCardTrigger(trigger);
-			keyBoxEnabled(trigger == CardTrigger.HOLD_KEY);
-		});
-		this.placeMenu = choices(CARD_PLACE_TEXT, CardPlace.values(), settings::cardPlace, settings::setCardPlace);
-		this.widthMenu = choices(CARD_WIDTH_TEXT, CardWidth.values(), settings::cardWidth, settings::setCardWidth);
-		this.themeMenu = choices(CARD_THEME_TEXT, CardTheme.values(), settings::cardTheme, theme ->
+		this.themeMenu = themeChoices(CARD_THEME_TEXT, CardTheme.values(), settings::cardTheme, theme ->
 		{
 			settings.setCardTheme(theme);
 			settingsChanged();
 		}, theme -> ThemePreviews.card(theme, whipPicture()), -1);
-		this.sidebarThemeMenu = choices(SIDEBAR_THEME_TEXT, SidebarTheme.values(), settings::sidebarLook, look ->
+		this.sidebarThemeMenu = themeChoices(SIDEBAR_THEME_TEXT, SidebarTheme.values(), settings::sidebarLook, look ->
 		{
 			settings.setSidebarLook(look);
 			settingsChanged();
 		}, look -> ThemePreviews.sidebar(skinOf(look, settings.cardTheme())), SidebarTheme.RUNELITE.ordinal());
-		this.examineLineMenu = choices(EXAMINE_LINE_TEXT, ExamineLine.values(), settings::examineLine,
-			settings::setExamineLine);
-		this.cardTimeMenu = choices(CARD_TIME_TEXT, CardTime.values(), settings::cardTime, time ->
-		{
-			settings.setCardTime(time);
-			historyList.repaint();
-		});
 		this.delaySpinner = spinner(0, 0, MAX_CARD_DELAY, CARD_DELAY_STEP, 4, settings::setCardDelayMs);
 		this.sizeSpinner = spinner(DEFAULT_CARD_SIZE, MIN_CARD_SIZE, MAX_CARD_SIZE, 1, 2, settings::setCardFontSize);
 		this.menu = buildMenu();
@@ -514,7 +518,8 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * The "How to use" box: a title bar across the card, "How to use" at its left and the fold arrow at its right, over
-	 * the action line in two parts (white, then grey), the small heading "WHAT IT WORKS ON" and the icon rows. A press
+	 * the action line in two parts (white, then grey), the small heading "WHAT IT WORKS ON", the icon rows and the grey
+	 * tip ("Tip:" in bold) that the themes are in the settings. A press
 	 * anywhere on the bar folds the lines away or brings them back and writes which; the arrow points down while they show
 	 * and right while they are folded. The bar's ground is a shade lighter than the card's, and lighter again under the
 	 * mouse; the skin paints it ({@link #paintSkin}), and the bar keeps the plain look's two grounds as its background,
@@ -602,12 +607,20 @@ public class ClanHubPanel extends PluginPanel
 			howToLines.add(howToRow(i));
 			howToLines.add(Box.createVerticalStrut(HOW_TO_ROW_GAP));
 		}
+		howToTip.setFont(FontManager.getDefaultFont().deriveFont(HOW_TO_FONT_SIZE));
+		final Font tipWord = FontManager.getDefaultBoldFont().deriveFont(HOW_TO_FONT_SIZE);
+		howToTip.setText(howToHtml(List.of(new Run(HOW_TO_TIP_WORD, "<b>", "</b>", howToTip.getFontMetrics(tipWord)),
+			new Run(HOW_TO_TIP, "", "", howToTip.getFontMetrics(howToTip.getFont()))), HOW_TO_WIDTH));
+		howToLines.add(actionLine(howToTip));
 		refreshHowTo();
 		box.add(howToLines, BorderLayout.CENTER);
 		return box;
 	}
 
-	/** One of the how-to's two action lines in a box of its own, so that it fills the card's width and sits at its left. */
+	/**
+	 * One of the how-to's lines (the two action lines, the tip) in a box of its own, so that it fills the card's width and
+	 * sits at its left.
+	 */
 	private static JPanel actionLine(JLabel line)
 	{
 		line.setVerticalAlignment(SwingConstants.TOP);
@@ -1654,6 +1667,55 @@ public class ClanHubPanel extends PluginPanel
 		}
 	}
 
+	/**
+	 * One small button of a choice row in a group: the chosen one in the brand orange with dark words, the others dark grey
+	 * with white words and a grey edge. It paints itself whatever look and feel is on (as a colour swatch does), takes no
+	 * keyboard, and a click on it chooses it.
+	 */
+	private static final class SegmentButton extends JToggleButton
+	{
+		private static final Color OFF_COLOUR = new Color(55, 55, 55);
+		private static final Color EDGE_COLOUR = new Color(80, 80, 80);
+		private static final Color ON_TEXT_COLOUR = new Color(20, 20, 20);
+		private static final int PAD_X = 8;
+		private static final int PAD_Y = 3;
+
+		SegmentButton(String words, Font font)
+		{
+			super(words);
+			setFont(font);
+			setFocusable(false);
+			setOpaque(false);
+			setContentAreaFilled(false);
+			setBorderPainted(false);
+			setFocusPainted(false);
+		}
+
+		/** The words and a little room round them. */
+		@Override
+		public Dimension getPreferredSize()
+		{
+			final FontMetrics metrics = getFontMetrics(getFont());
+			return new Dimension(metrics.stringWidth(getText()) + 2 * PAD_X, metrics.getHeight() + 2 * PAD_Y);
+		}
+
+		/** The whole button: its ground, its edge, its words. */
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			final boolean on = isSelected();
+			g.setColor(on ? ColorScheme.BRAND_ORANGE : OFF_COLOUR);
+			g.fillRect(0, 0, getWidth(), getHeight());
+			g.setColor(on ? ColorScheme.BRAND_ORANGE : EDGE_COLOUR);
+			g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+			g.setFont(getFont());
+			g.setColor(on ? ON_TEXT_COLOUR : Color.WHITE);
+			final FontMetrics metrics = g.getFontMetrics();
+			g.drawString(getText(), (getWidth() - metrics.stringWidth(getText())) / 2,
+				(getHeight() - metrics.getHeight()) / 2 + metrics.getAscent());
+		}
+	}
+
 	/** The settings icon: grey at rest, orange under the mouse; a press opens the menu under it. */
 	private JLabel settingsIcon()
 	{
@@ -1676,9 +1738,10 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * Shows the menu again under the settings icon it was last opened under, once a colour picker has closed. The reopen
-	 * guard is not asked: it is for the icon press that closed the menu, and a picker closing seconds later is not that
-	 * press. Nothing shows if the icon is gone from the screen or the menu is already up.
+	 * Shows the menu again under the settings icon it was last opened under, with its "Colours" group open (the colour
+	 * rows are in it), once a colour picker has closed. The reopen guard is not asked: it is for the icon press that
+	 * closed the menu, and a picker closing seconds later is not that press. Nothing shows if the icon is gone from the
+	 * screen or the menu is already up.
 	 */
 	private void reopenMenu()
 	{
@@ -1688,6 +1751,11 @@ public class ClanHubPanel extends PluginPanel
 			return;
 		}
 		menu.show(anchor, 0, anchor.getHeight());
+		if (coloursGroup != null)
+		{
+			MenuSelectionManager.defaultManager().setSelectedPath(
+				new MenuElement[] {menu, coloursGroup, coloursGroup.getPopupMenu()});
+		}
 	}
 
 	/**
@@ -1741,6 +1809,7 @@ public class ClanHubPanel extends PluginPanel
 			howToTitle.setForeground(skin.title);
 			howToAction.setForeground(skin.text);
 			howToWiki.setForeground(skin.grey);
+			howToTip.setForeground(skin.grey);
 			howToHeading.setForeground(skin.heading);
 			for (int i = 0; i < howToRowTexts.size(); i++)
 			{
@@ -1789,11 +1858,15 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * The settings menu, in STANDARD A5's order: the header, a rule, the seven switches, a rule, the seven choice submenus
-	 * and the card key and the two number rows (when a card opens, the key that opens it, the delay, where it opens, how
-	 * wide it grows, the card's theme, the sidebar's theme, how an examine line reads, how a row's time reads, the text size) and the three colour rows (the hover
-	 * colour, the underline colour, the name colour), a rule, then the OK row. The header is focusable, so the menu's window takes the keyboard when the menu opens and gives it to the
-	 * header, which shows no caret; no box is focusable at rest, and a press moves the keyboard to the box pressed.
+	 * The settings menu, in STANDARD A5's order and kept to about ten rows: the header, a rule, the "Hover cards" switch, a
+	 * rule, the two theme submenus (each shows its current theme at the right), a rule, the four groups ("Card", "When it
+	 * shows", "What gets a card", "Colours", each opening beside the menu), a rule, then the OK row. The header is
+	 * focusable, so the menu's window takes the keyboard when the menu opens and gives it to the header, which shows no
+	 * caret; no box is focusable at rest, and a press moves the keyboard to the box pressed.
+	 *
+	 * <p>Choice: no row of a group closes anything when the mouse enters it, as the OK row does ({@link #closesSubmenu}):
+	 * a group's rows are panels in the group's own popup, and cutting the selected path back to the menu there would close
+	 * the group the mouse is in.
 	 */
 	private JPopupMenu buildMenu()
 	{
@@ -1804,32 +1877,15 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(header);
 		popup.addSeparator();
 		popup.add(showCheck);
-		popup.add(colourCheck);
-		popup.add(wikiCheck);
-		popup.add(picturesCheck);
-		popup.add(bossCheck);
-		popup.add(examineCheck);
-		popup.add(underlineCheck);
 		popup.addSeparator();
-		popup.add(triggerMenu);
-		popup.add(closesSubmenu(row(CARD_KEY_TEXT, keyBox)));
-		popup.add(closesSubmenu(row(CARD_DELAY_TEXT, delaySpinner)));
-		popup.add(placeMenu);
-		popup.add(widthMenu);
 		popup.add(themeMenu);
 		popup.add(sidebarThemeMenu);
-		popup.add(examineLineMenu);
-		popup.add(cardTimeMenu);
-		popup.add(closesSubmenu(row(CARD_SIZE_TEXT, sizeSpinner)));
-		popup.add(closesSubmenu(colourRow(HOVER_COLOUR_TEXT, settings::hoverColour, settings::setHoverColour,
-			HOVER_COLOUR_TEXT)));
-		popup.add(closesSubmenu(colourRow(UNDERLINE_COLOUR_TEXT, settings::alwaysUnderlineColour,
-			settings::setAlwaysUnderlineColour, UNDERLINE_COLOUR_TEXT)));
-		popup.add(closesSubmenu(colourRow(NAME_COLOUR_TEXT, settings::nameColour, colour ->
-		{
-			settings.setNameColour(colour);
-			historyList.repaint();
-		}, NAME_COLOUR_TEXT)));
+		popup.addSeparator();
+		popup.add(cardGroup());
+		popup.add(whenGroup());
+		popup.add(whatGroup());
+		coloursGroup = coloursGroup();
+		popup.add(coloursGroup);
 		popup.addSeparator();
 		popup.add(closesSubmenu(okRow()));
 		popup.addPopupMenuListener(new PopupMenuListener()
@@ -1857,14 +1913,128 @@ public class ClanHubPanel extends PluginPanel
 		return popup;
 	}
 
+	/** The menu's 12 px face, which every menu item, caption and small button wears. */
+	private static Font menuFont()
+	{
+		return FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE);
+	}
+
+	/** A group of the menu: a plain submenu with no value, in the menu's face, that opens its popup beside the menu. */
+	private static JMenu group(String name)
+	{
+		final JMenu group = new JMenu(name);
+		group.setFont(menuFont());
+		group.setForeground(Color.WHITE);
+		return group;
+	}
+
 	/**
-	 * Makes {@code row}, and every part in it, take down an open choice submenu when the mouse enters it, and gives the
-	 * row back. The menu is left up: the selected path is cut back to the menu alone, as a pick from a submenu does.
+	 * A small heading inside a group, in the face, size and grey of the how-to's "WHAT IT WORKS ON" heading in the plain
+	 * sidebar, with a little room above. It is a label, not a menu item.
 	 *
-	 * <p>Choice: Swing closes a submenu only when another menu item is armed, and these rows are plain panels, not menu
-	 * items, so a submenu opened by a pass over a choice row stayed up over the rows below it. The listener goes on every
-	 * part, down to the spinners' text fields and arrows, because the entry is told to the part the mouse comes onto,
-	 * which is seldom the row itself.
+	 * @param takesKeyboard whether the heading is focusable: the first part of a group holding a typing box is, so that the
+	 *        group's window takes the keyboard when it opens and a press on a box can move it there (as the header does for
+	 *        the menu); every other heading is not
+	 */
+	private static JPanel heading(String words, boolean takesKeyboard)
+	{
+		final JPanel box = new JPanel(new BorderLayout());
+		box.setOpaque(false);
+		box.setBorder(new EmptyBorder(GROUP_HEADING_ABOVE, 6, 2, 6));
+		final JLabel label = new JLabel(words);
+		label.setFont(FontManager.getDefaultBoldFont().deriveFont(HOW_TO_HEADING_SIZE));
+		label.setForeground(HOW_TO_HEADING_COLOUR);
+		box.add(label, BorderLayout.WEST);
+		box.setFocusable(takesKeyboard);
+		return box;
+	}
+
+	/**
+	 * The "Card" group: the card's width, place and time as small choices, and its text size. The heading at the top is
+	 * focusable, for the text size's box.
+	 */
+	private JMenu cardGroup()
+	{
+		final JMenu group = group(CARD_GROUP_TEXT);
+		group.add(heading(WIDTH_HEADING, true));
+		group.add(segments(CardWidth.values(), settings::cardWidth, settings::setCardWidth));
+		group.add(heading(PLACE_HEADING, false));
+		for (final JRadioButtonMenuItem item : radios(CardPlace.values(), settings::cardPlace, settings::setCardPlace))
+		{
+			group.add(item);
+		}
+		group.add(heading(TIME_HEADING, false));
+		group.add(segments(CardTime.values(), settings::cardTime, time ->
+		{
+			settings.setCardTime(time);
+			historyList.repaint();
+		}));
+		group.add(row(CARD_SIZE_TEXT, sizeSpinner));
+		return group;
+	}
+
+	/**
+	 * The "When it shows" group: when a card opens, the key it waits for (greyed unless it waits for a key) and its delay.
+	 * The heading at the top is focusable, for the key box and the delay box.
+	 */
+	private JMenu whenGroup()
+	{
+		final JMenu group = group(WHEN_GROUP_TEXT);
+		group.add(heading(SHOW_HEADING, true));
+		for (final JRadioButtonMenuItem item : radios(CardTrigger.values(), settings::cardTrigger, trigger ->
+		{
+			settings.setCardTrigger(trigger);
+			keyBoxEnabled(trigger == CardTrigger.HOLD_KEY);
+		}))
+		{
+			group.add(item);
+		}
+		group.add(row(CARD_KEY_TEXT, keyBox));
+		group.add(row(CARD_DELAY_TEXT, delaySpinner));
+		return group;
+	}
+
+	/** The "What gets a card" group: the four switches of what a card carries and how an examine line reads. */
+	private JMenu whatGroup()
+	{
+		final JMenu group = group(WHAT_GROUP_TEXT);
+		group.add(bossCheck);
+		group.add(examineCheck);
+		group.add(wikiCheck);
+		group.add(picturesCheck);
+		group.add(heading(EXAMINE_LINE_HEADING, false));
+		for (final JRadioButtonMenuItem item : radios(ExamineLine.values(), settings::examineLine, settings::setExamineLine))
+		{
+			group.add(item);
+		}
+		return group;
+	}
+
+	/** The "Colours" group: the colouring switch, the hover colour, the underline switch and its colour, the sidebar's names. */
+	private JMenu coloursGroup()
+	{
+		final JMenu group = group(COLOURS_GROUP_TEXT);
+		group.add(colourCheck);
+		group.add(colourRow(HOVER_COLOUR_TEXT, settings::hoverColour, settings::setHoverColour, HOVER_COLOUR_TEXT));
+		group.add(underlineCheck);
+		group.add(colourRow(UNDERLINE_COLOUR_TEXT, settings::alwaysUnderlineColour, settings::setAlwaysUnderlineColour,
+			UNDERLINE_COLOUR_TEXT));
+		group.add(colourRow(SIDEBAR_NAMES_TEXT, settings::nameColour, colour ->
+		{
+			settings.setNameColour(colour);
+			historyList.repaint();
+		}, NAME_COLOUR_TEXT));
+		return group;
+	}
+
+	/**
+	 * Makes {@code row}, and every part in it, take down an open theme submenu or group when the mouse enters it, and gives
+	 * the row back. The menu is left up: the selected path is cut back to the menu alone, as a pick from a submenu does.
+	 *
+	 * <p>Choice: Swing closes a submenu only when another menu item is armed, and this row is a plain panel, not a menu
+	 * item, so a submenu opened by a pass over a row above it stayed up over it. The listener goes on every
+	 * part, down to the buttons, because the entry is told to the part the mouse comes onto, which is seldom the row
+	 * itself.
 	 */
 	private JPanel closesSubmenu(JPanel row)
 	{
@@ -1946,72 +2116,48 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * A choice row: a submenu titled with the caption and the current choice, holding one radio item per choice in the
-	 * order of {@code values}. Picking one writes it, retitles the submenu and closes the submenu alone; the main menu
-	 * stays open, as it does for the switches. {@link #syncControls} sets the radio and the title from {@code read}.
+	 * A theme row: a submenu showing its caption at the left and the current theme in grey at the right, before the arrow
+	 * (a {@link ValueMenu}), holding one radio item per theme in the order of {@code values}, which may also show a picture
+	 * of a theme while its item is armed (under the mouse, or picked with the keys) and hold a rule in its list. Picking
+	 * one writes it, shows it at the row's right and closes the submenu alone; the main menu stays open, as it does for
+	 * the switches. {@link #syncControls} sets the radio and the value from {@code read}.
 	 *
 	 * <p>Choice: submenus and not drop-downs, because a drop-down's list is a popup of its own, outside the menu's
 	 * selection path, and Swing's menu machinery reads a click on it as a click outside and takes the whole menu down
-	 * before the list can show. The submenu is as wide as its longest title, so that retitling never clips it. Each
+	 * before the list can show. The row is as wide as its widest theme asks, so that a pick never changes its width. Each
 	 * radio item is an anonymous subclass taking the release over through {@link #takeRelease}, as the switches are.
 	 *
-	 * @param caption the row's name, shown before the colon
-	 * @param values the choices, shown in this order with their {@code toString} words
-	 * @param read the setting's current choice
-	 * @param write what picking a choice does: writes the setting
+	 * @param caption the row's name
+	 * @param values the themes, shown in this order with their {@code toString} words
+	 * @param read the setting's current theme
+	 * @param write what picking a theme does: writes the setting
+	 * @param preview what makes the picture of a theme; the picture shows beside the item, level with it, and goes when no
+	 *        item of the list is armed or the menu closes
+	 * @param ruleAfter the index of the theme after which the list holds a rule, or -1 for none
 	 */
-	private <T> JMenu choices(String caption, T[] values, Supplier<T> read, Consumer<T> write)
-	{
-		return choices(caption, values, read, write, null, -1);
-	}
-
-	/**
-	 * A choice row as {@link #choices(String, Object[], Supplier, Consumer)} makes it, which may also show a picture of a
-	 * choice while its item is armed (under the mouse, or picked with the keys) and hold a rule in its list.
-	 *
-	 * @param preview what makes the picture of a choice, or null for a list with no pictures; the picture shows beside the
-	 *        item, level with it, and goes when no item of a picture list is armed or the menu closes
-	 * @param ruleAfter the index of the choice after which the list holds a rule, or -1 for none
-	 */
-	private <T> JMenu choices(String caption, T[] values, Supplier<T> read, Consumer<T> write,
+	private <T> ValueMenu themeChoices(String caption, T[] values, Supplier<T> read, Consumer<T> write,
 		Function<T, BufferedImage> preview, int ruleAfter)
 	{
-		final Font font = FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE);
-		final JMenu submenu = new JMenu();
-		submenu.setFont(font);
+		final ValueMenu submenu = new ValueMenu(caption, values);
+		submenu.setFont(menuFont());
 		submenu.setForeground(Color.WHITE);
 		final ButtonGroup group = new ButtonGroup();
 		final List<JRadioButtonMenuItem> items = new ArrayList<>();
 		for (int at = 0; at < values.length; at++)
 		{
 			final T value = values[at];
-			final JRadioButtonMenuItem item = new JRadioButtonMenuItem(String.valueOf(value))
-			{
-				@Override
-				protected void processMouseEvent(MouseEvent e)
-				{
-					if (!takeRelease(this, e, false))
-					{
-						super.processMouseEvent(e);
-					}
-				}
-			};
-			item.setFont(font);
-			item.setForeground(Color.WHITE);
+			final JRadioButtonMenuItem item = radioItem(value, false);
 			item.addActionListener(e ->
 			{
 				if (!syncing)
 				{
 					write.accept(value);
-					submenu.setText(title(caption, value));
+					submenu.setValue(String.valueOf(value));
 					// Only the submenu goes: the path ends at the main menu, which stays up.
 					MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
 				}
 			});
-			if (preview != null)
-			{
-				item.getModel().addChangeListener(e -> armChanged(item, () -> preview.apply(value)));
-			}
+			item.getModel().addChangeListener(e -> armChanged(item, () -> preview.apply(value)));
 			group.add(item);
 			submenu.add(item);
 			items.add(item);
@@ -2020,17 +2166,6 @@ public class ClanHubPanel extends PluginPanel
 				submenu.addSeparator();
 			}
 		}
-		int width = 0;
-		int height = 0;
-		for (final T value : values)
-		{
-			submenu.setText(title(caption, value));
-			final Dimension size = submenu.getPreferredSize();
-			width = Math.max(width, size.width);
-			height = Math.max(height, size.height);
-		}
-		submenu.setPreferredSize(new Dimension(width, height));
-		submenu.setText(title(caption, values[0]));
 		final List<T> choices = Arrays.asList(values);
 		choiceSyncs.add(() ->
 		{
@@ -2042,15 +2177,119 @@ public class ClanHubPanel extends PluginPanel
 				return;
 			}
 			items.get(index).setSelected(true);
-			submenu.setText(title(caption, current));
+			submenu.setValue(String.valueOf(current));
 		});
 		return submenu;
 	}
 
-	/** A choice submenu's title: the caption, a colon, and the current choice's words. */
-	private static String title(String caption, Object choice)
+	/**
+	 * A radio item in the menu's face that takes the left release over through {@link #takeRelease}, so that a click never
+	 * takes the menu, or the popup it is in, down.
+	 *
+	 * @param rearm whether the item is armed again after the click, to keep its hover highlight while the mouse stays on it:
+	 *        an item in a group is, since its group stays up; an item of a theme list is not, since its list closes
+	 */
+	private static JRadioButtonMenuItem radioItem(Object value, boolean rearm)
 	{
-		return caption + ": " + choice;
+		final JRadioButtonMenuItem item = new JRadioButtonMenuItem(String.valueOf(value))
+		{
+			@Override
+			protected void processMouseEvent(MouseEvent e)
+			{
+				if (!takeRelease(this, e, rearm))
+				{
+					super.processMouseEvent(e);
+				}
+			}
+		};
+		item.setFont(menuFont());
+		item.setForeground(Color.WHITE);
+		return item;
+	}
+
+	/**
+	 * A choice as radio items for a group: one item per value in the order of {@code values}, in one button group, for the
+	 * caller to add to the group in the order it wants. A pick writes the setting, and both the group and the menu stay
+	 * open: the item takes the release over, and nothing cuts the selected path. {@link #syncControls} selects the item
+	 * of {@code read}'s choice.
+	 *
+	 * @param values the choices, shown with their {@code toString} words
+	 * @param read the setting's current choice
+	 * @param write what picking a choice does: writes the setting
+	 */
+	private <T> List<JRadioButtonMenuItem> radios(T[] values, Supplier<T> read, Consumer<T> write)
+	{
+		final ButtonGroup group = new ButtonGroup();
+		final List<JRadioButtonMenuItem> items = new ArrayList<>();
+		for (final T value : values)
+		{
+			final JRadioButtonMenuItem item = radioItem(value, true);
+			item.addActionListener(e ->
+			{
+				if (!syncing)
+				{
+					write.accept(value);
+				}
+			});
+			group.add(item);
+			items.add(item);
+		}
+		final List<T> choices = Arrays.asList(values);
+		choiceSyncs.add(() ->
+		{
+			final int index = choices.indexOf(read.get());
+			if (index < 0)
+			{
+				group.clearSelection();
+				return;
+			}
+			items.get(index).setSelected(true);
+		});
+		return items;
+	}
+
+	/**
+	 * A choice as a row of small buttons side by side, one per value in the order of {@code values}, filling the row, the
+	 * chosen one lit in the brand orange. A click writes the setting at once and keeps the group and the menu open.
+	 * {@link #syncControls} lights the button of {@code read}'s choice.
+	 *
+	 * @param values the choices, shown with their {@code toString} words
+	 * @param read the setting's current choice
+	 * @param write what a click does: writes the setting
+	 */
+	private <T> JPanel segments(T[] values, Supplier<T> read, Consumer<T> write)
+	{
+		final JPanel row = new JPanel(new GridLayout(1, 0, SEGMENT_GAP, 0));
+		row.setOpaque(false);
+		row.setBorder(new EmptyBorder(2, 6, 2, 6));
+		final ButtonGroup group = new ButtonGroup();
+		final List<SegmentButton> buttons = new ArrayList<>();
+		for (final T value : values)
+		{
+			final SegmentButton button = new SegmentButton(String.valueOf(value), menuFont());
+			button.addActionListener(e ->
+			{
+				if (!syncing)
+				{
+					write.accept(value);
+				}
+			});
+			group.add(button);
+			buttons.add(button);
+			row.add(button);
+		}
+		final List<T> choices = Arrays.asList(values);
+		choiceSyncs.add(() ->
+		{
+			final int index = choices.indexOf(read.get());
+			if (index < 0)
+			{
+				group.clearSelection();
+				return;
+			}
+			buttons.get(index).setSelected(true);
+		});
+		return row;
 	}
 
 	/**
@@ -2120,7 +2359,7 @@ public class ClanHubPanel extends PluginPanel
 	/**
 	 * The card key box: a small button in the menu's 12 px type showing the key's words. A press arms it, and the next key
 	 * pressed is the card key: Escape keeps the old one, Backspace or Delete clears it, any other key (a modifier alone
-	 * included) is taken. The box is greyed unless "Show a card" is "While holding a key"; {@link #syncControls} sets it
+	 * included) is taken. The box is greyed unless the card opens "While holding a key"; {@link #syncControls} sets it
 	 * from the setting.
 	 */
 	private JButton buildKeyBox()
@@ -2307,7 +2546,7 @@ public class ClanHubPanel extends PluginPanel
 		return spinner;
 	}
 
-	/** A row of the menu: the caption at its left in grey, the control at its right; see-through. */
+	/** A row of the menu: the caption at its left in grey, the control at its right, some room between; see-through. */
 	private static JPanel row(String captionText, JComponent control)
 	{
 		final JPanel row = new JPanel();
@@ -2318,6 +2557,7 @@ public class ClanHubPanel extends PluginPanel
 		caption.setFont(FontManager.getDefaultFont().deriveFont((float) SupportLinks.MENU_FONT_SIZE));
 		caption.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		row.add(caption);
+		row.add(Box.createHorizontalStrut(ROW_CAPTION_GAP));
 		row.add(Box.createHorizontalGlue());
 		row.add(control);
 		return row;
@@ -2327,7 +2567,7 @@ public class ClanHubPanel extends PluginPanel
 	 * A colour row: the caption at its left, a swatch of the setting's colour at its right. A press on the swatch takes
 	 * the menu down, opens the colour picker on that colour beside the swatch (the picker is told the swatch's centre on
 	 * the screen), writes each colour the picker settles on (the swatch follows), and brings the menu back under the
-	 * settings icon when the picker closes.
+	 * settings icon, with the "Colours" group open, when the picker closes.
 	 *
 	 * <p>Choice: the menu goes while the picker is open because the picker is a window of its own; a menu left up under
 	 * a dialog is a menu nobody can use, and Swing would take it down on the first click in the dialog anyway.
@@ -2377,9 +2617,9 @@ public class ClanHubPanel extends PluginPanel
 	}
 
 	/**
-	 * Sets the checks, the choice submenus, the card key box, the spinners and the colour swatches from the settings,
-	 * without writing anything back; the how-to's coloured words follow the hover colour and its fold follows the setting,
-	 * which "Reset to default" has just put back.
+	 * Sets the checks, the theme rows and the groups' choices, the card key box, the spinners and the colour swatches from
+	 * the settings, without writing anything back; the how-to's coloured words follow the hover colour and its fold
+	 * follows the setting, which "Reset to default" has just put back.
 	 *
 	 * <p>Choice: a stored size outside 8 to 24 shows as the nearest end of the range, and a stored delay outside 0 to 1000
 	 * likewise.
