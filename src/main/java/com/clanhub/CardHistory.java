@@ -240,4 +240,29 @@ final class CardHistory
 				return shortAgo(ago(now, at));
 		}
 	}
+
+	/**
+	 * The widest readings {@link #timeOf} can give in {@code style}, each built with {@code digit} for every digit, so that
+	 * a row can be measured beside the widest time it will ever show: {@link CardTime#AGO} gives "now", two digits and "m"
+	 * (up to 59 minutes) and two digits and "h" (up to 99 hours; a session longer than that reads "100h", one digit wider,
+	 * which this does not allow for), {@link CardTime#CLOCK_24} two digits, a colon and two digits, and
+	 * {@link CardTime#CLOCK_12} the same and " AM" or " PM". The caller passes the digit its font draws widest and takes the
+	 * widest of the forms in that font. It must change with the formats of {@link #timeOf}.
+	 *
+	 * @param style how the time reads
+	 * @param digit the digit every digit of a form is built with
+	 */
+	static List<String> widestTimes(CardTime style, char digit)
+	{
+		final String two = "" + digit + digit;
+		switch (style)
+		{
+			case CLOCK_24:
+				return List.of(two + ":" + two);
+			case CLOCK_12:
+				return List.of(two + ":" + two + " AM", two + ":" + two + " PM");
+			default:
+				return List.of("now", two + "m", two + "h");
+		}
+	}
 }

@@ -309,7 +309,8 @@ settings menu.
   broadcast of it a second apart, is a single row when the player and the card are the same and the lines come within
   ten seconds of each other (the chat itself still gives every line its cards). The header says how many are kept
   (*12 this session*) and has a **Clear** link that
-  empties the list. Hover a row and its card shows beside the sidebar, as it does in game; right-click a row for *Open
+  empties the list. While there are none, it says *Tip: Pick a theme in the settings menu.* Hover a row and its card shows beside the
+  sidebar, as it does in game; right-click a row for *Open
   wiki* or *Copy*. The list draws only the rows on screen, a new card is one insert at its top and a row's lines are
   counted once, so a long session stays quick. The list is kept for the session only: it is never written anywhere, and
   it is gone when you turn the plugin off or close the client.
@@ -328,7 +329,7 @@ settings menu.
 **The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
 press it again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 0.0.9*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 1.0.0*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - the master switch, **Hover cards**;
 - two **theme rows**, *Card theme* and *Sidebar theme*, each a small submenu that shows its current theme in grey at the

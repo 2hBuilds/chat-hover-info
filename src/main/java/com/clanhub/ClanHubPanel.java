@@ -8,6 +8,7 @@ import com.clanhub.ClanHubConfig.CardWidth;
 import com.clanhub.ClanHubConfig.ExamineLine;
 import com.clanhub.ClanHubConfig.SidebarTheme;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -180,9 +181,14 @@ public class ClanHubPanel extends PluginPanel
 	static final String HOW_TO_ACTION_PLAIN = "Hover a name in a broadcast for its card.";
 	/** The how-to's second line, in grey, under the action line and over the heading. */
 	static final String HOW_TO_WIKI = "Right-click it for the wiki.";
-	/** The how-to's last line, in grey under its rows, its first word in bold: where the themes are. */
+	/**
+	 * The how-to's last line, in grey under its rows, its first word in bold: where the themes are. The recent cards start
+	 * their own tip with the same bold word while there are none ({@link #EMPTY_TIP}).
+	 */
 	static final String HOW_TO_TIP_WORD = "Tip:";
 	static final String HOW_TO_TIP = " change theme in settings.";
+	/** The rest of the empty list's tip, after the bold {@link #HOW_TO_TIP_WORD} (the user's words): where the themes are. */
+	static final String EMPTY_TIP = " Pick a theme in the settings menu.";
 	/** The name the how-to's title bar carries, which the panel's tests find it by. */
 	static final String HOW_TO_BAR_NAME = "how-to-bar";
 
@@ -259,6 +265,9 @@ public class ClanHubPanel extends PluginPanel
 	private static final int HOW_TO_ICON_GAP = 6;
 	/** The how-to's text size, in px, for the rows and the action line. */
 	private static final float HOW_TO_FONT_SIZE = 12f;
+	/** The names of the two cards the recent cards' place shows: the empty list's tip, or the list. */
+	private static final String TIP_CARD = "tip";
+	private static final String LIST_CARD = "list";
 	/**
 	 * The how-to's title bar: its height, the room at each end before the title and the arrow, in px, and its ground at rest
 	 * in the plain sidebar ({@link SidebarSkin#PLAIN} paints it; the bar's own background keeps it for the component to report).
@@ -288,6 +297,12 @@ public class ClanHubPanel extends PluginPanel
 	 */
 	private static final int HOW_TO_WIDTH = PluginPanel.PANEL_WIDTH + PluginPanel.SCROLLBAR_WIDTH - 4 * PADDING - 4;
 	private static final int HOW_TO_ROW_TEXT_WIDTH = HOW_TO_WIDTH - HOW_TO_ICON_SIZE - HOW_TO_ICON_GAP;
+	/**
+	 * How wide the empty list's tip is set, in px: the list's width (the same panel width less the panel's padding alone,
+	 * no card around it) less a few px to spare. Its words are 212 px wide in the client's font: more than the how-to's
+	 * {@link #HOW_TO_WIDTH}, which would break them in two, and less than this, which keeps them on one line.
+	 */
+	private static final int EMPTY_TIP_WIDTH = PluginPanel.PANEL_WIDTH + PluginPanel.SCROLLBAR_WIDTH - 2 * PADDING - 4;
 	/** A row's border at rest and under the mouse; the bar takes the room the resting border leaves empty. */
 	private static final Border ROW_BORDER = new EmptyBorder(0, ROW_LEFT_INSET, 0, ROW_RIGHT_INSET);
 	private static final Border ROW_HOT_BORDER = new CompoundBorder(
@@ -377,8 +392,16 @@ public class ClanHubPanel extends PluginPanel
 	private final JLabel recentTitle = new JLabel();
 	private final JLabel count = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
 	private final JLabel clearLabel = new JLabel();
+	/**
+	 * The line the recent cards show while there are none, in the skin's grey: "Tip:" in bold and {@link #EMPTY_TIP}, in
+	 * the middle of the list's place, across and down (the user's pick, option B of docs/empty-tip-options-2.png), shown
+	 * instead of the list while it is empty ({@link #syncList}).
+	 */
+	private final JLabel emptyTip = new JLabel();
 	/** The scroll pane of the recent cards, made with the history's view. */
 	private JScrollPane historyScroll;
+	/** The recent cards' place under their header: the card of {@link #emptyTip} or the card of {@link #historyScroll}. */
+	private JPanel historyBody;
 	/** The history's entries as the list shows them, newest first; changed only by {@link #syncList}. */
 	private final HistoryModel model = new HistoryModel();
 	/** The list of recent cards, which the history's scroll pane shows; a change of its width has every row measured again. */
@@ -390,12 +413,21 @@ public class ClanHubPanel extends PluginPanel
 	private final Map<CardHistory.Entry, ImageIcon> pictures = new IdentityHashMap<>();
 	/**
 	 * How many lines (one or two) the title of each entry in the model takes, by identity, worked out once per entry for
-	 * the list width in {@link #measuredWidth}: the entry is a key from the first time its row is drawn or measured until
-	 * it leaves the model, and every key goes when the list's width changes.
+	 * the list width in {@link #measuredWidth} and the Card time setting in {@link #measuredTime}: the entry is a key from
+	 * the first time its row is drawn or measured until it leaves the model, and every key goes when the list's width or
+	 * the setting changes.
 	 */
 	private final Map<CardHistory.Entry, Integer> titleLines = new IdentityHashMap<>();
 	/** The list width, in px, that the counts in {@link #titleLines} were worked out for. */
 	private int measuredWidth = -1;
+	/** The Card time setting that the counts in {@link #titleLines} were worked out for, or null before the first count. */
+	private CardTime measuredTime;
+	/**
+	 * The Card time setting {@link #settingsChanged} last saw, or null before its first call. It is not
+	 * {@link #measuredTime}: a draw between the setting's change and the call counts the drawn rows again on its own and
+	 * moves that one, which would hide the change from the call and keep the list's old heights.
+	 */
+	private CardTime notifiedTime;
 	/** The entry the mouse is on, so that its cell draws hot and its card is shown, or null. */
 	private CardHistory.Entry hovered;
 	/** True while a {@link #syncList} is queued for the event thread, so that a burst of lines asks for one. */
@@ -607,10 +639,7 @@ public class ClanHubPanel extends PluginPanel
 			howToLines.add(howToRow(i));
 			howToLines.add(Box.createVerticalStrut(HOW_TO_ROW_GAP));
 		}
-		howToTip.setFont(FontManager.getDefaultFont().deriveFont(HOW_TO_FONT_SIZE));
-		final Font tipWord = FontManager.getDefaultBoldFont().deriveFont(HOW_TO_FONT_SIZE);
-		howToTip.setText(howToHtml(List.of(new Run(HOW_TO_TIP_WORD, "<b>", "</b>", howToTip.getFontMetrics(tipWord)),
-			new Run(HOW_TO_TIP, "", "", howToTip.getFontMetrics(howToTip.getFont()))), HOW_TO_WIDTH));
+		writeTip(howToTip, HOW_TO_TIP, HOW_TO_WIDTH);
 		howToLines.add(actionLine(howToTip));
 		refreshHowTo();
 		box.add(howToLines, BorderLayout.CENTER);
@@ -629,6 +658,24 @@ public class ClanHubPanel extends PluginPanel
 		box.setAlignmentX(Component.LEFT_ALIGNMENT);
 		box.add(line, BorderLayout.CENTER);
 		return box;
+	}
+
+	/**
+	 * Gives {@code line} a theme tip: the how-to's text size, {@link #HOW_TO_TIP_WORD} in bold and {@code rest} after it,
+	 * set like the how-to's other lines ({@link #howToHtml}, no wider than {@code width} px, so on one line where it fits).
+	 * The how-to's last line ({@link #HOW_TO_TIP}, in {@link #HOW_TO_WIDTH}) and the empty list's ({@link #EMPTY_TIP}, in
+	 * {@link #EMPTY_TIP_WIDTH}) are both made here, so that they look the same. The colour is the label's own, which
+	 * {@link #applySkin} sets.
+	 *
+	 * @param rest the words after "Tip:", with their leading space
+	 * @param width the widest the line may be, in px
+	 */
+	private static void writeTip(JLabel line, String rest, int width)
+	{
+		line.setFont(FontManager.getDefaultFont().deriveFont(HOW_TO_FONT_SIZE));
+		final Font tipWord = FontManager.getDefaultBoldFont().deriveFont(HOW_TO_FONT_SIZE);
+		line.setText(howToHtml(List.of(new Run(HOW_TO_TIP_WORD, "<b>", "</b>", line.getFontMetrics(tipWord)),
+			new Run(rest, "", "", line.getFontMetrics(line.getFont()))), width));
 	}
 
 	/**
@@ -855,7 +902,8 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * The recent cards: a header row ("Recent cards", the count, "Clear" at the right) over the scroll pane of the list,
-	 * which has no horizontal bar, a vertical one as needed and {@link #SCROLL_STEP} px wheel steps.
+	 * which has no horizontal bar, a vertical one as needed and {@link #SCROLL_STEP} px wheel steps. While the list is
+	 * empty, its place shows a tip instead, in the middle ({@link #emptyTip}).
 	 *
 	 * <p>The list: every cell {@code ROW_HEIGHT + ROW_GAP} px high, or {@code ROW_HEIGHT_TWO_LINES + ROW_GAP} when its
 	 * title takes two lines, drawn by the one {@link RowRenderer}, with no selection painted (the keyboard never reaches
@@ -930,7 +978,14 @@ public class ClanHubPanel extends PluginPanel
 			ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 		historyScroll.setBorder(null);
 		historyScroll.getVerticalScrollBar().setUnitIncrement(SCROLL_STEP);
-		view.add(historyScroll, BorderLayout.CENTER);
+		writeTip(emptyTip, EMPTY_TIP, EMPTY_TIP_WIDTH);
+		emptyTip.setHorizontalAlignment(SwingConstants.CENTER);
+		emptyTip.setVerticalAlignment(SwingConstants.CENTER);
+		historyBody = new JPanel(new CardLayout());
+		historyBody.setOpaque(false);
+		historyBody.add(emptyTip, TIP_CARD);
+		historyBody.add(historyScroll, LIST_CARD);
+		view.add(historyBody, BorderLayout.CENTER);
 		return view;
 	}
 
@@ -982,8 +1037,8 @@ public class ClanHubPanel extends PluginPanel
 	 * for, once. The model is then cut to the history's size from the bottom, and the cut entries leave the pictures and
 	 * the line counts. A
 	 * history that is empty, or that no longer holds the model's first entry (it was cleared and filled again), empties the
-	 * model first. The count is set. If the entry the mouse was on is gone, the card shown for it comes down: the row is
-	 * gone, and no exit would ever tell the viewer. Runs on the event thread.
+	 * model first. The count is set, and the tip shows in the list's place only while the model is empty. If the entry the mouse was on is gone,
+	 * the card shown for it comes down: the row is gone, and no exit would ever tell the viewer. Runs on the event thread.
 	 *
 	 * <p>Choice: the queued flag is let go before the history is read, so that a line that comes while this runs asks for a
 	 * sync of its own and is never lost.
@@ -1031,6 +1086,7 @@ public class ClanHubPanel extends PluginPanel
 			model.removeRange(size, model.size() - 1);
 		}
 		count.setText(history.size() + COUNT_SUFFIX);
+		((CardLayout) historyBody.getLayout()).show(historyBody, model.isEmpty() ? TIP_CARD : LIST_CARD);
 		if (hovered != null && !pictures.containsKey(hovered))
 		{
 			hovered = null;
@@ -1300,12 +1356,12 @@ public class ClanHubPanel extends PluginPanel
 	/**
 	 * Draws an entry of the history as a row: the picture box at the left (36 x 32 px, the entry's picture in it) and the
 	 * text beside it. The card's title is in bold white with the time, small and grey, in the row's top right corner on
-	 * the title's first line (how long ago, or the clock time, as set); a title that does not fit beside the time goes on
-	 * to a second line (never a third: what is left after two lines is cut with "..."). Under the title come who the line
-	 * is about in the name colour as the settings have it at the moment of the draw, and what kind of card it gave in
-	 * grey, whole ({@link RowWords}); only if the two do not fit is the kind cut with "...", and then the name. The
-	 * hovered entry's row takes the hover ground and an orange bar at its left edge. Under the row, inside the cell, the
-	 * gap to the next row in the list's own ground.
+	 * the title's first line (how long ago, or the clock time, as set); a title that does not fit beside the widest time
+	 * the setting can read goes on to a second line (never a third: what is left after two lines is cut with "..."), so
+	 * that a time that grows never cuts a title. Under the title come who the line is about in the name colour as the
+	 * settings have it at the moment of the draw, and what kind of card it gave in grey, whole ({@link RowWords}); only if
+	 * the two do not fit is the kind cut with "...", and then the name. The hovered entry's row takes the hover ground and
+	 * an orange bar at its left edge. Under the row, inside the cell, the gap to the next row in the list's own ground.
 	 *
 	 * <p>Choice: one component is built, once, and set from the entry at every draw, which is how a list draws only the
 	 * rows on screen at the cost of those rows; the time is worked out here, at draw time, so that a timer's repaint is
@@ -1314,9 +1370,12 @@ public class ClanHubPanel extends PluginPanel
 	 * <p>Choice: a row has only two heights, {@code ROW_HEIGHT} with a one-line title and {@code ROW_HEIGHT_TWO_LINES}
 	 * with a two-line one (each with the gap), and the cell's preferred height is the one the line count says. A list
 	 * with no fixed cell height asks the renderer for the height of every row of the session whenever its model or its
-	 * width changes, so the wrap, which measures text, is done once per entry for the list's width and kept in
-	 * {@code titleLines}; every later ask is a lookup. The count is dropped when the list's width changes, and not when
-	 * the time's words do, so the height always matches the lines drawn.
+	 * width changes, so the wrap, which measures text, is done once per entry for the list's width and the Card time
+	 * setting and kept in {@code titleLines}; every later ask is a lookup. The title is measured beside the widest time
+	 * the setting can read ({@link CardHistory#widestTimes}, in the time's font), not beside the time as it reads at the
+	 * first measure, which grows from "now" to "59m" and on; so the count holds however the time's words grow. The count
+	 * is dropped when the list's width or the setting changes, and not when the time's words do, so the height always
+	 * matches the lines drawn and no title is cut by its time.
 	 */
 	private final class RowRenderer implements ListCellRenderer<CardHistory.Entry>
 	{
@@ -1339,6 +1398,8 @@ public class ClanHubPanel extends PluginPanel
 		private final JLabel what = label("", 12f, ROW_WHAT_COLOUR);
 		/** The height the cell asks for, in px: set from the entry's line count at every draw. */
 		private int cellHeight = ROW_HEIGHT + ROW_GAP;
+		/** The width, in px, of the widest time the setting in {@link #measuredTime} can read in the time's font. */
+		private int widestTime;
 
 		RowRenderer()
 		{
@@ -1389,17 +1450,20 @@ public class ClanHubPanel extends PluginPanel
 			titleRest.setForeground(skin.rowTitle);
 			time.setForeground(skin.time);
 			what.setForeground(skin.grey);
-			time.setText(CardHistory.timeOf(entry.at(), settings.cardTime(), ZoneId.systemDefault(), System.currentTimeMillis()));
+			final CardTime style = settings.cardTime();
+			time.setText(CardHistory.timeOf(entry.at(), style, ZoneId.systemDefault(), System.currentTimeMillis()));
 			who.setForeground(settings.nameColour());
 			who.setText(RowWords.who(entry.line()));
 			what.setText(RowWords.what(entry.line()));
 
 			final String title = card.title();
 			final int room = Math.max(0, list.getWidth() - ROW_TEXT_INSET);
-			if (list.getWidth() != measuredWidth)
+			if (list.getWidth() != measuredWidth || style != measuredTime)
 			{
 				titleLines.clear();
 				measuredWidth = list.getWidth();
+				measuredTime = style;
+				widestTime = widestTimeIn(style);
 			}
 			String[] parts = null;
 			Integer lines = titleLines.get(entry);
@@ -1425,9 +1489,33 @@ public class ClanHubPanel extends PluginPanel
 		}
 
 		/**
-		 * The title as the first line, which has the text's width less the time's and the room before it, and the rest
-		 * (empty when the title fits the first line) for the second. The line breaks at a space; a first word too wide
-		 * for the line keeps it alone, and its label cuts it with "...".
+		 * The width, in px, of the widest time the Card time setting {@code style} can read, in the time label's own font:
+		 * the widest of {@link CardHistory#widestTimes}, built with the digit of '0' to '9' that font draws widest.
+		 */
+		private int widestTimeIn(CardTime style)
+		{
+			final FontMetrics metrics = time.getFontMetrics(time.getFont());
+			char digit = '0';
+			for (char c = '1'; c <= '9'; c++)
+			{
+				if (metrics.charWidth(c) > metrics.charWidth(digit))
+				{
+					digit = c;
+				}
+			}
+			int widest = 0;
+			for (final String form : CardHistory.widestTimes(style, digit))
+			{
+				widest = Math.max(widest, metrics.stringWidth(form));
+			}
+			return widest;
+		}
+
+		/**
+		 * The title as the first line, which has the text's width less the widest time the setting can read
+		 * ({@link #widestTime}, not the time as it reads now: that grows) and the room before it, and the rest (empty when
+		 * the title fits the first line) for the second. The line breaks at a space; a first word too wide for the line
+		 * keeps it alone, and its label cuts it with "...".
 		 *
 		 * @param title the card's title
 		 * @param room the width the row's text has, in px
@@ -1435,7 +1523,7 @@ public class ClanHubPanel extends PluginPanel
 		private String[] wrap(String title, int room)
 		{
 			final FontMetrics metrics = titleFirst.getFontMetrics(titleFirst.getFont());
-			final int first = Math.max(0, room - time.getPreferredSize().width - ROW_WORDS_GAP);
+			final int first = Math.max(0, room - widestTime - ROW_WORDS_GAP);
 			if (metrics.stringWidth(title) <= first)
 			{
 				return new String[] {title, ""};
@@ -1760,14 +1848,27 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * Draws the sidebar again from the settings as they stand: its skin (the one the sidebar theme names), the how-to's action line (its words follow the colouring switch and the hover
-	 * colour) and the list of recent cards (the rows follow the name colour and the time setting). The plugin calls it
-	 * when a setting of the plugin's group changes, whether the sidebar's menu wrote it or RuneLite's own settings page
-	 * did, so that a colour shows in the rows while a colour picker is still open and a theme shows at once. Event thread
-	 * only.
+	 * colour) and the list of recent cards (the rows follow the name colour and the time setting; a time setting changed
+	 * since the last call has every row measured again, since the titles are measured beside the widest time the setting
+	 * can read, even when the list drew in between). The plugin calls it when a setting of the plugin's group changes,
+	 * whether the sidebar's menu wrote it or RuneLite's own settings page did, so that a colour shows in the rows while a
+	 * colour picker is still open and a theme shows at once. Event thread only.
+	 *
+	 * <p>Choice: the change is judged against {@link #notifiedTime}, which only this writes, and not against the counts'
+	 * {@link #measuredTime}. A profile switch posts the setting's change from RuneLite's own thread, so this call comes
+	 * later, through the event queue; a draw in that gap (the "ago" timer's, a picture's, a hover's) counts the drawn rows
+	 * under the new setting and moves {@link #measuredTime}, and judged against that the change would be missed, the list
+	 * keeping the old setting's heights until the next card.
 	 */
 	void settingsChanged()
 	{
 		applySkin();
+		final CardTime time = settings.cardTime();
+		if (time != notifiedTime)
+		{
+			notifiedTime = time;
+			model.measureAgain();
+		}
 		historyList.repaint();
 	}
 
@@ -1792,9 +1893,9 @@ public class ClanHubPanel extends PluginPanel
 
 	/**
 	 * Works the skin out again and puts its colours on everything that has one: the panel's ground and the list's, the
-	 * how-to's bar, lines, heading and rows (their HTML is built again), the recent cards' header and the examine icon,
-	 * all of it only when the skin is not the one the components already wear. The boxes themselves are painted by the
-	 * skin as they draw ({@link #paintSkin}), so they are only asked to draw again.
+	 * how-to's bar, lines, heading and rows (their HTML is built again), the recent cards' header, the empty list's tip
+	 * and the examine icon, all of it only when the skin is not the one the components already wear. The boxes themselves
+	 * are painted by the skin as they draw ({@link #paintSkin}), so they are only asked to draw again.
 	 */
 	private void applySkin()
 	{
@@ -1810,6 +1911,7 @@ public class ClanHubPanel extends PluginPanel
 			howToAction.setForeground(skin.text);
 			howToWiki.setForeground(skin.grey);
 			howToTip.setForeground(skin.grey);
+			emptyTip.setForeground(skin.grey);
 			howToHeading.setForeground(skin.heading);
 			for (int i = 0; i < howToRowTexts.size(); i++)
 			{

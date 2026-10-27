@@ -1,6 +1,8 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardTime;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -8,6 +10,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import javax.swing.JLabel;
+import net.runelite.client.ui.FontManager;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -169,5 +173,100 @@ public class CardHistoryTest
 		plain.add("one", Collections.singletonList(card("One", "one")), 1L);
 		plain.add("two", Collections.singletonList(card("Two", "two")), 2L);
 		assertEquals("the three-argument add still keeps two different titles", 2, plain.size());
+	}
+
+	/**
+	 * Lot 12A: the widest times cover every time a row can read. In a font, built with that font's widest digit, the widest
+	 * form of the "ago" style is at least as wide as "now", every "Nm" for N from 1 to 59 and every "Nh" for N from 1 to
+	 * 99, and the widest form of each clock is at least as wide as the clock for every minute of a day (in UTC). The font
+	 * is the one the row's time is drawn in (the default face at 10 px) and a spread of others, as a player's font is not
+	 * known.
+	 */
+	@Test
+	public void theWidestTimesCoverEveryTime()
+	{
+		assertEquals("the forms of 'ago'", Arrays.asList("now", "77m", "77h"), CardHistory.widestTimes(CardTime.AGO, '7'));
+		assertEquals("the form of the 24-hour clock", Collections.singletonList("77:77"),
+			CardHistory.widestTimes(CardTime.CLOCK_24, '7'));
+		assertEquals("the forms of the 12-hour clock", Arrays.asList("77:77 AM", "77:77 PM"),
+			CardHistory.widestTimes(CardTime.CLOCK_12, '7'));
+
+		final ZoneId utc = ZoneOffset.UTC;
+		final long start = Instant.parse("2026-10-27T00:00:00Z").toEpochMilli();
+		assertEquals("the same moment reads now", "now", CardHistory.timeOf(start, CardTime.AGO, utc, start));
+		assertEquals("a minute reads 1m", "1m", CardHistory.timeOf(start, CardTime.AGO, utc, start + 60_000L));
+		assertEquals("59 minutes read 59m", "59m", CardHistory.timeOf(start, CardTime.AGO, utc, start + 59 * 60_000L));
+		assertEquals("an hour reads 1h", "1h", CardHistory.timeOf(start, CardTime.AGO, utc, start + 3_600_000L));
+		assertEquals("99 hours read 99h", "99h", CardHistory.timeOf(start, CardTime.AGO, utc, start + 99 * 3_600_000L));
+
+		for (final Font font : timeFonts())
+		{
+			final FontMetrics metrics = new JLabel().getFontMetrics(font);
+			final String where = " in " + font;
+
+			final int ago = widestIn(metrics, CardTime.AGO);
+			assertTrue("'now' fits" + where, metrics.stringWidth(CardHistory.timeOf(start, CardTime.AGO, utc, start)) <= ago);
+			for (int minutes = 1; minutes <= 59; minutes++)
+			{
+				final String read = CardHistory.timeOf(start, CardTime.AGO, utc, start + minutes * 60_000L);
+				assertTrue("'" + read + "' fits" + where, metrics.stringWidth(read) <= ago);
+			}
+			for (int hours = 1; hours <= 99; hours++)
+			{
+				final String read = CardHistory.timeOf(start, CardTime.AGO, utc, start + hours * 3_600_000L);
+				assertTrue("'" + read + "' fits" + where, metrics.stringWidth(read) <= ago);
+			}
+
+			for (final CardTime clock : new CardTime[] {CardTime.CLOCK_24, CardTime.CLOCK_12})
+			{
+				final int widest = widestIn(metrics, clock);
+				for (int minute = 0; minute < 24 * 60; minute++)
+				{
+					final long at = start + minute * 60_000L;
+					final String read = CardHistory.timeOf(at, clock, utc, at);
+					assertTrue("'" + read + "' fits the " + clock + where, metrics.stringWidth(read) <= widest);
+				}
+			}
+		}
+	}
+
+	/** The width of the widest form of {@code style} in {@code metrics}, built with the digit that font draws widest. */
+	private static int widestIn(FontMetrics metrics, CardTime style)
+	{
+		char digit = '0';
+		for (char c = '1'; c <= '9'; c++)
+		{
+			if (metrics.charWidth(c) > metrics.charWidth(digit))
+			{
+				digit = c;
+			}
+		}
+		int widest = 0;
+		for (final String form : CardHistory.widestTimes(style, digit))
+		{
+			widest = Math.max(widest, metrics.stringWidth(form));
+		}
+		return widest;
+	}
+
+	/**
+	 * The faces the widest times are checked in: first the default face at 10 px, which the row's time is drawn in, then
+	 * the sidebar's faces and three of Java's at sizes from 8 to 16 px.
+	 */
+	private static List<Font> timeFonts()
+	{
+		final List<Font> fonts = new ArrayList<>();
+		fonts.add(FontManager.getDefaultFont().deriveFont(10f));
+		final List<Font> faces = Arrays.asList(FontManager.getDefaultFont(), FontManager.getRunescapeFont(),
+			FontManager.getRunescapeSmallFont(), FontManager.getRunescapeBoldFont(), new Font(Font.SANS_SERIF, Font.PLAIN, 10),
+			new Font(Font.SERIF, Font.PLAIN, 10), new Font(Font.MONOSPACED, Font.PLAIN, 10));
+		for (final Font face : faces)
+		{
+			for (final float size : new float[] {8f, 9f, 10f, 11f, 12f, 13f, 14f, 16f})
+			{
+				fonts.add(face.deriveFont(size));
+			}
+		}
+		return fonts;
 	}
 }

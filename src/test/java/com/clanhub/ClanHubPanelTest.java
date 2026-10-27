@@ -10,6 +10,7 @@ import com.clanhub.ClanHubConfig.SidebarTheme;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -28,8 +29,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 import javax.swing.AbstractButton;
 import javax.swing.Icon;
@@ -39,6 +43,7 @@ import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JScrollPane;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -50,12 +55,15 @@ import javax.swing.JToggleButton;
 import javax.swing.LayoutFocusTraversalPolicy;
 import javax.swing.MenuElement;
 import javax.swing.MenuSelectionManager;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import net.runelite.client.config.Keybind;
 import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.FontManager;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -67,6 +75,11 @@ import static org.junit.Assert.assertTrue;
  */
 public class ClanHubPanelTest
 {
+	/** The how-to's theme tip as a player reads it: its last line. */
+	private static final String THEME_TIP = "Tip: change theme in settings.";
+	/** The empty list's tip as a player reads it (the user's words). */
+	private static final String EMPTY_LIST_TIP = "Tip: Pick a theme in the settings menu.";
+
 	/** What the panel wrote: the values handed to the settings' setters. */
 	private final List<Boolean> shown = new ArrayList<>();
 	private final List<Boolean> coloured = new ArrayList<>();
@@ -1635,6 +1648,234 @@ public class ClanHubPanelTest
 		}
 	}
 
+	/**
+	 * Lot 12A: a row's height does not depend on its time. At the sidebar's width the same title added 1 minute, 59 minutes
+	 * and 23 hours old (the time reading "1m", "59m" and "23h") makes three rows of one height, each laid out whole with no
+	 * label reading "...", for every title of a sweep that widens a few px at a time, so that one of them fits beside "1m"
+	 * and not beside "59m".
+	 */
+	@Test
+	public void aRowsHeightDoesNotDependOnItsTime() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final List<String> titles = sweepTitles();
+			final String[] reads = {"1m", "59m", "23h"};
+			final long now = System.currentTimeMillis();
+			// A little past the minute, the 59th minute and the 23rd hour, so that the words hold while the test runs.
+			final long[] ages = {90_000L, 59 * 60_000L + 30_000L, 23 * 3_600_000L + 1_800_000L};
+			for (final String title : titles)
+			{
+				final String line = "GMucker has completed a medium combat task: " + title + ".";
+				for (final long age : ages)
+				{
+					history.add(line, Collections.<HoverCard>singletonList(card(title, "Abyssal_whip", line)), now - age);
+				}
+			}
+			flush();
+			onEdt(() ->
+			{
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("three rows a title", titles.size() * 3, list.getModel().getSize());
+				listWidthTo(frame[0], list, 226);
+
+				final Map<String, List<Integer>> heights = new LinkedHashMap<>();
+				final Map<String, List<String>> times = new LinkedHashMap<>();
+				for (int i = 0; i < list.getModel().getSize(); i++)
+				{
+					final String title = list.getModel().getElementAt(i).card().title();
+					final Rectangle bounds = list.getCellBounds(i, i);
+					final Container cell = cellOf(list, i);
+					layOut(cell, bounds);
+					final List<String> texts = textsIn(cell);
+					assertFalse("no label of the row '" + title + "' says '...'", String.join(" ", texts).contains("..."));
+					assertWhole(cell);
+					String time = "?";
+					for (final String read : reads)
+					{
+						if (texts.contains(read))
+						{
+							time = read;
+						}
+					}
+					heights.computeIfAbsent(title, t -> new ArrayList<>()).add(bounds.height);
+					times.computeIfAbsent(title, t -> new ArrayList<>()).add(time);
+				}
+
+				for (final String title : titles)
+				{
+					assertEquals("'" + title + "' was read at the three times", new HashSet<>(Arrays.asList(reads)),
+						new HashSet<>(times.get(title)));
+					assertEquals("'" + title + "' gave the heights " + heights.get(title) + " at the times " + times.get(title)
+						+ ": one height", 1, new HashSet<>(heights.get(title)).size());
+				}
+				assertEquals("the first title takes one line", 46, heights.get(titles.get(0)).get(0).intValue());
+				assertEquals("the last takes two beside any time", 62,
+					heights.get(titles.get(titles.size() - 1)).get(0).intValue());
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/**
+	 * Lot 12A: a change of the Card time setting has the rows measured again. The same sweep of titles is measured under
+	 * "4m ago"; once the clock is the 12-hour one and the sidebar is told, every row is laid out whole with no label
+	 * reading "..." and is as high as a fresh sidebar measures it under that clock; set back to "4m ago", every row has its
+	 * first height again.
+	 */
+	@Test
+	public void theTimeSettingMeasuresTheRowsAgain() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[2];
+		final JFrame[] frame = new JFrame[2];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final List<String> titles = sweepTitles();
+			// Four and a half minutes old, so that the row reads "4m" while the test runs.
+			final long at = System.currentTimeMillis() - 270_000L;
+			for (final String title : titles)
+			{
+				final String line = "GMucker has completed a medium combat task: " + title + ".";
+				history.add(line, Collections.<HoverCard>singletonList(card(title, "Abyssal_whip", line)), at);
+			}
+			flush();
+			onEdt(() ->
+			{
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				assertEquals("a row a title", titles.size(), list.getModel().getSize());
+				listWidthTo(frame[0], list, 226);
+				final int[] agoHeights = new int[titles.size()];
+				int agoTall = 0;
+				for (int i = 0; i < agoHeights.length; i++)
+				{
+					agoHeights[i] = list.getCellBounds(i, i).height;
+					agoTall += agoHeights[i] > 46 ? 1 : 0;
+				}
+				assertTrue("under '4m ago' the sweep has titles of one line and of two", agoTall > 0 && agoTall < agoHeights.length);
+
+				cardTime = CardTime.CLOCK_12;
+				panel[0].settingsChanged();
+				panel[1] = newPanel();
+				frame[1] = frameOf(panel[1]);
+				final JList<CardHistory.Entry> fresh = historyListIn(panel[1]);
+				listWidthTo(frame[1], fresh, 226);
+				int clockTall = 0;
+				for (int i = 0; i < agoHeights.length; i++)
+				{
+					final String title = list.getModel().getElementAt(i).card().title();
+					final Rectangle bounds = list.getCellBounds(i, i);
+					final Container cell = cellOf(list, i);
+					layOut(cell, bounds);
+					assertFalse("no label of the row '" + title + "' says '...'", String.join(" ", textsIn(cell)).contains("..."));
+					assertWhole(cell);
+					assertEquals("the fresh sidebar lists the same row", title, fresh.getModel().getElementAt(i).card().title());
+					assertEquals("'" + title + "' is as high as a fresh sidebar measures it under the 12-hour clock",
+						fresh.getCellBounds(i, i).height, bounds.height);
+					clockTall += bounds.height > 46 ? 1 : 0;
+				}
+				assertTrue("the wider time gives more titles a second line", clockTall > agoTall);
+
+				cardTime = CardTime.AGO;
+				panel[0].settingsChanged();
+				for (int i = 0; i < agoHeights.length; i++)
+				{
+					assertEquals("back at '4m ago', row " + i + " has its first height", agoHeights[i],
+						list.getCellBounds(i, i).height);
+				}
+			});
+		}
+		finally
+		{
+			onEdt(() ->
+			{
+				for (final JFrame each : frame)
+				{
+					if (each != null)
+					{
+						each.dispose();
+					}
+				}
+			});
+		}
+	}
+
+	/**
+	 * Lot 12A, the lead's case after the review: a profile switch changes the Card time setting from RuneLite's own
+	 * thread, so the list can draw before the sidebar is told. With every row drawn under the 12-hour clock before
+	 * {@code settingsChanged} runs, the call still has the list measure the rows again: each row is as high as its cell
+	 * asks.
+	 */
+	@Test
+	public void aDrawBeforeTheSidebarIsToldStillMeasuresTheRowsAgain() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final List<String> titles = sweepTitles();
+			// Four and a half minutes old, so that the row reads "4m" while the test runs.
+			final long at = System.currentTimeMillis() - 270_000L;
+			for (final String title : titles)
+			{
+				final String line = "GMucker has completed a medium combat task: " + title + ".";
+				history.add(line, Collections.<HoverCard>singletonList(card(title, "Abyssal_whip", line)), at);
+			}
+			flush();
+			onEdt(() ->
+			{
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				listWidthTo(frame[0], list, 226);
+				panel[0].settingsChanged();
+				final int[] agoHeights = new int[titles.size()];
+				for (int i = 0; i < agoHeights.length; i++)
+				{
+					agoHeights[i] = list.getCellBounds(i, i).height;
+				}
+
+				cardTime = CardTime.CLOCK_12;
+				// The draw in the gap: every row's cell asked for under the new setting, as a repaint asks for its rows.
+				for (int i = 0; i < agoHeights.length; i++)
+				{
+					cellOf(list, i);
+				}
+				panel[0].settingsChanged();
+				int moved = 0;
+				for (int i = 0; i < agoHeights.length; i++)
+				{
+					final int asked = cellOf(list, i).getPreferredSize().height;
+					assertEquals("row " + i + " is as high as its cell asks under the 12-hour clock", asked,
+						list.getCellBounds(i, i).height);
+					moved += asked != agoHeights[i] ? 1 : 0;
+				}
+				assertTrue("the 12-hour clock gives some titles a second line", moved > 0);
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
 	/** Lot 10C: a press on the how-to's header folds the lines and writes it; a second press opens them; a stored fold is kept. */
 	@Test
 	public void theHowToFoldsAndRemembers() throws Exception
@@ -2355,8 +2596,9 @@ public class ClanHubPanelTest
 
 	/**
 	 * The how-to ends with the theme tip, under the examine row: one grey line, "Tip:" in bold, no icon, on one line;
-	 * the five rows stay five, and the recent cards say nothing of themes.
+	 * the five rows stay five, and the only other line that speaks of themes is the empty list's tip.
 	 */
+	// Re-aimed for lot 12B, 2026-10-27: the empty list shows the tip too (the user's word).
 	@Test
 	public void theHowToEndsWithTheThemeTip() throws Exception
 	{
@@ -2372,7 +2614,7 @@ public class ClanHubPanelTest
 		{
 			onEdt(() ->
 			{
-				final JLabel text = labelSaying(panel[0], "Tip: change theme in settings.");
+				final JLabel text = howToTipIn(panel[0]);
 				assertTrue("the tip shows", text.isShowing());
 				assertNull("no icon", text.getIcon());
 				final Component tip = text.getParent();
@@ -2388,15 +2630,94 @@ public class ClanHubPanelTest
 					text.getForeground());
 				assertTrue("'Tip:' in bold, in the line's own grey", text.getText().contains("<b>Tip:</b>"));
 				assertFalse("on one line", text.getText().contains("<br>"));
-				int themes = 0;
+				final List<JLabel> others = new ArrayList<>();
 				for (final JLabel label : labelsIn(panel[0]))
 				{
-					if (plain(label.getText()).contains("theme"))
+					if (label != text && plain(label.getText()).contains("theme"))
 					{
-						themes++;
+						others.add(label);
 					}
 				}
-				assertEquals("no other line speaks of themes", 1, themes);
+				assertEquals("one other line speaks of themes", 1, others.size());
+				assertSame("and it is the empty list's tip", emptyListTipIn(panel[0]), others.get(0));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/**
+	 * Lot 12B: while the recent cards are empty their place shows a tip instead, under the header, in the middle: "Tip:
+	 * Pick a theme in the settings menu.", "Tip:" in bold as in the how-to's, on one line that fits the sidebar,
+	 * in the how-to tip's grey, which a new theme changes with it; the first card takes it away and Clear brings it back.
+	 */
+	// The words changed by the user during the build, 2026-10-27: "Tip:" before ad38f45's "Pick a theme in the settings menu."
+	@Test
+	public void theEmptyListShowsTheTip() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		final JLabel[] tip = new JLabel[1];
+		onEdt(() ->
+		{
+			cardTheme = CardTheme.STONE;
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			final Color[] stoneGrey = new Color[1];
+			onEdt(() ->
+			{
+				tip[0] = emptyListTipIn(panel[0]);
+				final JLabel howToTip = howToTipIn(panel[0]);
+				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
+				final JLabel header = labelSaying(panel[0], ClanHubPanel.RECENT_TEXT);
+				assertTrue("the tip shows while the list is empty", tip[0].isShowing());
+				// Re-aimed by the lead, 2026-10-27: the user picked option B of docs/empty-tip-options-2.png, the middle of the list.
+				final JScrollPane scroll = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, list);
+				assertEquals("centred across", SwingConstants.CENTER, tip[0].getHorizontalAlignment());
+				assertEquals("and down", SwingConstants.CENTER, tip[0].getVerticalAlignment());
+				assertEquals("in the list's place", scroll.getBounds(), tip[0].getBounds());
+				assertTrue("which is tall", tip[0].getHeight() > 100);
+				assertFalse("the empty list is not shown", scroll.isShowing());
+				assertTrue("below the recent cards' header", yIn(panel[0], header) + header.getHeight() <= yIn(panel[0], tip[0]));
+				assertTrue("'Tip:' in bold", tip[0].getText().contains("<b>Tip:</b>"));
+				assertFalse("on one line", tip[0].getText().contains("<br>"));
+				// The user's words are 212 px, wider than the 209 px of ad38f45's shorter line: they are held to the list's room.
+				assertTrue("in the 222 px the list leaves it", tip[0].getPreferredSize().width <= 222);
+				assertEquals("in the how-to tip's grey", howToTip.getForeground(), tip[0].getForeground());
+				assertEquals("which is Stone's", SidebarSkin.of(CardTheme.STONE).grey, tip[0].getForeground());
+				assertTrue("the how-to keeps its own tip", howToTip.isShowing());
+				stoneGrey[0] = tip[0].getForeground();
+			});
+			final String line = "GMucker has completed a medium combat task: Smite Fight.";
+			history.add(line, Collections.<HoverCard>singletonList(card("Smite Fight", "Smite_Fight", line)),
+				System.currentTimeMillis());
+			flush();
+			onEdt(() ->
+			{
+				assertFalse("the first card takes it away", tip[0].isVisible());
+				assertTrue("and the list shows", historyListIn(panel[0]).isShowing());
+				assertTrue("the how-to keeps its own tip", howToTipIn(panel[0]).isShowing());
+			});
+			history.clear();
+			flush();
+			onEdt(() -> assertTrue("Clear brings it back", tip[0].isShowing()));
+			onEdt(() ->
+			{
+				final Color nebulaGrey = SidebarSkin.of(CardTheme.NEBULA).grey;
+				cardTheme = CardTheme.NEBULA;
+				panel[0].settingsChanged();
+				assertEquals("a new theme: still the how-to tip's grey", howToTipIn(panel[0]).getForeground(),
+					tip[0].getForeground());
+				assertEquals("which is Nebula's", nebulaGrey, tip[0].getForeground());
+				if (!nebulaGrey.equals(stoneGrey[0]))
+				{
+					assertNotEquals("and no longer Stone's", stoneGrey[0], tip[0].getForeground());
+				}
 			});
 		}
 		finally
@@ -3042,6 +3363,47 @@ public class ClanHubPanelTest
 		throw new AssertionError("a how-to row has no icon box");
 	}
 
+	/** The how-to's tip: the label that says the theme tip inside the how-to's box (the bar's parent). */
+	private static JLabel howToTipIn(Container root)
+	{
+		final Container box = howToBarIn(root).getParent();
+		for (final JLabel label : labelsIn(root))
+		{
+			if (THEME_TIP.equals(plain(label.getText())) && isInside(label, box))
+			{
+				return label;
+			}
+		}
+		throw new AssertionError("no label inside the how-to's box says: " + THEME_TIP);
+	}
+
+	/** The empty list's tip: the label that says {@link #EMPTY_LIST_TIP} outside the how-to's box. */
+	private static JLabel emptyListTipIn(Container root)
+	{
+		final Container box = howToBarIn(root).getParent();
+		for (final JLabel label : labelsIn(root))
+		{
+			if (EMPTY_LIST_TIP.equals(plain(label.getText())) && !isInside(label, box))
+			{
+				return label;
+			}
+		}
+		throw new AssertionError("no label outside the how-to's box says: " + EMPTY_LIST_TIP);
+	}
+
+	/** Whether {@code part} is {@code box} or lies anywhere under it. */
+	private static boolean isInside(Component part, Container box)
+	{
+		for (Component at = part; at != null; at = at.getParent())
+		{
+			if (at == box)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** An info card of a title, a wiki page and a line, with no facts, notes or picture, as the other tests make one. */
 	private static InfoCard card(String title, String page, String line)
 	{
@@ -3122,6 +3484,38 @@ public class ClanHubPanelTest
 		frame.setSize(Math.max(1, frame.getWidth() + width - list.getWidth()), frame.getHeight());
 		frame.validate();
 		assertEquals("the list is as wide as asked", width, list.getWidth());
+	}
+
+	/**
+	 * How wide the widest title of a sweep is at most, in px: wider than the room a first line has at the sidebar's width
+	 * (172 px) beside any time, so the last title takes two lines beside any time, and short enough that its second line
+	 * fits.
+	 */
+	private static final int SWEEP_END_PX = 190;
+
+	/**
+	 * Lot 12A: the titles of a sweep that widens a few px at a time: "Abyssal i", then one more "i" at each step, so that
+	 * none is more than 3 px wider (in the row's title font, bold at 12 px) than the one before it, up to the width
+	 * {@link #SWEEP_END_PX}. In a list as wide as the sidebar one of them fits beside a short time and not beside a longer
+	 * one. The first word is short, so the first line of a title of two lines is the same word and the second line is the
+	 * rest, which fits a line whole.
+	 */
+	private static List<String> sweepTitles()
+	{
+		final FontMetrics metrics = new JLabel().getFontMetrics(FontManager.getDefaultBoldFont().deriveFont(12f));
+		final List<String> titles = new ArrayList<>();
+		String title = "Abyssal i";
+		int width = metrics.stringWidth(title);
+		while (width < SWEEP_END_PX)
+		{
+			titles.add(title);
+			final String next = title + "i";
+			final int nextWidth = metrics.stringWidth(next);
+			assertTrue("each title is at most 3 px wider than the one before it", nextWidth - width <= 3);
+			title = next;
+			width = nextWidth;
+		}
+		return titles;
 	}
 
 	/** Gives {@code cell} the size of its cell in the list and lays out everything in it, top down, as a draw would. */
