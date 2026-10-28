@@ -1,31 +1,7 @@
 <p align="center"><img width="800" src="images/title.png" alt="2h Chat Hover Info"></p>
 
-<p align="center"><img width="930" src="images/hero-mosaic.png" alt="A card over the chat in Classic, the same card in Ocean, and Ocean's sidebar of recent cards"></p>
-
 <p align="center">Hover a name in your chat for a card about it.<br>
 Prices, drop rates, unlocks, boss stats and the wiki's first paragraph, with the full page one click away.</p>
-
-<br>
-
-<table width="100%">
-<tr>
-<td width="33%" valign="top"><img src="images/icon-drops.png" width="40" align="left" hspace="8"><b>Drops & pets</b><br>Price, alch value, drop rate.</td>
-<td width="33%" valign="top"><img src="images/icon-quests.png" width="40" align="left" hspace="8"><b>Quests, tasks, diaries</b><br>Difficulty, points, what it asks.</td>
-<td width="33%" valign="top"><img src="images/icon-levels.png" width="40" align="left" hspace="8"><b>Level-ups</b><br>Everything the level unlocks.</td>
-</tr>
-<tr><td colspan="3"></td></tr>
-<tr>
-<td valign="top"><img src="images/icon-bosses.png" width="40" align="left" hspace="8"><b>Bosses</b><br>Picture, stats, kill counts, PBs.</td>
-<td valign="top"><img src="images/icon-examine.png" width="40" align="left" hspace="8"><b>Examine</b><br>Any item or monster.</td>
-<td valign="top"><img src="images/icon-themes.png" width="40" align="left" hspace="8"><b>24 themes</b><br>For the card and the sidebar.</td>
-</tr>
-</table>
-
-<br>
-
-<p align="center"><img width="929" src="images/themes-stair6.png" alt="Six of the card themes: Classic, Ocean, Autumn, Black hole, Sakura, Synthwave"></p>
-
-<p align="center"><sub>Classic · Ocean · Autumn · Black hole · Sakura · Synthwave, and 18 more.</sub></p>
 
 ## Quick guide
 
@@ -33,6 +9,35 @@ Prices, drop rates, unlocks, boss stats and the wiki's first paragraph, with the
 2. **Right-click** the line to open the wiki or copy the name.
 3. **Pick a theme** in the settings menu (the settings icon on the sidebar).
 4. **Missed one?** Every card this session waits in the sidebar.
+
+<table width="100%">
+<tr>
+<td width="48" valign="top"><img src="images/icon-drops.png" width="40" alt=""></td>
+<td valign="top"><b>Drops & pets</b><br>Price, alch value, drop rate.</td>
+<td width="48" valign="top"><img src="images/icon-quests.png" width="40" alt=""></td>
+<td valign="top"><b>Quests, tasks, diaries</b><br>Difficulty, points, what it asks.</td>
+<td width="48" valign="top"><img src="images/icon-levels.png" width="40" alt=""></td>
+<td valign="top"><b>Level-ups</b><br>Everything the level unlocks.</td>
+</tr>
+<tr>
+<td width="48" valign="top"><img src="images/icon-bosses.png" width="40" alt=""></td>
+<td valign="top"><b>Bosses</b><br>Picture, stats, kill counts, PBs.</td>
+<td width="48" valign="top"><img src="images/icon-examine.png" width="40" alt=""></td>
+<td valign="top"><b>Examine</b><br>Any item or monster.</td>
+<td width="48" valign="top"><img src="images/icon-themes.png" width="40" alt=""></td>
+<td valign="top"><b>24 themes</b><br>For the card and the sidebar.</td>
+</tr>
+</table>
+
+<br>
+
+<p align="center"><img width="930" src="images/hero-mosaic.png" alt="A card over the chat in Classic, the same card in Ocean, and Ocean's sidebar of recent cards"></p>
+
+<br>
+
+<p align="center"><img width="929" src="images/themes-stair6.png" alt="Six of the card themes: Classic, Ocean, Autumn, Black hole, Sakura, Synthwave"></p>
+
+<p align="center"><sub>Classic · Ocean · Autumn · Black hole · Sakura · Synthwave, and 18 more.</sub></p>
 
 ## Good to know
 

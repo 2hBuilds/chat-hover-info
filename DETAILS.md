@@ -329,7 +329,7 @@ settings menu.
 **The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
 press it again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 1.0.0*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 1.0.1*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - the master switch, **Hover cards**;
 - two **theme rows**, *Card theme* and *Sidebar theme*, each a small submenu that shows its current theme in grey at the
