@@ -24,10 +24,10 @@ of the words a card is about, and that has its own switch.
   about (an immaculate mole skin examines as *"A pristine mole skin."*), so the pick is the only way to know. Every
   other menu pick is ignored, and nothing about the pick is kept or sent anywhere.
 - **The chatbox as it is drawn, under the mouse.** To know which words the pointer is on, the plugin reads the
-  chat line widgets under it, and only while the pointer is inside the chat's scroll area. Two answers that
-  RuneLite's own **Chat Commands** plugin writes into a line after it has arrived - *"<boss> kill count: N"* and
-  *"<boss> personal best: T"* - reach the plugin no other way, so they are read as drawn, when the mouse reaches
-  them.
+  chat line widgets under it, and only while the pointer is inside the chat's scroll area. Three answers that
+  RuneLite's own plugins write into a line after it has arrived - the **Chat Commands** plugin's *"<boss> kill count:
+  N"* and *"<boss> personal best: T"*, and the **Slayer** plugin's *"Slayer Task: <task>: 10/155 killed"* - reach the
+  plugin no other way, so they are read as drawn, when the mouse reaches them.
 
 **It never reads what a player types.** Whatever anyone writes in public, private, clan, guest clan, group ironman
 or friends chat is never handed to a reader. Only the broadcast kinds and your own game lines are.
@@ -105,6 +105,27 @@ it; a line that goes on after the number matches nothing. These cards are quiet.
 hitpoints, max hit, quest and picture the way the personal best and kill count cards above do. Because the plugin matches
 the drawn words, it cannot tell the answer from someone typing the same words by hand.
 
+**Slayer tasks.** When a member types *!task*, RuneLite's Slayer plugin swaps the typed command for its answer,
+*"Slayer Task: Hellhounds: 10/155 killed"* (or *"... : 145 left"*, or with the place, *"Slayer Task: Abyssal demons
+(Catacombs of Kourend): 3/120 killed"*). It is read from the chatbox as drawn, like the Chat Commands answers above, with
+the same limits: the text has to be the answer from its label to its last word, only a sender and a colon may stand
+before it, and a task the bundled slayer table does not know gives no card. The card is quiet and reads the task's name.
+Under the title is the **progress bar**: a thin bar filled to the kills of the total, in the look's own colours (its value
+colour for the fill, its rule colour for the track), with *10/155* and *16,820 XP left* beside it; a line that gives no total
+(*145 left*) has no bar, just those words as text. The Wiki look, laid out as the wiki's infobox, has no bar: it shows a
+*Progress* row and an *XP left* row instead. Then come the facts, each only when known: the place when the line names one, the
+Slayer level the task asks for (when above 1), the combat level (a boss task, Cerberus or Zulrah, takes the boss table's combat
+level, hitpoints, max hit and quest instead) and the **Slayer XP** a kill gives (*116*, from the monster's default version on the
+wiki, or a range such as *90-129* when the task's monsters give different amounts). The **XP left** is the kills left times the
+XP, told only for a single figure: *10/155 killed* at 116 XP a kill leaves *16,820*. The drops are the card's own grey *Drops:*
+line, as an item card shows its sources, a rate in white after each name: the task's **rarest five** from the default drop table
+of its own wiki page (fewer when the table has fewer rated drops, none when the page has none), rarest first, from a table built
+from the wiki (`slayer.json`, by `docs/data/fetch_slayer.py`). Left out are the drops the wiki gives no rate for (*Always*,
+*Common*), talismans, clue scrolls and their geodes, nests and bottles, seeds, herbs, the halves of a key, the shared drop
+table lines and the long and curved bone; champion scrolls stay. The picture is the wiki's own of the task's page, the Slayer
+icon in the box until it comes, and the paragraph is the wiki's first, like the boss cards'. It cannot tell the answer from
+someone typing the same words by hand.
+
 **Examine text.** Examine an item in your inventory, the bank, your worn items or on the ground, or a monster, and
 hover the examine line the game writes to the chat for that thing's card: an item's is the item card above (price,
 alch value, drop sources), a monster's is its boss card (the wiki's picture, the facts the bundled boss table holds for
@@ -139,6 +160,8 @@ chat event to RuneLite's log for the developer; in a normal client they do nothi
   edge, its bottom edge on the chatbox's top edge (held at the top of the window if it is taller than the room).
   The same header row; the drops on a row of their own, headed *Drops* and spread across the width, all in grey; a
   rule; the paragraph in at most two lines; the hint.
+
+**Picture themes (1.1.0).** Beside the twenty-four looks below (the *Original* group), the *Card theme* menu has 18 groups of picture themes: Calm, Tranquility, Cosy, Desolate, Elegance, Primal, Mystic, Wonder, Epic, Triumph, Holy, Dread, Fury, Infernal, Seasons, Garden, Mountains and Blossoms, 296 themes in all, each group listed bright first, then in-between, then dark. Each is a finished picture that ships inside the plugin (small JPEG files at the Medium card width in three heights; nothing is fetched, nothing is written to disk); the card takes the height nearest its own and stretches the rest, then draws its words in the theme's own colours: light words with a black outline, or dark words with a pale halo, and, with the *Blur behind text* setting above 0, a soft blur behind each line of text (0 is off, 100 the most; the row sits right under *Card theme* in the sidebar's menu, greyed while an Original theme is on). While a picture theme is chosen the card is always the Medium width and opens at the cursor (the *Card width* and *Card place* rows show "by the theme"); your own choices come back when you pick an Original theme. The sidebar takes a calm box in the theme's colours, never the picture. RuneLite's settings page lists the twenty-four Original themes only; the picture themes are picked in the sidebar's menu.
 
 Both are drawn in the look of the *Card theme* setting, in the game's own type. The description is white in every
 look but Wiki's, and in the twenty space and scene looks every line of text has a thin black outline, so the words
@@ -274,6 +297,7 @@ menu (below).
 | Card width | Medium | How wide the card at the cursor may grow: wide, or two narrower widths that give the paragraph up to five lines. Choices: *Wide*, *Medium*, *Narrow*. |
 | Card theme | Classic | The look of the cards: *Classic*, *Stone* (the game's own frame), *Void*, *Wiki* (the wiki's infobox), or one of twenty scene looks: *Nebula*, *Aurora*, *Galaxy*, *Planet rise*, *Eclipse*, *Constellation*, *Black hole*, *Cosmic edge*, *Forest*, *Ocean*, *Autumn*, *Sakura*, *Steampunk*, *Cyberpunk*, *Synthwave*, *Volcano*, *Runic*, *Spooky*, *Garden*, *Lavender*. |
 | Sidebar theme | Same as cards | The look of the sidebar: the cards' theme, RuneLite's own, or a theme of its own. The top card, the bar over the how-to and the recent cards' rows are painted in that look, and the words in its colours. Choices: *Same as cards*, *RuneLite* (the sidebar's own greys), then every card theme from *Classic* to *Lavender*. |
+| Blur behind text | 0 % | Softens the picture behind the words so they're easier to read. 0 is off, 100 is the most. It is the same on every picture theme; nothing changes on the twenty-four Original themes. |
 | Card time | 4m ago | How a recent card's time reads in the sidebar: how long ago, or the clock time in 24 or 12 hours. Choices: *4m ago*, *14:32*, *2:32 PM*. The clock is your own computer's time zone. |
 | Name colour | 2h orange (#DC8A00) | The colour of the player's name in the sidebar's recent cards. |
 | Underline level-ups | Off | Keep a line under the level and XP phrases that have a card, whether or not the mouse is on them. |
@@ -309,7 +333,7 @@ settings menu.
   broadcast of it a second apart, is a single row when the player and the card are the same and the lines come within
   ten seconds of each other (the chat itself still gives every line its cards). The header says how many are kept
   (*12 this session*) and has a **Clear** link that
-  empties the list. While there are none, it says *Tip: Pick a theme in the settings menu.* Hover a row and its card shows beside the
+  empties the list. While there are none, it shows a tip, a different one each time you open the sidebar: where the themes are, what an examine does, the right-click on a row, a name in chat, a boss's name, and, while a picture theme is on, *Use Blur behind text if words are hard to read.* Hover a row and its card shows beside the
   sidebar, as it does in game; right-click a row for *Open
   wiki* or *Copy*. The list draws only the rows on screen, a new card is one insert at its top and a row's lines are
   counted once, so a long session stays quick. The list is kept for the session only: it is never written anywhere, and
@@ -329,7 +353,7 @@ settings menu.
 **The settings menu.** Press the settings icon (grey at rest, orange under the mouse) and the menu opens under it;
 press it again and it closes. The menu has:
 
-- a **header**: the plugin's name, *Version 1.0.1*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
+- a **header**: the plugin's name, *Version 1.1.0*, and a row of four marks - Discord, X, the 2hBuilds GitHub profile
   and this plugin's own GitHub page - each opening its page through RuneLite's link opener, then closing the menu;
 - the master switch, **Hover cards**;
 - two **theme rows**, *Card theme* and *Sidebar theme*, each a small submenu that shows its current theme in grey at the

@@ -47,6 +47,39 @@ public class BroadcastLineTest
 	}
 
 	@Test
+	public void aStackOfThousandsWithCommasGivesTheQuantity()
+	{
+		// The real line from the user's client log, 2026-10-28; it gave no card while the quantity had to be plain digits.
+		final BroadcastLine.ItemMention mention = read(ChatMessageType.CLAN_MESSAGE,
+			"Jake\u00A0PVM received a drop: 2,359 x Demon tear (577,955 coins).");
+
+		assertEquals("Demon tear", mention.name);
+		assertEquals(2359, mention.quantity);
+		assertEquals("the offsets skip the quantity", "Demon tear", named(mention));
+		assertEquals(null, mention.source);
+	}
+
+	@Test
+	public void aStackOfMillionsWithCommasKeepsItsSource()
+	{
+		final BroadcastLine.ItemMention mention = read(ChatMessageType.CLAN_MESSAGE,
+			"Klar received a drop: 1,234,567 x Coins (1,234,567 coins) from Doom of Mokhaiotl.");
+
+		assertEquals("Coins", mention.name);
+		assertEquals(1234567, mention.quantity);
+		assertEquals("Doom of Mokhaiotl", mention.source);
+	}
+
+	@Test
+	public void aStackTooLargeForAnIntGivesNothing()
+	{
+		assertFalse(BroadcastLine.parse(ChatMessageType.CLAN_MESSAGE,
+			"Klar received a drop: 2,147,483,648 x Coins (2,147,483,648 coins).").isPresent());
+		assertFalse(BroadcastLine.parse(ChatMessageType.CLAN_MESSAGE,
+			"Klar received a drop: 2147483648 x Coins (2,147,483,648 coins).").isPresent());
+	}
+
+	@Test
 	public void clueAndCollectionLogLinesAreRead()
 	{
 		final BroadcastLine.ItemMention clue = read(ChatMessageType.CLAN_GUEST_MESSAGE,

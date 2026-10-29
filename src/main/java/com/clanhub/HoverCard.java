@@ -27,6 +27,33 @@ interface HoverCard
 		}
 	}
 
+	/**
+	 * A slayer task's progress, which the card paints as a bar under its title: the words beside the bar, how far it is
+	 * filled, and the XP left on the task. Pure model, as {@link Pair} is.
+	 */
+	final class Progress
+	{
+		/** The words beside the bar: "10/155", or "145 left" when the line gives no total. */
+		final String text;
+		/** How full the bar is, from 0 to 1; negative when there is no total to fill it to, and so no bar. */
+		final double fraction;
+		/** The XP left on the task with its thousands commas, such as "16,820"; empty when it is not known. */
+		final String xpLeft;
+
+		Progress(String text, double fraction, String xpLeft)
+		{
+			this.text = text;
+			this.fraction = fraction;
+			this.xpLeft = xpLeft;
+		}
+
+		/** Whether the bar is painted: there is a total to fill it to. */
+		boolean hasBar()
+		{
+			return fraction >= 0;
+		}
+	}
+
 	/** The card's title, in bold at the top. */
 	String title();
 
@@ -75,6 +102,15 @@ interface HoverCard
 	 * chest, false for the rest.
 	 */
 	boolean wikiPicture();
+
+	/**
+	 * The progress the card paints as a bar under its title, or null for every card that has none, which is every card but
+	 * a slayer task's. The Wiki theme, laid out as the wiki's infobox, shows it as the rows "Progress" and "XP left" instead.
+	 */
+	default Progress progress()
+	{
+		return null;
+	}
 
 	/**
 	 * Whether the card's words are coloured in the chat at rest. A card that is not marked is quiet: the line keeps the

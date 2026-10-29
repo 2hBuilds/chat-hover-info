@@ -37,8 +37,10 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -61,6 +63,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.JSpinner;
 import javax.swing.JToggleButton;
 import javax.swing.ListCellRenderer;
@@ -131,6 +134,16 @@ public class ClanHubPanel extends PluginPanel
 	static final String COLOUR_TEXT = "Colour names";
 	static final String WIKI_TEXT = "Wiki text";
 	static final String PICTURES_TEXT = "Wiki pictures";
+	static final String FROST_TEXT = "Blur behind text";
+	static final String FROST_TIP = "Softens the picture behind the words so they're easier to read. 0 is off, 100 is the most.";
+	/** The hover text while an original theme is on: the row is greyed, since only picture themes have a picture to soften. */
+	static final String FROST_OFF_TIP = "Blur isn't available with Original themes. Pick a picture theme to use it.";
+	/** The frost box's smallest, default and largest, in percent, and its step: the setting's own range. */
+	static final int MIN_FROST = 0;
+	static final int DEFAULT_FROST = 0;
+	static final int MAX_FROST = 100;
+	/** The blur slider's width, px (the user's pick D: a slider with its number beside it). */
+	static final int FROST_SLIDER_WIDTH = 110;
 	static final String BOSS_TEXT = "Boss cards";
 	static final String ALWAYS_UNDERLINE_TEXT = "Underline level-ups";
 	static final String SIDEBAR_THEME_TEXT = "Sidebar theme";
@@ -139,6 +152,11 @@ public class ClanHubPanel extends PluginPanel
 	static final String CARD_KEY_TIP = "Press, then the key to hold";
 	static final String CARD_DELAY_TEXT = "Delay (ms)";
 	static final String CARD_THEME_TEXT = "Card theme";
+	/** The submenu of the theme lists that holds the original themes; the picture themes' groups follow it. */
+	static final String ORIGINAL_TEXT = "Original";
+	/** What the Card width and Card place rows say while a picture theme sets them. */
+	static final String WIDTH_LOCK_TEXT = "Medium (by the theme)";
+	static final String PLACE_LOCK_TEXT = "At the cursor (by the theme)";
 	static final String CARD_SIZE_TEXT = "Text size";
 	static final String HOVER_COLOUR_TEXT = "Hover colour";
 	static final String UNDERLINE_COLOUR_TEXT = "Underline colour";
@@ -183,12 +201,25 @@ public class ClanHubPanel extends PluginPanel
 	static final String HOW_TO_WIKI = "Right-click it for the wiki.";
 	/**
 	 * The how-to's last line, in grey under its rows, its first word in bold: where the themes are. The recent cards start
-	 * their own tip with the same bold word while there are none ({@link #EMPTY_TIP}).
+	 * their own tip with the same bold word while there are none ({@link #showNextTip}).
 	 */
 	static final String HOW_TO_TIP_WORD = "Tip:";
 	static final String HOW_TO_TIP = " change theme in settings.";
-	/** The rest of the empty list's tip, after the bold {@link #HOW_TO_TIP_WORD} (the user's words): where the themes are. */
-	static final String EMPTY_TIP = " Pick a theme in the settings menu.";
+	/**
+	 * The rest of each tip the empty list shows, after the bold {@link #HOW_TO_TIP_WORD}, with its leading space (the user's
+	 * words, 2026-10-28; {@link TipCycle} says which one comes next): where the themes are, what an examine does, what a
+	 * right-click on a row offers, what a name in chat does, what a boss's name does. The name tip has a second wording
+	 * for while the names are not coloured, as the how-to's action line does ({@link #HOW_TO_ACTION_PLAIN}). Each is set in
+	 * {@link #EMPTY_TIP_WIDTH} px and takes two lines at most.
+	 */
+	static final String TIP_THEME = " Pick a theme in the settings menu.";
+	static final String TIP_EXAMINE = " Examine an item or NPC for its card.";
+	static final String TIP_WIKI = " Right-click a saved card for the wiki.";
+	static final String TIP_NAME = " Hover a coloured name in chat for its card.";
+	static final String TIP_NAME_PLAIN = " Hover a name in a broadcast for its card.";
+	static final String TIP_BOSS = " Hover a boss in chat for its card.";
+	/** 1.1.0, the user's sixth tip: shown only while a picture theme is on. */
+	static final String TIP_BLUR = " Use Blur behind text if words are hard to read.";
 	/** The name the how-to's title bar carries, which the panel's tests find it by. */
 	static final String HOW_TO_BAR_NAME = "how-to-bar";
 
@@ -299,8 +330,9 @@ public class ClanHubPanel extends PluginPanel
 	private static final int HOW_TO_ROW_TEXT_WIDTH = HOW_TO_WIDTH - HOW_TO_ICON_SIZE - HOW_TO_ICON_GAP;
 	/**
 	 * How wide the empty list's tip is set, in px: the list's width (the same panel width less the panel's padding alone,
-	 * no card around it) less a few px to spare. Its words are 212 px wide in the client's font: more than the how-to's
-	 * {@link #HOW_TO_WIDTH}, which would break them in two, and less than this, which keeps them on one line.
+	 * no card around it) less a few px to spare. The shortest tip's words ({@link #TIP_THEME}) are 212 px wide in the
+	 * client's font: more than the how-to's {@link #HOW_TO_WIDTH}, which would break them in two, and less than this, which
+	 * keeps them on one line; a longer tip breaks in two.
 	 */
 	private static final int EMPTY_TIP_WIDTH = PluginPanel.PANEL_WIDTH + PluginPanel.SCROLLBAR_WIDTH - 2 * PADDING - 4;
 	/** A row's border at rest and under the mouse; the bar takes the room the resting border leaves empty. */
@@ -335,6 +367,11 @@ public class ClanHubPanel extends PluginPanel
 	private final JCheckBoxMenuItem colourCheck;
 	private final JCheckBoxMenuItem wikiCheck;
 	private final JCheckBoxMenuItem picturesCheck;
+	private final JSlider frostSlider;
+	/** The blur slider's number, beside it, live while it is dragged. */
+	private final JLabel frostValue;
+	/** The Blur behind text row of the menu, under Card theme: greyed, with its own hover text, while an original theme is on. */
+	private JPanel frostRow;
 	private final JCheckBoxMenuItem bossCheck;
 	private final JCheckBoxMenuItem underlineCheck;
 	private final JCheckBoxMenuItem examineCheck;
@@ -346,6 +383,11 @@ public class ClanHubPanel extends PluginPanel
 	private final JPopupMenu menu;
 	/** The "Colours" group, which the menu comes back with open when a colour picker closes; set when the menu is built. */
 	private JMenu coloursGroup;
+	/** The Card width and Card place rows, and the greyed words that stand in for them while a picture theme sets them. */
+	private JPanel widthRow;
+	private JLabel widthLock;
+	private List<JRadioButtonMenuItem> placeItems;
+	private JLabel placeLock;
 	/** What sets each choice (a theme row, a group's radio items or small buttons) from its setting. */
 	private final List<Runnable> choiceSyncs = new ArrayList<>();
 	/** What sets each colour swatch from its setting. */
@@ -393,11 +435,14 @@ public class ClanHubPanel extends PluginPanel
 	private final JLabel count = label("", 11f, ColorScheme.LIGHT_GRAY_COLOR);
 	private final JLabel clearLabel = new JLabel();
 	/**
-	 * The line the recent cards show while there are none, in the skin's grey: "Tip:" in bold and {@link #EMPTY_TIP}, in
-	 * the middle of the list's place, across and down (the user's pick, option B of docs/empty-tip-options-2.png), shown
-	 * instead of the list while it is empty ({@link #syncList}).
+	 * The line the recent cards show while there are none, in the skin's grey: "Tip:" in bold and one of the tips
+	 * ({@link #TIP_THEME} and the others), in the middle of the list's place, across and down (the user's pick, option B of
+	 * docs/empty-tip-options-2.png), shown instead of the list while it is empty ({@link #syncList}). It changes to the next
+	 * tip each time the sidebar is opened while the list is empty, and when the list is cleared ({@link #showNextTip}).
 	 */
 	private final JLabel emptyTip = new JLabel();
+	/** Which tip the empty list shows next; a new order for each run of the client. */
+	private final TipCycle tips = new TipCycle(new Random());
 	/** The scroll pane of the recent cards, made with the history's view. */
 	private JScrollPane historyScroll;
 	/** The recent cards' place under their header: the card of {@link #emptyTip} or the card of {@link #historyScroll}. */
@@ -474,20 +519,64 @@ public class ClanHubPanel extends PluginPanel
 		});
 		this.wikiCheck = check(WIKI_TEXT, settings::setWikiDescriptions);
 		this.picturesCheck = check(PICTURES_TEXT, settings::setWikiPictures);
+		this.frostSlider = new JSlider(MIN_FROST, MAX_FROST, DEFAULT_FROST);
+		this.frostValue = new JLabel(String.valueOf(DEFAULT_FROST));
+		frostSlider.setOpaque(false);
+		frostSlider.setFocusable(false);
+		frostSlider.setPreferredSize(new Dimension(FROST_SLIDER_WIDTH, frostSlider.getPreferredSize().height));
+		frostSlider.setMaximumSize(frostSlider.getPreferredSize());
+		frostValue.setFont(menuFont());
+		frostValue.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		// The number is as wide as "100", so the slider does not move as it changes.
+		frostValue.setPreferredSize(new Dimension(frostValue.getFontMetrics(frostValue.getFont()).stringWidth("100") + 2,
+			frostValue.getPreferredSize().height));
+		frostValue.setHorizontalAlignment(SwingConstants.RIGHT);
+		frostSlider.addChangeListener(e ->
+		{
+			frostValue.setText(String.valueOf(frostSlider.getValue()));
+			// Saved when the drag ends (once, not on every step of it); a key press or a click saves at once.
+			if (!syncing && !frostSlider.getValueIsAdjusting())
+			{
+				settings.setFrostOpacity(frostSlider.getValue());
+			}
+		});
 		this.bossCheck = check(BOSS_TEXT, settings::setBossCards);
 		this.underlineCheck = check(ALWAYS_UNDERLINE_TEXT, settings::setAlwaysUnderlineLevels);
 		this.examineCheck = check(EXAMINE_TEXT, settings::setExamineCards);
 		this.keyBox = buildKeyBox();
-		this.themeMenu = themeChoices(CARD_THEME_TEXT, CardTheme.values(), settings::cardTheme, theme ->
-		{
-			settings.setCardTheme(theme);
-			settingsChanged();
-		}, theme -> ThemePreviews.card(theme, whipPicture()), -1);
-		this.sidebarThemeMenu = themeChoices(SIDEBAR_THEME_TEXT, SidebarTheme.values(), settings::sidebarLook, look ->
-		{
-			settings.setSidebarLook(look);
-			settingsChanged();
-		}, look -> ThemePreviews.sidebar(skinOf(look, settings.cardTheme())), SidebarTheme.RUNELITE.ordinal());
+		this.themeMenu = themeChoices(CARD_THEME_TEXT, cardPicks(), () ->
+			PictureThemes.current().byId(settings.pictureTheme()) != null ? settings.pictureTheme() : settings.cardTheme(),
+			key ->
+			{
+				if (key instanceof CardTheme)
+				{
+					settings.setPictureTheme("");
+					settings.setCardTheme((CardTheme) key);
+				}
+				else
+				{
+					settings.setPictureTheme((String) key);
+				}
+				settingsChanged();
+			}, key -> ThemePreviews.card(key instanceof CardTheme ? CardStyle.of((CardTheme) key)
+				: CardStyle.of(CardTheme.CLASSIC, (String) key), whipPicture()));
+		this.sidebarThemeMenu = themeChoices(SIDEBAR_THEME_TEXT, sidebarPicks(), () ->
+			PictureThemes.current().byId(settings.sidebarPicture()) != null ? settings.sidebarPicture() : settings.sidebarLook(),
+			key ->
+			{
+				if (key instanceof SidebarTheme)
+				{
+					settings.setSidebarPicture("");
+					settings.setSidebarLook((SidebarTheme) key);
+				}
+				else
+				{
+					settings.setSidebarPicture((String) key);
+				}
+				settingsChanged();
+			}, key -> ThemePreviews.sidebar(key instanceof SidebarTheme
+				? SidebarSkin.pick((SidebarTheme) key, settings.cardTheme(), settings.pictureTheme(), "")
+				: SidebarSkin.ofPicture(PictureThemes.current().byId((String) key))));
 		this.delaySpinner = spinner(0, 0, MAX_CARD_DELAY, CARD_DELAY_STEP, 4, settings::setCardDelayMs);
 		this.sizeSpinner = spinner(DEFAULT_CARD_SIZE, MIN_CARD_SIZE, MAX_CARD_SIZE, 1, 2, settings::setCardFontSize);
 		this.menu = buildMenu();
@@ -639,7 +728,7 @@ public class ClanHubPanel extends PluginPanel
 			howToLines.add(howToRow(i));
 			howToLines.add(Box.createVerticalStrut(HOW_TO_ROW_GAP));
 		}
-		writeTip(howToTip, HOW_TO_TIP, HOW_TO_WIDTH);
+		writeTip(howToTip, HOW_TO_TIP, HOW_TO_WIDTH, false);
 		howToLines.add(actionLine(howToTip));
 		refreshHowTo();
 		box.add(howToLines, BorderLayout.CENTER);
@@ -663,19 +752,51 @@ public class ClanHubPanel extends PluginPanel
 	/**
 	 * Gives {@code line} a theme tip: the how-to's text size, {@link #HOW_TO_TIP_WORD} in bold and {@code rest} after it,
 	 * set like the how-to's other lines ({@link #howToHtml}, no wider than {@code width} px, so on one line where it fits).
-	 * The how-to's last line ({@link #HOW_TO_TIP}, in {@link #HOW_TO_WIDTH}) and the empty list's ({@link #EMPTY_TIP}, in
-	 * {@link #EMPTY_TIP_WIDTH}) are both made here, so that they look the same. The colour is the label's own, which
-	 * {@link #applySkin} sets.
+	 * The how-to's last line ({@link #HOW_TO_TIP}, in {@link #HOW_TO_WIDTH}) and the empty list's (one of the
+	 * {@code TIP_} words, in {@link #EMPTY_TIP_WIDTH}) are both made here, so that they look the same. The colour is the
+	 * label's own, which {@link #applySkin} sets.
 	 *
 	 * @param rest the words after "Tip:", with their leading space
 	 * @param width the widest the line may be, in px
+	 * @param centred whether each line of a tip that breaks in two is centred (the empty list's), or stays at the left
 	 */
-	private static void writeTip(JLabel line, String rest, int width)
+	private static void writeTip(JLabel line, String rest, int width, boolean centred)
 	{
 		line.setFont(FontManager.getDefaultFont().deriveFont(HOW_TO_FONT_SIZE));
 		final Font tipWord = FontManager.getDefaultBoldFont().deriveFont(HOW_TO_FONT_SIZE);
 		line.setText(howToHtml(List.of(new Run(HOW_TO_TIP_WORD, "<b>", "</b>", line.getFontMetrics(tipWord)),
-			new Run(rest, "", "", line.getFontMetrics(line.getFont()))), width));
+			new Run(rest, "", "", line.getFontMetrics(line.getFont()))), width, centred));
+	}
+
+	/**
+	 * Shows the next tip in the empty list's place, from the cycle: the tips whose feature is off (the settings are read
+	 * now) are left out, and the name tip reads as it does for the names as they are coloured or not. Event thread only.
+	 */
+	private void showNextTip()
+	{
+		final TipCycle.Tip tip = tips.next(settings.examineCards(), settings.bossCards(),
+			CardStyle.of(settings.cardTheme(), settings.pictureTheme()).picture != null);
+		writeTip(emptyTip, tipRest(tip, settings.colourHoverables()), EMPTY_TIP_WIDTH, true);
+	}
+
+	/** The words of {@code tip} after "Tip:", for names that are coloured or not. */
+	private static String tipRest(TipCycle.Tip tip, boolean colourNames)
+	{
+		switch (tip)
+		{
+			case EXAMINE:
+				return TIP_EXAMINE;
+			case WIKI:
+				return TIP_WIKI;
+			case NAME:
+				return colourNames ? TIP_NAME : TIP_NAME_PLAIN;
+			case BOSS:
+				return TIP_BOSS;
+			case BLUR:
+				return TIP_BLUR;
+			default:
+				return TIP_THEME;
+		}
 	}
 
 	/**
@@ -822,13 +943,22 @@ public class ClanHubPanel extends PluginPanel
 	 */
 	private static String howToHtml(List<Run> runs, int maxWidth)
 	{
+		return howToHtml(runs, maxWidth, false);
+	}
+
+	/**
+	 * {@link #howToHtml(List, int)}, with every line centred across the text's width when {@code centred} (the lines of a
+	 * label whose text breaks in two otherwise stay at the left of the block the label centres).
+	 */
+	private static String howToHtml(List<Run> runs, int maxWidth, boolean centred)
+	{
 		final StringBuilder all = new StringBuilder();
 		for (final Run run : runs)
 		{
 			all.append(run.text);
 		}
 		final String text = all.toString();
-		final StringBuilder html = new StringBuilder("<html>");
+		final StringBuilder html = new StringBuilder(centred ? "<html><div style='text-align:center'>" : "<html>");
 		int from = 0;
 		while (from < text.length())
 		{
@@ -853,7 +983,7 @@ public class ClanHubPanel extends PluginPanel
 			}
 			from = to + 1;
 		}
-		return html.append("</html>").toString();
+		return html.append(centred ? "</div></html>" : "</html>").toString();
 	}
 
 	/** How wide the characters {@code from} to {@code to} of the runs' text are, each run's part in its own font. */
@@ -978,7 +1108,7 @@ public class ClanHubPanel extends PluginPanel
 			ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 		historyScroll.setBorder(null);
 		historyScroll.getVerticalScrollBar().setUnitIncrement(SCROLL_STEP);
-		writeTip(emptyTip, EMPTY_TIP, EMPTY_TIP_WIDTH);
+		showNextTip();
 		emptyTip.setHorizontalAlignment(SwingConstants.CENTER);
 		emptyTip.setVerticalAlignment(SwingConstants.CENTER);
 		historyBody = new JPanel(new CardLayout());
@@ -1037,7 +1167,8 @@ public class ClanHubPanel extends PluginPanel
 	 * for, once. The model is then cut to the history's size from the bottom, and the cut entries leave the pictures and
 	 * the line counts. A
 	 * history that is empty, or that no longer holds the model's first entry (it was cleared and filled again), empties the
-	 * model first. The count is set, and the tip shows in the list's place only while the model is empty. If the entry the mouse was on is gone,
+	 * model first. The count is set, and the tip shows in the list's place only while the model is empty; a list that
+	 * has just become empty (cleared) shows the next tip. If the entry the mouse was on is gone,
 	 * the card shown for it comes down: the row is gone, and no exit would ever tell the viewer. Runs on the event thread.
 	 *
 	 * <p>Choice: the queued flag is let go before the history is read, so that a line that comes while this runs asks for a
@@ -1046,6 +1177,7 @@ public class ClanHubPanel extends PluginPanel
 	private void syncList()
 	{
 		syncQueued.set(false);
+		final boolean wasEmpty = model.isEmpty();
 		final List<CardHistory.Entry> entries = history.entries();
 		int fresh = entries.size();
 		if (!model.isEmpty())
@@ -1086,6 +1218,10 @@ public class ClanHubPanel extends PluginPanel
 			model.removeRange(size, model.size() - 1);
 		}
 		count.setText(history.size() + COUNT_SUFFIX);
+		if (model.isEmpty() && !wasEmpty)
+		{
+			showNextTip();
+		}
 		((CardLayout) historyBody.getLayout()).show(historyBody, model.isEmpty() ? TIP_CARD : LIST_CARD);
 		if (hovered != null && !pictures.containsKey(hovered))
 		{
@@ -1278,6 +1414,20 @@ public class ClanHubPanel extends PluginPanel
 			g.dispose();
 		}
 		return new ImageIcon(copy);
+	}
+
+	/**
+	 * RuneLite calls this, on the event thread, each time the sidebar shows this panel (its icon pressed): while the list
+	 * of recent cards is empty the next tip shows. With cards in the list nothing changes.
+	 */
+	@Override
+	public void onActivate()
+	{
+		super.onActivate();
+		if (model.isEmpty())
+		{
+			showNextTip();
+		}
 	}
 
 	/** The "ago" words are refreshed from now on, once now and then every {@link #AGO_REFRESH_MS} ms, while the panel shows. */
@@ -1862,6 +2012,7 @@ public class ClanHubPanel extends PluginPanel
 	 */
 	void settingsChanged()
 	{
+		applyLocks();
 		applySkin();
 		final CardTime time = settings.cardTime();
 		if (time != notifiedTime)
@@ -1875,20 +2026,38 @@ public class ClanHubPanel extends PluginPanel
 	/** The skin the sidebar is painted with by the settings as they stand. */
 	private SidebarSkin skinNow()
 	{
-		return skinOf(settings.sidebarLook(), settings.cardTheme());
+		return SidebarSkin.pick(settings.sidebarLook(), settings.cardTheme(), settings.pictureTheme(), settings.sidebarPicture());
 	}
 
 	/**
-	 * The skin the sidebar wears for {@code look} while the cards are in {@code cardTheme}: "Same as cards" gives the card
-	 * theme's, "RuneLite" the plain one, and any other theme its own card theme's.
+	 * Shows the Card width and Card place rows as the greyed words "Medium (by the theme)" and "At the cursor (by the
+	 * theme)" while a picture theme is the card theme (its cards are Medium and open at the cursor whatever the settings say),
+	 * and as the rows again with an original theme; the player's own choices are never written.
 	 */
-	private static SidebarSkin skinOf(SidebarTheme look, CardTheme cardTheme)
+	private void applyLocks()
 	{
-		if (look == SidebarTheme.RUNELITE)
+		final boolean locked = CardStyle.of(settings.cardTheme(), settings.pictureTheme()).picture != null;
+		widthRow.setVisible(!locked);
+		widthLock.setVisible(locked);
+		placeItems.forEach(item -> item.setVisible(!locked));
+		placeLock.setVisible(locked);
+		if (frostRow != null)
 		{
-			return SidebarSkin.PLAIN;
+			frostSlider.setEnabled(locked);
+			frostValue.setEnabled(locked);
+			final String tip = locked ? FROST_TIP : FROST_OFF_TIP;
+			frostRow.setToolTipText(tip);
+			for (final Component part : frostRow.getComponents())
+			{
+				if (part instanceof JComponent)
+				{
+					((JComponent) part).setEnabled(locked);
+					((JComponent) part).setToolTipText(tip);
+				}
+			}
+			frostSlider.setToolTipText(tip);
+			frostValue.setToolTipText(tip);
 		}
-		return SidebarSkin.of(look == null || look == SidebarTheme.SAME ? cardTheme : look.card());
 	}
 
 	/**
@@ -1981,6 +2150,8 @@ public class ClanHubPanel extends PluginPanel
 		popup.add(showCheck);
 		popup.addSeparator();
 		popup.add(themeMenu);
+		frostRow = blurRow();
+		popup.add(closesSubmenu(frostRow));
 		popup.add(sidebarThemeMenu);
 		popup.addSeparator();
 		popup.add(cardGroup());
@@ -2059,12 +2230,18 @@ public class ClanHubPanel extends PluginPanel
 	{
 		final JMenu group = group(CARD_GROUP_TEXT);
 		group.add(heading(WIDTH_HEADING, true));
-		group.add(segments(CardWidth.values(), settings::cardWidth, settings::setCardWidth));
+		widthRow = segments(CardWidth.values(), settings::cardWidth, settings::setCardWidth);
+		widthLock = lockLabel(WIDTH_LOCK_TEXT);
+		group.add(widthRow);
+		group.add(widthLock);
 		group.add(heading(PLACE_HEADING, false));
-		for (final JRadioButtonMenuItem item : radios(CardPlace.values(), settings::cardPlace, settings::setCardPlace))
+		placeItems = radios(CardPlace.values(), settings::cardPlace, settings::setCardPlace);
+		placeLock = lockLabel(PLACE_LOCK_TEXT);
+		for (final JRadioButtonMenuItem item : placeItems)
 		{
 			group.add(item);
 		}
+		group.add(placeLock);
 		group.add(heading(TIME_HEADING, false));
 		group.add(segments(CardTime.values(), settings::cardTime, time ->
 		{
@@ -2073,6 +2250,26 @@ public class ClanHubPanel extends PluginPanel
 		}));
 		group.add(row(CARD_SIZE_TEXT, sizeSpinner));
 		return group;
+	}
+
+	/**
+	 * The Blur behind text row: its caption and its box, right under Card theme, where a picture theme is chosen (the
+	 * user's pick: the setting sits beside the choice it belongs to). {@link #applyLocks} greys it with an original theme.
+	 */
+	private JPanel blurRow()
+	{
+		final JPanel control = new JPanel();
+		control.setOpaque(false);
+		control.setLayout(new BoxLayout(control, BoxLayout.X_AXIS));
+		control.add(frostSlider);
+		control.add(Box.createHorizontalStrut(4));
+		control.add(frostValue);
+		control.setMaximumSize(control.getPreferredSize());
+		final JPanel blur = row(FROST_TEXT, control);
+		blur.setBorder(new EmptyBorder(2, 6, 2, 6));
+		// A row of the menu itself, as Card theme is: its caption in the items' white (greyed by applyLocks when disabled).
+		blur.getComponent(0).setForeground(Color.WHITE);
+		return blur;
 	}
 
 	/**
@@ -2217,12 +2414,66 @@ public class ClanHubPanel extends PluginPanel
 		return true;
 	}
 
+	/** One theme of a nested list: its words, the submenu it is in (null for the list itself) and what it stands for. */
+	private static final class Pick
+	{
+		final String group;
+		final String text;
+		final Object key;
+
+		Pick(String group, String text, Object key)
+		{
+			this.group = group;
+			this.text = text;
+			this.key = key;
+		}
+	}
+
+	/** The Card theme list: the original themes, then each group's picture themes. A key is a {@link CardTheme} or a picture id. */
+	private static List<Pick> cardPicks()
+	{
+		final List<Pick> picks = new ArrayList<>();
+		for (final CardTheme theme : CardTheme.values())
+		{
+			picks.add(new Pick(ORIGINAL_TEXT, theme.toString(), theme));
+		}
+		addPictures(picks);
+		return picks;
+	}
+
+	/** The Sidebar theme list: "Same as cards" and "RuneLite", then the originals, then each group's picture themes. */
+	private static List<Pick> sidebarPicks()
+	{
+		final List<Pick> picks = new ArrayList<>();
+		for (final SidebarTheme look : SidebarTheme.values())
+		{
+			picks.add(new Pick(look.card() == null ? null : ORIGINAL_TEXT, look.toString(), look));
+		}
+		addPictures(picks);
+		return picks;
+	}
+
+	/** Adds the catalogue's themes to {@code picks}, each group in the menu's order, a group's themes bright first. */
+	private static void addPictures(List<Pick> picks)
+	{
+		final PictureThemes themes = PictureThemes.current();
+		for (final String group : themes.groups())
+		{
+			for (final PictureTheme theme : themes.inGroup(group))
+			{
+				picks.add(new Pick(group, theme.name, theme.id));
+			}
+		}
+	}
+
 	/**
 	 * A theme row: a submenu showing its caption at the left and the current theme in grey at the right, before the arrow
-	 * (a {@link ValueMenu}), holding one radio item per theme in the order of {@code values}, which may also show a picture
-	 * of a theme while its item is armed (under the mouse, or picked with the keys) and hold a rule in its list. Picking
-	 * one writes it, shows it at the row's right and closes the submenu alone; the main menu stays open, as it does for
-	 * the switches. {@link #syncControls} sets the radio and the value from {@code read}.
+	 * (a {@link ValueMenu}), holding the picks: those with no group as items of the list itself, the others as items of a
+	 * submenu of their group's name, which the list holds in the order the groups first appear (a rule before the first
+	 * group after the plain items and before the first picture group). Each item is a radio item, one button group over the
+	 * whole row, and may show a picture of its theme while it is armed (under the mouse, or picked with the keys). Picking
+	 * one writes it, shows it at the row's right and closes the submenus alone; the main menu stays open, as it does for the
+	 * switches. {@link #syncControls} sets the radio and the value from {@code read}.
 	 *
 	 * <p>Choice: submenus and not drop-downs, because a drop-down's list is a popup of its own, outside the menu's
 	 * selection path, and Swing's menu machinery reads a click on it as a click outside and takes the whole menu down
@@ -2230,58 +2481,95 @@ public class ClanHubPanel extends PluginPanel
 	 * radio item is an anonymous subclass taking the release over through {@link #takeRelease}, as the switches are.
 	 *
 	 * @param caption the row's name
-	 * @param values the themes, shown in this order with their {@code toString} words
-	 * @param read the setting's current theme
+	 * @param picks the themes, in the order they are listed
+	 * @param read the key of the setting's current theme
 	 * @param write what picking a theme does: writes the setting
-	 * @param preview what makes the picture of a theme; the picture shows beside the item, level with it, and goes when no
-	 *        item of the list is armed or the menu closes
-	 * @param ruleAfter the index of the theme after which the list holds a rule, or -1 for none
+	 * @param preview what makes the picture of a theme from its key; the picture shows beside the item, level with it, and
+	 *        goes when no item of the list is armed or the menu closes
 	 */
-	private <T> ValueMenu themeChoices(String caption, T[] values, Supplier<T> read, Consumer<T> write,
-		Function<T, BufferedImage> preview, int ruleAfter)
+	private ValueMenu themeChoices(String caption, List<Pick> picks, Supplier<Object> read, Consumer<Object> write,
+		Function<Object, BufferedImage> preview)
 	{
-		final ValueMenu submenu = new ValueMenu(caption, values);
+		final String[] words = new String[picks.size()];
+		for (int at = 0; at < words.length; at++)
+		{
+			words[at] = picks.get(at).text;
+		}
+		final ValueMenu submenu = new ValueMenu(caption, words);
 		submenu.setFont(menuFont());
 		submenu.setForeground(Color.WHITE);
-		final ButtonGroup group = new ButtonGroup();
+		final ButtonGroup radios = new ButtonGroup();
 		final List<JRadioButtonMenuItem> items = new ArrayList<>();
-		for (int at = 0; at < values.length; at++)
+		final Map<String, JMenu> groups = new LinkedHashMap<>();
+		String before = "";
+		for (final Pick pick : picks)
 		{
-			final T value = values[at];
-			final JRadioButtonMenuItem item = radioItem(value, false);
+			final JRadioButtonMenuItem item = radioItem(pick.text, false);
 			item.addActionListener(e ->
 			{
 				if (!syncing)
 				{
-					write.accept(value);
-					submenu.setValue(String.valueOf(value));
-					// Only the submenu goes: the path ends at the main menu, which stays up.
+					write.accept(pick.key);
+					submenu.setValue(pick.text);
+					// Only the submenus go: the path ends at the main menu, which stays up.
 					MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
 				}
 			});
-			item.getModel().addChangeListener(e -> armChanged(item, () -> preview.apply(value)));
-			group.add(item);
-			submenu.add(item);
+			item.getModel().addChangeListener(e -> armChanged(item, () -> preview.apply(pick.key)));
+			radios.add(item);
 			items.add(item);
-			if (at == ruleAfter)
+			if (pick.group == null)
 			{
-				submenu.addSeparator();
+				submenu.add(item);
 			}
+			else
+			{
+				JMenu inGroup = groups.get(pick.group);
+				if (inGroup == null)
+				{
+					if (submenu.getMenuComponentCount() > 0 && (before == null
+						|| ORIGINAL_TEXT.equals(before) && !ORIGINAL_TEXT.equals(pick.group)))
+					{
+						submenu.addSeparator();
+					}
+					inGroup = group(pick.group);
+					groups.put(pick.group, inGroup);
+					submenu.add(inGroup);
+				}
+				inGroup.add(item);
+			}
+			before = pick.group;
 		}
-		final List<T> choices = Arrays.asList(values);
 		choiceSyncs.add(() ->
 		{
-			final T current = read.get();
-			final int index = choices.indexOf(current);
-			if (index < 0)
+			final Object current = read.get();
+			for (int at = 0; at < picks.size(); at++)
 			{
-				group.clearSelection();
-				return;
+				if (picks.get(at).key.equals(current))
+				{
+					items.get(at).setSelected(true);
+					submenu.setValue(picks.get(at).text);
+					return;
+				}
 			}
-			items.get(index).setSelected(true);
-			submenu.setValue(String.valueOf(current));
+			radios.clearSelection();
 		});
 		return submenu;
+	}
+
+	/** The greyed words that stand in for a row while a picture theme sets it; hidden until then. */
+	private static JLabel lockLabel(String words)
+	{
+		final JLabel label = new JLabel(words);
+		label.setFont(menuFont());
+		label.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		label.setBorder(new EmptyBorder(3, 10, 3, 6));
+		// The menu lays its rows out on one axis: a plain label's left alignment set it from the middle and cut it, so it
+		// takes the rows' own centre alignment and the whole width, its words still at its left.
+		label.setAlignmentX(Component.CENTER_ALIGNMENT);
+		label.setMaximumSize(new Dimension(Integer.MAX_VALUE, label.getPreferredSize().height));
+		label.setVisible(false);
+		return label;
 	}
 
 	/**
@@ -2735,10 +3023,13 @@ public class ClanHubPanel extends PluginPanel
 			colourCheck.setSelected(settings.colourHoverables());
 			wikiCheck.setSelected(settings.wikiDescriptions());
 			picturesCheck.setSelected(settings.wikiPictures());
+			frostSlider.setValue(Math.max(MIN_FROST, Math.min(MAX_FROST, settings.frostOpacity())));
+			frostValue.setText(String.valueOf(frostSlider.getValue()));
 			bossCheck.setSelected(settings.bossCards());
 			underlineCheck.setSelected(settings.alwaysUnderlineLevels());
 			examineCheck.setSelected(settings.examineCards());
 			choiceSyncs.forEach(Runnable::run);
+			applyLocks();
 			swatchSyncs.forEach(Runnable::run);
 			showKey(settings.cardKey());
 			keyBoxEnabled(settings.cardTrigger() == CardTrigger.HOLD_KEY);

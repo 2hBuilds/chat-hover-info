@@ -20,10 +20,11 @@ import net.runelite.api.ChatMessageType;
 final class OwnLineReader implements LineReader
 {
 	/** "Valuable drop: 10 x Black knife (4,600 coins)": the quantity if any, the name, the value. */
-	private static final Pattern VALUABLE = Pattern.compile("^Valuable drop: (?:(\\d+) x )?(.+?) \\((.+?) coins?\\)");
+	private static final Pattern VALUABLE = Pattern.compile(
+		"^Valuable drop: (?:" + BroadcastLine.QUANTITY + " x )?(.+?) \\((.+?) coins?\\)");
 	/** "Untradeable drop: Pet snakeling": the quantity if any, the name, the value if any. */
 	private static final Pattern UNTRADEABLE = Pattern.compile(
-		"^Untradeable drop: (?:(\\d+) x )?(.+?)(?: \\((.+?) coins?\\))?$");
+		"^Untradeable drop: (?:" + BroadcastLine.QUANTITY + " x )?(.+?)(?: \\((.+?) coins?\\))?$");
 	/** "New item added to your collection log: Abyssal whip": the name. */
 	private static final Pattern COLLECTION_LOG = Pattern.compile("^New item added to your collection log: (.+)$");
 	/** ") from Duke Sucellus": the boss, monster, raid or chest a valuable drop line names after the value. */
@@ -80,7 +81,7 @@ final class OwnLineReader implements LineReader
 		}
 		try
 		{
-			return one(found, 2, Integer.parseInt(quantity), plain, valuable);
+			return one(found, 2, BroadcastLine.quantity(quantity), plain, valuable);
 		}
 		catch (NumberFormatException e)
 		{

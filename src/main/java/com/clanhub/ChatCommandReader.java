@@ -19,6 +19,9 @@ import net.runelite.api.gameval.ItemID;
  * the drawn widget, by the overlay when the mouse reaches the line. Pure: the widget's plain text in, the one card out;
  * no RuneLite state.
  *
+ * <p>The answer of the Slayer plugin to {@code !task} ("Slayer Task: Hellhounds: 10/155 killed") reaches the plugin the
+ * same way and is read here too, by the {@link SlayerTaskReader} this reader asks last.
+ *
  * <p>Choice: the whole drawn text is the key. The text has to be the answer from its first word (or its sender and a
  * colon, when the chatbox puts them in the same widget) to its last digit, so a line that goes on after the number, the
  * game's own "Your Zulrah kill count is: 343." and the typed command match nothing. The cards are the ones the
@@ -40,10 +43,11 @@ final class ChatCommandReader
 
 	/**
 	 * The one card a widget's plain text ({@link ChatText#plain}) answers, or an empty list. The kill count is tried first,
-	 * then the personal best; the card's words are the boss. Its first fact is the count or the time, then, when
-	 * {@code tables} knows the boss, its combat level, hitpoints, max hit and quest ({@link BossCards#facts}); the picture
-	 * is the wiki's own of the boss's page, the combat icon behind it for a kill count and the clue watch for a personal
-	 * best until it comes. A null text, and a boss that is only spaces, give none.
+	 * then the personal best, then the slayer task ({@link SlayerTaskReader}). The card of a kill count or a personal best
+	 * has the boss as its words; its first fact is the count or the time, then, when {@code tables} knows the boss, its
+	 * combat level, hitpoints, max hit and quest ({@link BossCards#facts}); the picture is the wiki's own of the boss's
+	 * page, the combat icon behind it for a kill count and the clue watch for a personal best until it comes. A null text,
+	 * and a boss that is only spaces, give none.
 	 *
 	 * <p>Choice: a table that has not loaded, or lacks the boss, gives the card as it was before the table: the count or
 	 * the time alone, the wiki's picture asked for all the same.
@@ -74,7 +78,7 @@ final class ChatCommandReader
 				Collections.<String>emptyList(), BossCards.page(info, boss), plain, start, start + boss.length(), -1,
 				ItemID.TRAIL_WATCH, false, true));
 		}
-		return Collections.emptyList();
+		return SlayerTaskReader.read(plain, tables);
 	}
 
 	/** The card's row: the pair of {@code label} and {@code value}, then the boss's facts. */

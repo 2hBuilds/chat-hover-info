@@ -68,6 +68,18 @@ public class ChatCommandReaderTest
 	}
 
 	@Test
+	public void readsTheUsersRealCerberusLine()
+	{
+		// Added by the lead, 2026-10-28: the line from the user's screenshot, a clan member's !kc answer, as the overlay
+		// hands it over (ChatText.plain turns the name's no-break space into a plain one).
+		final HoverCard cerberus = theCard(ChatText.plain("xB0RNx\u00A0HABS: Cerberus kill count: 791"));
+		assertEquals("Cerberus kill count", cerberus.title());
+		assertEquals("Kills 791", rowOf(cerberus));
+		assertEquals("Cerberus", cerberus.plainLine().substring(cerberus.start(), cerberus.end()));
+		assertEquals("Cerberus", cerberus.wikiTitle());
+	}
+
+	@Test
 	public void readsAPersonalBestAnswerAsDrawn()
 	{
 		final HoverCard raid = theCard("Chambers of Xeric personal best: 21:14");

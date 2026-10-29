@@ -35,7 +35,7 @@ final class DemoLines
 	static final List<Line> ITEMS = Collections.unmodifiableList(Arrays.asList(
 		new Line(ChatMessageType.CLAN_MESSAGE, "", "Klar received a drop: Dragon claws (121,453,000 coins)."),
 		new Line(ChatMessageType.FRIENDSCHATNOTIFICATION, "",
-			"Iron Pete received a drop: 10 x Black knife (460 coins)."),
+			"Iron Pete received a drop: 1,250 x Black knife (57,500 coins)."),
 		new Line(ChatMessageType.CLAN_GUEST_MESSAGE, "", "Klar received a clue item: Ranger boots (25,296,193 coins)."),
 		new Line(ChatMessageType.CLAN_GIM_MESSAGE, "",
 			"Mossy Rock received a new collection log item: Abyssal whip (1/484)."),
@@ -46,6 +46,13 @@ final class DemoLines
 	static final List<Line> OWN = Collections.unmodifiableList(Arrays.asList(
 		new Line(ChatMessageType.GAMEMESSAGE, "", "Valuable drop: Dragon claws (121,453,000 coins)"),
 		new Line(ChatMessageType.GAMEMESSAGE, "", "New item added to your collection log: Abyssal whip")));
+
+	/**
+	 * A clan mate's slayer task, as RuneLite's Slayer plugin writes it into the line after a {@code !task}: the demo posts
+	 * the answer itself, as a clan chat line from Klar, so the card is read from the drawn line as a real one is.
+	 */
+	static final List<Line> SLAYER = Collections.unmodifiableList(Arrays.asList(
+		new Line(ChatMessageType.CLAN_CHAT, "Klar", "Slayer Task: Hellhounds: 10/155 killed")));
 
 	/**
 	 * Eight clan broadcasts that are not about an item: two quests, one in the game's string-variable form, a combat
@@ -75,6 +82,7 @@ final class DemoLines
 	{
 		final List<Line> all = new ArrayList<>(ITEMS);
 		all.addAll(OWN);
+		all.addAll(SLAYER);
 		all.addAll(KINDS);
 		return all;
 	}

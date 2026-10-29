@@ -13,9 +13,11 @@ import net.runelite.api.ChatMessageType;
  */
 final class BroadcastLine
 {
+	/** A quantity as the game writes it, one group: plain digits ("45") or with thousands commas ("2,359"). */
+	static final String QUANTITY = "(\\d{1,3}(?:,\\d{3})+|\\d+)";
 	/** "received a drop: 10 x Black knife (460 coins)": the quantity, the name, the value. */
 	private static final Pattern STACKED_DROP = Pattern.compile(
-		"received a drop: (\\d+) x (.+?) \\((.+?) coins\\)", Pattern.CASE_INSENSITIVE);
+		"received a drop: " + QUANTITY + " x (.+?) \\((.+?) coins\\)", Pattern.CASE_INSENSITIVE);
 	/** "received a drop: Dragon claws (121,453,000 coins)": the name, the value. */
 	private static final Pattern DROP = Pattern.compile(
 		"received a drop: (.+?) \\((.+?) coins\\)", Pattern.CASE_INSENSITIVE);
@@ -94,7 +96,7 @@ final class BroadcastLine
 		{
 			try
 			{
-				return Optional.of(mention(found, 2, Integer.parseInt(found.group(1)), text, true));
+				return Optional.of(mention(found, 2, quantity(found.group(1)), text, true));
 			}
 			catch (NumberFormatException e)
 			{
@@ -117,6 +119,16 @@ final class BroadcastLine
 			return Optional.of(mention(found, 1, 1, text, false));
 		}
 		return Optional.empty();
+	}
+
+	/**
+	 * The number a {@link #QUANTITY} group holds, its commas dropped ("2,359" is 2359).
+	 *
+	 * @throws NumberFormatException when it is too large for an int
+	 */
+	static int quantity(String written)
+	{
+		return Integer.parseInt(written.replace(",", ""));
 	}
 
 	/**

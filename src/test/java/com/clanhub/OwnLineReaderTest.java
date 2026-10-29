@@ -50,6 +50,20 @@ public class OwnLineReaderTest
 		assertEquals(10, stack.get(0).quantity());
 		assertEquals("Black knife x10", stack.get(0).title());
 
+		// Added 2026-10-28: a quantity with thousands commas, as the game writes 1,000 and over.
+		final List<HoverCard> big = reader.read(ChatMessageType.GAMEMESSAGE,
+			"Valuable drop: 2,359 x Demon tear (577,955 coins)");
+		assertEquals(1, big.size());
+		assertEquals(2359, big.get(0).quantity());
+		assertEquals("Demon tear x2359", big.get(0).title());
+		assertEquals(23, big.get(0).start());
+		assertEquals(33, big.get(0).end());
+		final List<HoverCard> untradeable = reader.read(ChatMessageType.GAMEMESSAGE,
+			"Untradeable drop: 1,500 x Demon tear");
+		assertEquals(1500, untradeable.get(0).quantity());
+		assertTrue("too large for an int", reader.read(ChatMessageType.GAMEMESSAGE,
+			"Valuable drop: 2,147,483,648 x Coins (2,147,483,648 coins)").isEmpty());
+
 		final List<HoverCard> pet = reader.read(ChatMessageType.GAMEMESSAGE, "Untradeable drop: Pet snakeling");
 		assertEquals(1, pet.size());
 		assertEquals("Pet snakeling", pet.get(0).title());

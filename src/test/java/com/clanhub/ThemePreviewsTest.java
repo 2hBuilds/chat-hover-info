@@ -24,7 +24,7 @@ public class ThemePreviewsTest
 		assertEquals("the sample is the whip", "Abyssal whip", sample.title());
 		assertEquals("its price row and three drop sources", 4, sample.rows().size());
 
-		final BufferedImage stone = ThemePreviews.card(CardTheme.STONE, null);
+		final BufferedImage stone = ThemePreviews.card(CardStyle.of(CardTheme.STONE), null);
 		assertEquals("Stone's black edge in the corner", Color.BLACK, new Color(stone.getRGB(0, 0)));
 		final BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D g = scratch.createGraphics();

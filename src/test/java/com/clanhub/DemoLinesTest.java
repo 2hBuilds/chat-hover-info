@@ -53,7 +53,8 @@ public class DemoLinesTest
 		// Re-aimed by the lead, 2026-10-08 (lot 8V): combat level and total level lines give no card, so 14 in all.
 		// Re-aimed by the lead, 2026-10-09 (lot 9E): a second quest line, in the game's string-variable form.
 		// Re-aimed by the lead, 2026-10-25 (lot 10O): the own level-up line.
-		assertEquals("16 lines in all", 16, all.size());
+		// Re-aimed by the builder of lot 14B, 2026-10-28: the slayer task line makes 17 in all.
+		assertEquals("17 lines in all", 17, all.size());
 
 		final ItemCards itemCards = Mockito.mock(ItemCards.class);
 		when(itemCards.forName(anyString(), anyInt(), anyString(), anyInt(), anyInt())).thenAnswer(call ->

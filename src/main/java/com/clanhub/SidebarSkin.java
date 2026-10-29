@@ -1,6 +1,7 @@
 package com.clanhub;
 
 import com.clanhub.ClanHubConfig.CardTheme;
+import com.clanhub.ClanHubConfig.SidebarTheme;
 import java.awt.Color;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
@@ -136,6 +137,49 @@ final class SidebarSkin
 		this.painter = painter;
 	}
 
+	/**
+	 * The skin of a picture theme: a calm box of its two sidebar colours (the picture itself never lies behind the sidebar's
+	 * words), a glow of its title colour and its edge round it, the words in its role colours, a light veil under the mouse
+	 * for light ink and a dark one for dark ink.
+	 */
+	static SidebarSkin ofPicture(PictureTheme theme)
+	{
+		final Color top = theme.sidebarColour(0, Color.DARK_GRAY);
+		final Color bottom = theme.sidebarColour(1, Color.BLACK);
+		final Color title = theme.role("title", Color.WHITE);
+		final Color hint = theme.role("hint", Color.GRAY);
+		final Color glow = title;
+		final Color edge = theme.edgeColour();
+		return new SidebarSkin(bottom, title, theme.role("text", Color.WHITE), theme.role("label", Color.LIGHT_GRAY), hint, null,
+			hint, theme.darkInk() ? DARK_VEIL : LIGHT_VEIL,
+			(g, width, height, kind) -> calm(g, top, bottom, glow, edge, width, height, kind));
+	}
+
+	/**
+	 * The skin the sidebar wears: the picture theme {@code pictureSidebar} names when it is in the catalogue; else, for
+	 * "RuneLite", the plain skin; else the look's own theme, or, for "Same as cards" (and no look), the picture theme
+	 * {@code pictureCards} names when it is in the catalogue, or the original {@code cards} theme.
+	 */
+	static SidebarSkin pick(SidebarTheme look, CardTheme cards, String pictureCards, String pictureSidebar)
+	{
+		final PictureThemes themes = PictureThemes.current();
+		final PictureTheme own = themes.byId(pictureSidebar);
+		if (own != null)
+		{
+			return ofPicture(own);
+		}
+		if (look == SidebarTheme.RUNELITE)
+		{
+			return PLAIN;
+		}
+		if (look != null && look != SidebarTheme.SAME)
+		{
+			return of(look.card());
+		}
+		final PictureTheme same = themes.byId(pictureCards);
+		return same != null ? ofPicture(same) : of(cards);
+	}
+
 	/** The skin of {@code theme}; Classic, and a null theme, give {@link #PLAIN}. */
 	static SidebarSkin of(CardTheme theme)
 	{
@@ -219,8 +263,17 @@ final class SidebarSkin
 	 */
 	private static void sky(Graphics2D g, CardTheme theme, boolean scene, int width, int height, Box kind)
 	{
-		final Color top = scene ? SceneSky.groundTop(theme) : SpaceSky.ground(theme);
-		final Color edge = scene ? SceneSky.edge(theme) : SpaceSky.edge(theme);
+		calm(g, scene ? SceneSky.groundTop(theme) : SpaceSky.ground(theme), scene ? SceneSky.groundBottom(theme)
+			: SpaceSky.groundBottom(theme), CardStyle.of(theme).titleGlow, scene ? SceneSky.edge(theme) : SpaceSky.edge(theme),
+			width, height, kind);
+	}
+
+	/**
+	 * The calm box itself: a gradient from {@code top} to {@code bottom}, a soft glow of {@code glow} (when there is one) in
+	 * the top right corner, and {@code edge} round it; the bar is {@code top} with the edge.
+	 */
+	private static void calm(Graphics2D g, Color top, Color bottom, Color glow, Color edge, int width, int height, Box kind)
+	{
 		if (kind == Box.BAR)
 		{
 			g.setColor(top);
@@ -229,11 +282,9 @@ final class SidebarSkin
 			g.drawRect(0, 0, width - 1, height - 1);
 			return;
 		}
-		final Color bottom = scene ? SceneSky.groundBottom(theme) : SpaceSky.groundBottom(theme);
 		final Paint before = g.getPaint();
 		g.setPaint(new GradientPaint(0, 0, top, 0, Math.max(1, height), bottom));
 		g.fillRect(0, 0, width, height);
-		final Color glow = CardStyle.of(theme).titleGlow;
 		if (glow != null && width > 2 && height > 2)
 		{
 			final Color from = new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), CALM_GLOW_ALPHA);

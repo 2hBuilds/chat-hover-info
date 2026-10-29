@@ -2,7 +2,7 @@
 "source": "Old School RuneScape Wiki",
 "licence": "CC BY-NC-SA 3.0",
 "url": "https://oldschool.runescape.wiki",
-"fetched": "2026-10-27",
+"fetched": "2026-10-29",
 "quests": [
   {"name": "A Kingdom Divided", "difficulty": "Experienced", "length": "Long", "members": true, "points": 2, "wiki": "A_Kingdom_Divided"},
   {"name": "A Night at the Theatre", "difficulty": "Master", "length": "Medium", "members": true, "points": 2, "wiki": "A_Night_at_the_Theatre"},

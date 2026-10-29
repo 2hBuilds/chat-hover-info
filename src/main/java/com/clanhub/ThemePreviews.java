@@ -1,6 +1,5 @@
 package com.clanhub;
 
-import com.clanhub.ClanHubConfig.CardTheme;
 import com.clanhub.SidebarSkin.Box;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -78,15 +77,14 @@ final class ThemePreviews
 	}
 
 	/**
-	 * The sample card in {@code theme}, painted at the card's top-left corner of a new image the size the painter
-	 * measures: 16 px text, a cap of 409 px and five paragraph lines.
+	 * The sample card in {@code style} (an original theme's, or a picture theme's), painted at the card's top-left corner of
+	 * a new image the size the painter measures: 16 px text, a cap of 409 px and five paragraph lines.
 	 *
 	 * @param picture the whip's item picture, or null while it has not come, which leaves the picture box empty
 	 */
-	static BufferedImage card(CardTheme theme, BufferedImage picture)
+	static BufferedImage card(CardStyle style, BufferedImage picture)
 	{
 		final HoverCard card = sampleCard();
-		final CardStyle style = CardStyle.of(theme);
 		final BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D measure = scratch.createGraphics();
 		final Dimension size;

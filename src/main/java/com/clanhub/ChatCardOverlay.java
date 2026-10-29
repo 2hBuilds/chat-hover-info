@@ -202,8 +202,8 @@ public class ChatCardOverlay extends Overlay
 		final BufferedImage picture = pictureOf(card);
 		final String description = descriptionOf(card);
 		final int fontSize = config.cardFontSize();
-		final ClanHubConfig.CardWidth width = config.cardWidth();
-		final CardStyle style = CardStyle.of(config.cardTheme());
+		final CardStyle style = CardStyle.of(config.cardTheme(), config.pictureTheme());
+		final ClanHubConfig.CardWidth width = widthFor(style);
 		final Graphics2D measure = scratch.createGraphics();
 		final Dimension size;
 		try
@@ -366,10 +366,10 @@ public class ChatCardOverlay extends Overlay
 
 		final BufferedImage picture = pictureOf(shown);
 		final int fontSize = config.cardFontSize();
-		final CardStyle style = CardStyle.of(config.cardTheme());
+		final CardStyle style = CardStyle.of(config.cardTheme(), config.pictureTheme());
 		final Graphics2D measure = scratch.createGraphics();
 		measure.setRenderingHints(g.getRenderingHints());
-		if (config.cardPlace() == ClanHubConfig.CardPlace.CHAT)
+		if (style.picture == null && config.cardPlace() == ClanHubConfig.CardPlace.CHAT)
 		{
 			// Choice: the chatbox's whole frame sets the wide card's width and place, the scroll area's bounds when the
 			// frame is not shown.
@@ -384,7 +384,7 @@ public class ChatCardOverlay extends Overlay
 			return null;
 		}
 		final String description = descriptionOf(shown);
-		final ClanHubConfig.CardWidth width = config.cardWidth();
+		final ClanHubConfig.CardWidth width = widthFor(style);
 		final Dimension size = CardPainter.paintSplit(measure, shown, picture, fontSize, 0, 0, description, width.cap,
 			width.lines, style);
 		measure.dispose();
@@ -392,6 +392,16 @@ public class ChatCardOverlay extends Overlay
 			new Dimension(client.getCanvasWidth(), client.getCanvasHeight()));
 		CardPainter.paintSplit(g, shown, picture, fontSize, at.x, at.y, description, width.cap, width.lines, style);
 		return null;
+	}
+
+	/**
+	 * The width the card at the cursor is given: the Card width setting, except for a picture theme, whose pictures are drawn
+	 * at the Medium width, so a card in one is Medium whatever the setting says (and opens at the cursor, whatever Card place
+	 * says); the setting itself is not touched and applies again with an original theme.
+	 */
+	private ClanHubConfig.CardWidth widthFor(CardStyle style)
+	{
+		return style.picture != null ? ClanHubConfig.CardWidth.MEDIUM : config.cardWidth();
 	}
 
 	/** The bounds of the chatbox's frame, or {@code fallback} when the frame is not there or not shown. */

@@ -276,6 +276,8 @@ public class ClanHubPlugin extends Plugin
 		// In developer mode the trace is on from the start, so a restart between lots never loses the next quest line;
 		// ::hoverinfo trace still toggles it. A Hub build has no developer mode, so it starts off and stays off.
 		tracing = developerMode;
+		PictureThemes.install(PictureThemes.bundled(gson));
+		PictureThemes.frostOpacity(config.frostOpacity());
 		dropRates = new DropRates();
 		dropRates.loadInBackground(executor, gson);
 		tables = new CardTables();
@@ -373,6 +375,18 @@ public class ClanHubPlugin extends Plugin
 			public void setWikiPictures(boolean on)
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "wikiPictures", on);
+			}
+
+			@Override
+			public int frostOpacity()
+			{
+				return config.frostOpacity();
+			}
+
+			@Override
+			public void setFrostOpacity(int percent)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "frostOpacity", percent);
 			}
 
 			@Override
@@ -541,6 +555,30 @@ public class ClanHubPlugin extends Plugin
 			public void setCardTheme(CardTheme theme)
 			{
 				configManager.setConfiguration(ClanHubConfig.GROUP, "cardTheme", theme);
+			}
+
+			@Override
+			public String pictureTheme()
+			{
+				return config.pictureTheme();
+			}
+
+			@Override
+			public void setPictureTheme(String id)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "pictureTheme", id);
+			}
+
+			@Override
+			public String sidebarPicture()
+			{
+				return config.sidebarPicture();
+			}
+
+			@Override
+			public void setSidebarPicture(String id)
+			{
+				configManager.setConfiguration(ClanHubConfig.GROUP, "sidebarPicture", id);
 			}
 
 			@Override
@@ -822,6 +860,20 @@ public class ClanHubPlugin extends Plugin
 		{
 			return;
 		}
+		// An original theme picked on RuneLite's settings page (the menu clears the picture choice before it writes its own)
+		// takes the place of a picture theme.
+		if ("cardTheme".equals(event.getKey()) && !config.pictureTheme().isEmpty())
+		{
+			configManager.unsetConfiguration(ClanHubConfig.GROUP, "pictureTheme");
+		}
+		if ("frostOpacity".equals(event.getKey()))
+		{
+			PictureThemes.frostOpacity(config.frostOpacity());
+		}
+		if ("sidebarLook".equals(event.getKey()) && !config.sidebarPicture().isEmpty())
+		{
+			configManager.unsetConfiguration(ClanHubConfig.GROUP, "sidebarPicture");
+		}
 		final ClanHubPanel sidebar = panel;
 		if (sidebar != null)
 		{
@@ -1066,6 +1118,7 @@ public class ClanHubPlugin extends Plugin
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardDelayMs");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "wikiDescriptions");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "wikiPictures");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "frostOpacity");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "bossCards");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "examineCards");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "examineLine");
@@ -1073,6 +1126,8 @@ public class ClanHubPlugin extends Plugin
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardWidth");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardTheme");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "sidebarLook");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "pictureTheme");
+		configManager.unsetConfiguration(ClanHubConfig.GROUP, "sidebarPicture");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "cardTime");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "nameColour");
 		configManager.unsetConfiguration(ClanHubConfig.GROUP, "alwaysUnderlineLevels");

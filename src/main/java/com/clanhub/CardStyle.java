@@ -218,6 +218,8 @@ final class CardStyle
 	final int bottomExtra;
 	/** Whether the rules are painted in the {@link #titleGradient} too, and not in {@link #rule}; only Cosmic edge's are. */
 	final boolean gradientRules;
+	/** The picture theme this style wears, whose picture is the card's ground and whose treatment lies under the words, or null. */
+	final PictureTheme picture;
 	/** The tile laid over the ground, or null for none. */
 	private final BufferedImage tile;
 	/** Whether the ground is a {@link SpaceSky}. */
@@ -231,13 +233,13 @@ final class CardStyle
 		boolean infobox, Color[] titleGradient, boolean space)
 	{
 		this(theme, ground, title, label, value, text, hint, rule, ruleLight, shadow, inset, wideRate, titleGlow, tile,
-			infobox, titleGradient, space, false, null, null, 0, titleGradient != null);
+			infobox, titleGradient, space, false, null, null, 0, titleGradient != null, null);
 	}
 
 	private CardStyle(CardTheme theme, Color ground, Color title, Color label, Color value, Color text, Color hint,
 		Color rule, Color ruleLight, boolean shadow, int inset, Color wideRate, Color titleGlow, BufferedImage tile,
 		boolean infobox, Color[] titleGradient, boolean space, boolean scene, Color titleOutline, Color[] titleSplit,
-		int bottomExtra, boolean gradientRules)
+		int bottomExtra, boolean gradientRules, PictureTheme picture)
 	{
 		this.theme = theme;
 		this.ground = ground;
@@ -262,6 +264,7 @@ final class CardStyle
 		this.titleSplit = titleSplit;
 		this.bottomExtra = bottomExtra;
 		this.gradientRules = gradientRules;
+		this.picture = picture;
 	}
 
 	/** A space look: the shadow on, the inset 10, no light rule and no gradient, the wide card's rates the values' colour. */
@@ -282,7 +285,7 @@ final class CardStyle
 	{
 		return new CardStyle(theme, SceneSky.groundTop(theme), title, label, value, text, hint, rule, null, true, inset,
 			value, glow == null ? null : new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 70), null, false, gradient,
-			false, true, outline, split, bottomExtra, false);
+			false, true, outline, split, bottomExtra, false, null);
 	}
 
 	private static Color rgb(int red, int green, int blue)
@@ -298,6 +301,34 @@ final class CardStyle
 	}
 
 	/**
+	 * The style the cards wear: the picture theme {@code pictureId} names, when the catalogue has it and its pictures load,
+	 * Classic when it has it and they do not, and the original {@code theme} when {@code pictureId} is empty or names no
+	 * theme.
+	 */
+	static CardStyle of(CardTheme theme, String pictureId)
+	{
+		final PictureThemes themes = PictureThemes.current();
+		final PictureTheme found = themes.byId(pictureId);
+		if (found == null)
+		{
+			return of(theme);
+		}
+		return themes.usable(found) ? ofPicture(found) : CLASSIC;
+	}
+
+	/**
+	 * The style of a picture theme: the words in its role colours, the inset 10, the wide card's rates in the value colour, and
+	 * no outline or shadow of the originals' kind (the theme's own outline is drawn by {@link PictureArt}).
+	 */
+	private static CardStyle ofPicture(PictureTheme t)
+	{
+		final Color value = t.role("value", Color.WHITE);
+		return new CardStyle(null, t.sidebarColour(0, Color.BLACK), t.role("title", Color.WHITE), t.role("label", Color.LIGHT_GRAY),
+			value, t.role("text", Color.WHITE), t.role("hint", Color.GRAY), t.role("rule", Color.GRAY), null, false, 10, value, null,
+			null, false, null, false, false, null, null, 0, false, t);
+	}
+
+	/**
 	 * Paints the card's ground and its edge, its top-left corner at ({@code x}, {@code y}), {@code width} by
 	 * {@code height} px: Classic a solid brown ground with a black edge and a lighter line inside it; Stone its speckled
 	 * ground and the four lines and the rivets; Void its gradient, its stars and its two purple lines; Wiki its beige
@@ -306,6 +337,10 @@ final class CardStyle
 	 */
 	void frame(Graphics2D g, int x, int y, int width, int height)
 	{
+		if (picture != null)
+		{
+			return;
+		}
 		if (space)
 		{
 			g.drawImage(SpaceSky.of(theme, width, height), x, y, null);

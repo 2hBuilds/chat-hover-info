@@ -40,6 +40,12 @@ interface PanelSettings
 	/** Writes whether the card of a boss, monster, raid or chest shows the wiki's own picture of it. */
 	void setWikiPictures(boolean on);
 
+	/** How much frosted glass sits behind the words on picture themes, in percent (0 to 100). */
+	int frostOpacity();
+
+	/** Writes how much frosted glass sits behind the words on picture themes, in percent. */
+	void setFrostOpacity(int percent);
+
 	/** Whether a drop line that says where the drop came from gives the boss, monster, raid or chest a card of its own. */
 	boolean bossCards();
 
@@ -93,6 +99,18 @@ interface PanelSettings
 
 	/** Writes the look of the sidebar. */
 	void setSidebarLook(SidebarTheme look);
+
+	/** The id of the picture theme the cards wear, or empty for the original theme of {@link #cardTheme}. */
+	String pictureTheme();
+
+	/** Writes the id of the picture theme the cards wear; empty for none. */
+	void setPictureTheme(String id);
+
+	/** The id of the picture theme the sidebar wears, or empty for the look of {@link #sidebarLook}. */
+	String sidebarPicture();
+
+	/** Writes the id of the picture theme the sidebar wears; empty for none. */
+	void setSidebarPicture(String id);
 
 	/** How a recent card's time reads in the sidebar. */
 	CardTime cardTime();

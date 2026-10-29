@@ -33,6 +33,7 @@ final class InfoCard implements HoverCard
 	private final int itemId;
 	private final boolean marked;
 	private final boolean wikiPicture;
+	private final Progress progress;
 
 	/**
 	 * The card with its title, its one row of facts, its notes (the task description, or the unlocks one to a note, for the
@@ -74,11 +75,30 @@ final class InfoCard implements HoverCard
 	InfoCard(String title, List<Pair> row, List<String> notes, String page, String line, int start, int end,
 		int spriteId, int itemId, boolean marked, boolean wikiPicture)
 	{
+		this(title, row, Collections.<Pair>emptyList(), null, notes, page, line, start, end, spriteId, itemId, marked,
+			wikiPicture);
+	}
+
+	/**
+	 * The slayer task's card: the fullest card with its drops and its progress. {@code drops} are the card's own drops
+	 * line, each pair a source (a drop's name) and its rate, as an item card's drop sources are (the rows after the first);
+	 * {@code progress} is the bar under the title, or null for none.
+	 */
+	InfoCard(String title, List<Pair> row, List<Pair> drops, Progress progress, List<String> notes, String page, String line,
+		int start, int end, int spriteId, int itemId, boolean marked, boolean wikiPicture)
+	{
+		this.progress = progress;
 		this.wikiPicture = wikiPicture;
 		this.marked = marked;
 		this.itemId = itemId;
 		this.title = title;
-		this.rows = Collections.singletonList(Collections.unmodifiableList(new ArrayList<>(row)));
+		final List<List<Pair>> rows = new ArrayList<>();
+		rows.add(Collections.unmodifiableList(new ArrayList<>(row)));
+		for (final Pair drop : drops)
+		{
+			rows.add(Collections.singletonList(drop));
+		}
+		this.rows = Collections.unmodifiableList(rows);
 		this.notes = Collections.unmodifiableList(new ArrayList<>(notes));
 		this.page = page;
 		this.line = line;
@@ -199,6 +219,13 @@ final class InfoCard implements HoverCard
 	public boolean wikiPicture()
 	{
 		return wikiPicture;
+	}
+
+	/** The slayer task's progress, painted as a bar under the title; null for every other kind of card. */
+	@Override
+	public Progress progress()
+	{
+		return progress;
 	}
 
 	/** Whether the card's words are coloured in the chat; false for the quiet level and XP cards. */

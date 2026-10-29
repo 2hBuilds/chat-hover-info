@@ -491,6 +491,50 @@ public interface ClanHubConfig extends Config
 		return new Color(150, 150, 150);
 	}
 
+	/** How much frosted glass sits behind the words on picture themes, in percent: 0 none (unless set), 100 the full band. */
+	@ConfigItem(
+		keyName = "frostOpacity",
+		name = "Blur behind text",
+		description = "Softens the picture behind the words so they're easier to read. 0 is off, 100 is the most.",
+		position = 21
+	)
+	@Range(min = 0, max = 100)
+	@Units(Units.PERCENT)
+	default int frostOpacity()
+	{
+		return 0;
+	}
+
+	/**
+	 * The picture theme the cards wear, by id, or empty for the original theme in {@link #cardTheme}. The settings menu's own
+	 * memory (RuneLite's settings page cannot list the picture themes), hidden from the settings page, so the settings stay
+	 * twenty; the Card theme setting keeps the player's original theme under it.
+	 */
+	@ConfigItem(
+		keyName = "pictureTheme",
+		name = "Picture theme",
+		description = "The picture theme of the cards, set from the settings menu in the sidebar.",
+		position = 98,
+		hidden = true
+	)
+	default String pictureTheme()
+	{
+		return "";
+	}
+
+	/** The picture theme the sidebar wears, by id, or empty for the look in {@link #sidebarLook}; hidden, as {@link #pictureTheme} is. */
+	@ConfigItem(
+		keyName = "sidebarPicture",
+		name = "Sidebar picture theme",
+		description = "The picture theme of the sidebar, set from the settings menu in the sidebar.",
+		position = 99,
+		hidden = true
+	)
+	default String sidebarPicture()
+	{
+		return "";
+	}
+
 	/**
 	 * Whether the sidebar's "How to use" box is folded to its header. The panel's own memory, not a setting the player
 	 * sees: hidden from RuneLite's settings page, so the settings stay twenty.

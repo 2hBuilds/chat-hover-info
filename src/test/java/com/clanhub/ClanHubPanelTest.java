@@ -34,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import javax.swing.AbstractButton;
 import javax.swing.Icon;
@@ -85,6 +86,7 @@ public class ClanHubPanelTest
 	private final List<Boolean> coloured = new ArrayList<>();
 	private final List<Boolean> wiki = new ArrayList<>();
 	private final List<Boolean> pictures = new ArrayList<>();
+	private final List<Integer> frostOpacities = new ArrayList<>();
 	private final List<Boolean> bosses = new ArrayList<>();
 	private final List<Boolean> examines = new ArrayList<>();
 	private final List<Boolean> underlines = new ArrayList<>();
@@ -118,8 +120,18 @@ public class ClanHubPanelTest
 	/** What the settings stub answers for "Sidebar theme": the write of the choice sets it too. */
 	private SidebarTheme sidebarLook = SidebarTheme.SAME;
 
+	/** What the settings stub answers for the hidden picture theme keys (lot 15A): the id of the card and the sidebar picture theme, empty for none. */
+	private String pictureTheme = "";
+	private String sidebarPicture = "";
+	private final List<String> pictureWrites = new ArrayList<>();
+	private final List<String> sidebarPictureWrites = new ArrayList<>();
+
 	/** What the settings stub answers for "Colour hoverable words": the write of the colour check sets it too. */
 	private boolean colourOn = true;
+
+	/** What the settings stub answers for "Examine cards" and "Boss cards": on, until a test turns one off. */
+	private boolean examineOn = true;
+	private boolean bossOn = true;
 
 	/** What the settings stub answers for the how-to's fold, and what the panel wrote for it. */
 	private boolean howToFolded = false;
@@ -229,9 +241,21 @@ public class ClanHubPanelTest
 		}
 
 		@Override
+		public int frostOpacity()
+		{
+			return 0;
+		}
+
+		@Override
+		public void setFrostOpacity(int percent)
+		{
+			frostOpacities.add(percent);
+		}
+
+		@Override
 		public boolean bossCards()
 		{
-			return true;
+			return bossOn;
 		}
 
 		@Override
@@ -243,7 +267,7 @@ public class ClanHubPanelTest
 		@Override
 		public boolean examineCards()
 		{
-			return true;
+			return examineOn;
 		}
 
 		@Override
@@ -388,6 +412,32 @@ public class ClanHubPanelTest
 		}
 
 		@Override
+		public String pictureTheme()
+		{
+			return pictureTheme;
+		}
+
+		@Override
+		public void setPictureTheme(String id)
+		{
+			pictureTheme = id;
+			pictureWrites.add(id);
+		}
+
+		@Override
+		public String sidebarPicture()
+		{
+			return sidebarPicture;
+		}
+
+		@Override
+		public void setSidebarPicture(String id)
+		{
+			sidebarPicture = id;
+			sidebarPictureWrites.add(id);
+		}
+
+		@Override
 		public CardTheme cardTheme()
 		{
 			return cardTheme;
@@ -469,25 +519,27 @@ public class ClanHubPanelTest
 				assertNotNull("the menu is on screen", menu);
 
 				final Component[] parts = menu.getComponents();
-				assertEquals("header, rule, the Hover cards check, rule, the two theme rows, rule, four groups, rule, OK row", 13,
-					parts.length);
+				// Re-aimed for 1.1.0: the Blur behind text row sits between the two theme rows.
+				assertEquals("header, rule, the Hover cards check, rule, card theme, blur, sidebar theme, rule, four groups, rule, OK row",
+					14, parts.length);
 				assertTrue("the header is the support header's one panel", parts[0] instanceof JPanel);
 				assertEquals("the header's title, version and links", 3, ((JPanel) parts[0]).getComponentCount());
 				assertTrue("a rule", parts[1] instanceof JPopupMenu.Separator);
 				assertTrue("the Hover cards check", parts[2] instanceof JCheckBoxMenuItem);
 				assertTrue("a rule", parts[3] instanceof JPopupMenu.Separator);
 				assertTrue("the card theme row", parts[4] instanceof ValueMenu);
-				assertTrue("the sidebar theme row", parts[5] instanceof ValueMenu);
-				assertTrue("a rule", parts[6] instanceof JPopupMenu.Separator);
-				for (int i = 7; i <= 10; i++)
+				assertTrue("the Blur behind text row", parts[5] instanceof JPanel);
+				assertTrue("the sidebar theme row", parts[6] instanceof ValueMenu);
+				assertTrue("a rule", parts[7] instanceof JPopupMenu.Separator);
+				for (int i = 8; i <= 11; i++)
 				{
 					assertTrue("a group", parts[i] instanceof JMenu && !(parts[i] instanceof ValueMenu));
 				}
 				assertEquals("the four groups in order", List.of("Card", "When it shows", "What gets a card", "Colours"),
-					Arrays.asList(((JMenu) parts[7]).getText(), ((JMenu) parts[8]).getText(), ((JMenu) parts[9]).getText(),
-						((JMenu) parts[10]).getText()));
-				assertTrue("a rule", parts[11] instanceof JPopupMenu.Separator);
-				assertTrue("the OK row", parts[12] instanceof JPanel);
+					Arrays.asList(((JMenu) parts[8]).getText(), ((JMenu) parts[9]).getText(), ((JMenu) parts[10]).getText(),
+						((JMenu) parts[11]).getText()));
+				assertTrue("a rule", parts[12] instanceof JPopupMenu.Separator);
+				assertTrue("the OK row", parts[13] instanceof JPanel);
 
 				final JCheckBoxMenuItem showCheck = (JCheckBoxMenuItem) parts[2];
 				assertEquals("Hover cards", showCheck.getText());
@@ -496,12 +548,13 @@ public class ClanHubPanelTest
 				final ValueMenu themeMenu = (ValueMenu) parts[4];
 				assertEquals("Card theme", themeMenu.getText());
 				assertEquals("Classic", themeMenu.value());
-				assertRadios(themeMenu, CardTheme.values(), CardTheme.CLASSIC);
+				// Re-aimed by the builder, lot 15A: the originals are the "Original" submenu of the nested list.
+				assertRadios(originals(themeMenu), CardTheme.values(), CardTheme.CLASSIC);
 
-				final ValueMenu sidebarMenu = (ValueMenu) parts[5];
+				final ValueMenu sidebarMenu = (ValueMenu) parts[6];
 				assertEquals("Sidebar theme", sidebarMenu.getText());
 				assertEquals("Same as cards", sidebarMenu.value());
-				assertEquals("one radio item per look and a rule after the second", SidebarTheme.values().length + 1,
+				assertEquals("Same as cards, RuneLite, a rule and the Original submenu (no picture themes are installed)", 4,
 					sidebarMenu.getMenuComponentCount());
 				assertTrue("the first look is Same as cards, selected", radio(sidebarMenu, 0).isSelected()
 					&& "Same as cards".equals(radio(sidebarMenu, 0).getText()));
@@ -510,14 +563,14 @@ public class ClanHubPanelTest
 				for (int i = 0; i < CardTheme.values().length; i++)
 				{
 					assertEquals("then the card themes in order", CardTheme.values()[i].toString(),
-						radio(sidebarMenu, 3 + i).getText());
-					assertFalse("none of them selected", radio(sidebarMenu, 3 + i).isSelected());
+						radio(originals(sidebarMenu), i).getText());
+					assertFalse("none of them selected", radio(originals(sidebarMenu), i).isSelected());
 				}
 
-				final JPopupMenu card = ((JMenu) parts[7]).getPopupMenu();
-				final JPopupMenu when = ((JMenu) parts[8]).getPopupMenu();
-				final JPopupMenu what = ((JMenu) parts[9]).getPopupMenu();
-				final JPopupMenu colours = ((JMenu) parts[10]).getPopupMenu();
+				final JPopupMenu card = ((JMenu) parts[8]).getPopupMenu();
+				final JPopupMenu when = ((JMenu) parts[9]).getPopupMenu();
+				final JPopupMenu what = ((JMenu) parts[10]).getPopupMenu();
+				final JPopupMenu colours = ((JMenu) parts[11]).getPopupMenu();
 
 				final JCheckBoxMenuItem colourCheck = checkSaying(colours, "Colour names");
 				assertTrue("ticked, as the setting is", colourCheck.isSelected());
@@ -569,7 +622,7 @@ public class ClanHubPanelTest
 				assertEquals(new Color(220, 138, 0), lastOf(nameRow).getBackground());
 
 				final List<String> okRow = new ArrayList<>();
-				for (final Component part : ((JPanel) parts[12]).getComponents())
+				for (final Component part : ((JPanel) parts[13]).getComponents())
 				{
 					if (part instanceof JButton)
 					{
@@ -678,7 +731,7 @@ public class ClanHubPanelTest
 				assertEquals("a second write, ticked again", List.of(false, true), coloured);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[12]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[13]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -732,7 +785,7 @@ public class ClanHubPanelTest
 				assertEquals("one write, 'On click'", List.of(CardTrigger.CLICK), triggers);
 
 				JButton ok = null;
-				for (final Component part : ((JPanel) menu.getComponents()[12]).getComponents())
+				for (final Component part : ((JPanel) menu.getComponents()[13]).getComponents())
 				{
 					if (part instanceof JButton && "OK".equals(((JButton) part).getText()))
 					{
@@ -755,6 +808,168 @@ public class ClanHubPanelTest
 	 * Lot 10P: the "Card theme" submenu holds the themes with Classic selected at first; a click on Stone writes it once,
 	 * selects it, retitles the submenu, and the menu stays up.
 	 */
+	/** Installs a catalogue of three picture themes (two groups) for the test, whose pictures are plain. */
+	private static void installPictures()
+	{
+		PictureThemes.install(PictureFixtures.catalogue(PictureFixtures.loader(Color.DARK_GRAY, new java.util.HashMap<String, Integer>(),
+			new ArrayList<String>()),
+			PictureFixtures.theme("dusk", "Mystic", "dark", false, 1, 0.5, false),
+			PictureFixtures.theme("dawn", "Calm", "bright", false, 1, 0.5, false),
+			PictureFixtures.theme("mist", "Calm", "in-between", true, 0.5, 0.5, false)));
+	}
+
+	/** The group {@code name} of a nested theme list, its popup open under the list (the way the mouse opens it). */
+	private static JMenu openGroup(JPopupMenu menu, ValueMenu list, String name)
+	{
+		for (final Component part : list.getMenuComponents())
+		{
+			if (part instanceof JMenu && name.equals(((JMenu) part).getText()))
+			{
+				final JMenu group = (JMenu) part;
+				MenuSelectionManager.defaultManager().setSelectedPath(
+					new MenuElement[] {menu, list, list.getPopupMenu(), group, group.getPopupMenu()});
+				return group;
+			}
+		}
+		throw new AssertionError("no group " + name + " in " + list.getText());
+	}
+
+	/**
+	 * Lot 15A: the Card theme list is nested, Original first and then the picture themes' groups in the menu's order, a
+	 * group's themes bright first; a picture theme stores its id and leaves the Original setting alone, an original clears
+	 * the id; and the Card width and Card place rows say they are set by the theme while a picture theme is on.
+	 */
+	@Test
+	public void aPictureThemeIsPickedFromANestedListAndLocksWidthAndPlace() throws Exception
+	{
+		installPictures();
+		try
+		{
+			onEdt(() ->
+			{
+				cardTheme = CardTheme.STONE;
+				final ClanHubPanel panel = newPanel();
+				final JFrame frame = frameOf(panel);
+				try
+				{
+					press(settingsIcon(panel));
+					final JPopupMenu menu = popupMenu(frame);
+					final ValueMenu list = valueMenuSaying(menu, "Card theme");
+					assertEquals("the original theme is shown", "Stone", list.value());
+					final List<String> parts = new ArrayList<>();
+					for (final Component part : list.getMenuComponents())
+					{
+						parts.add(part instanceof JMenu ? ((JMenu) part).getText() : "-");
+					}
+					assertEquals("Original, a rule, then the groups in order", List.of("Original", "-", "Calm", "Mystic"), parts);
+					final JMenu calm = openGroup(menu, list, "Calm");
+					assertEquals("bright first, then in-between", List.of("Dawn", "Mist"),
+						List.of(((JMenuItem) calm.getMenuComponent(0)).getText(), ((JMenuItem) calm.getMenuComponent(1)).getText()));
+
+					final JRadioButtonMenuItem dusk = radio(openGroup(menu, list, "Mystic"), 0);
+					assertEquals("Dusk", dusk.getText());
+					click(dusk);
+					assertEquals("a picture theme stores its id", List.of("dusk"), pictureWrites);
+					assertTrue("and writes no original theme", themes.isEmpty());
+					assertEquals("the original setting is kept", CardTheme.STONE, cardTheme);
+					assertEquals("the row shows the picture theme", "Dusk", list.value());
+					assertTrue("and the menu stays up", menu.isVisible());
+					// 1.1.0: with a picture theme the Blur behind text row under Card theme takes input and says what it does.
+					final JPanel blurRow = rowSaying(menu, "Blur behind text");
+					final javax.swing.JSlider blur = sliderIn(blurRow);
+					assertTrue("the blur slider takes input", blur.isEnabled());
+					assertEquals("its hover says what it does", ClanHubPanel.FROST_TIP, blurRow.getToolTipText());
+					blur.setValueIsAdjusting(true);
+					blur.setValue(20);
+					assertTrue("nothing is saved while it is dragged", frostOpacities.isEmpty());
+					assertTrue("but its number shows the value", wordsOf(blurRow).contains("20"));
+					blur.setValue(37);
+					blur.setValueIsAdjusting(false);
+					assertEquals("the drag's end saves the value once", List.of(37), frostOpacities);
+					assertTrue("and the number shows it", wordsOf(blurRow).contains("37"));
+
+					final JPopupMenu card = open(menu, groupOf(menu, "Card"));
+					assertEquals("the width and place rows are the locked words", List.of("WIDTH", "Medium (by the theme)",
+						"PLACE", "At the cursor (by the theme)", "TIME", "4m ago|14:32|2:32 PM", "Text size"), wordsIn(card));
+					assertTrue("no width was written", widths.isEmpty() && places.isEmpty());
+
+					final JRadioButtonMenuItem void_ = radio(originals(list), CardTheme.VOID.ordinal());
+					MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, list, list.getPopupMenu(),
+						originals(list), originals(list).getPopupMenu()});
+					click(void_);
+					assertEquals("an original clears the picture theme", List.of("dusk", ""), pictureWrites);
+					assertEquals("and writes itself", List.of(CardTheme.VOID), themes);
+					assertEquals("Void", list.value());
+					assertFalse("an Original theme greys the blur slider again", blur.isEnabled());
+					assertEquals("and its hover says why", ClanHubPanel.FROST_OFF_TIP, blurRow.getToolTipText());
+					assertEquals("the rows are the player's own again", List.of("WIDTH", "Wide|Medium|Narrow", "PLACE",
+						"Above the cursor", "Above the chat", "TIME", "4m ago|14:32|2:32 PM", "Text size"),
+						wordsIn(open(menu, groupOf(menu, "Card"))));
+					menu.setVisible(false);
+				}
+				finally
+				{
+					frame.dispose();
+				}
+			});
+		}
+		finally
+		{
+			PictureThemes.install(PictureFixtures.catalogue(null));
+		}
+	}
+
+	/** Lot 15A: the Sidebar theme list has Same as cards and RuneLite first, then Original and the groups; a picture pick is stored apart. */
+	@Test
+	public void theSidebarListIsNestedToo() throws Exception
+	{
+		installPictures();
+		try
+		{
+			onEdt(() ->
+			{
+				pictureTheme = "dawn";
+				final ClanHubPanel panel = newPanel();
+				final JFrame frame = frameOf(panel);
+				try
+				{
+					press(settingsIcon(panel));
+					final JPopupMenu menu = popupMenu(frame);
+					final ValueMenu list = valueMenuSaying(menu, "Sidebar theme");
+					assertEquals("Same as cards", list.value());
+					final List<String> parts = new ArrayList<>();
+					for (final Component part : list.getMenuComponents())
+					{
+						parts.add(part instanceof JMenu ? ((JMenu) part).getText()
+							: part instanceof JRadioButtonMenuItem ? ((JRadioButtonMenuItem) part).getText() : "-");
+					}
+					assertEquals(List.of("Same as cards", "RuneLite", "-", "Original", "-", "Calm", "Mystic"), parts);
+					final JRadioButtonMenuItem mist = radio(openGroup(menu, list, "Calm"), 1);
+					assertEquals("Mist", mist.getText());
+					click(mist);
+					assertEquals("the picture sidebar theme is stored by id", List.of("mist"), sidebarPictureWrites);
+					assertTrue("the look under it is not written", sidebarLooks.isEmpty());
+					assertEquals("Mist", list.value());
+
+					MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, list, list.getPopupMenu(),
+						originals(list), originals(list).getPopupMenu()});
+					click(radio(originals(list), CardTheme.VOID.ordinal()));
+					assertEquals("an original look clears the picture theme", List.of("mist", ""), sidebarPictureWrites);
+					assertEquals(List.of(SidebarTheme.VOID), sidebarLooks);
+					menu.setVisible(false);
+				}
+				finally
+				{
+					frame.dispose();
+				}
+			});
+		}
+		finally
+		{
+			PictureThemes.install(PictureFixtures.catalogue(null));
+		}
+	}
+
 	// Re-aimed by the lead, 2026-10-25 (lot 10Q): a fourth theme, Wiki.
 	// Re-aimed by the lead, 2026-10-26 (lot 10R): eight space themes after Wiki.
 	// Re-aimed by the lead, 2026-10-26 (lot 10S): an eighth check, "Sidebar follows the theme".
@@ -781,44 +996,45 @@ public class ClanHubPanelTest
 
 				final ValueMenu themeMenu = valueMenuSaying(menu, "Card theme");
 				assertEquals("its value is the theme", "Classic", themeMenu.value());
-				assertEquals("one radio item per theme", 24, themeMenu.getMenuComponentCount());
-				assertEquals("Classic", radio(themeMenu, 0).getText());
-				assertEquals("Stone", radio(themeMenu, 1).getText());
-				assertEquals("Void", radio(themeMenu, 2).getText());
-				assertEquals("Wiki", radio(themeMenu, 3).getText());
-				assertEquals("Nebula", radio(themeMenu, 4).getText());
-				assertEquals("Aurora", radio(themeMenu, 5).getText());
-				assertEquals("Galaxy", radio(themeMenu, 6).getText());
-				assertEquals("Planet rise", radio(themeMenu, 7).getText());
-				assertEquals("Eclipse", radio(themeMenu, 8).getText());
-				assertEquals("Constellation", radio(themeMenu, 9).getText());
-				assertEquals("Black hole", radio(themeMenu, 10).getText());
-				assertEquals("Cosmic edge", radio(themeMenu, 11).getText());
-				assertEquals("Forest", radio(themeMenu, 12).getText());
-				assertEquals("Ocean", radio(themeMenu, 13).getText());
-				assertEquals("Autumn", radio(themeMenu, 14).getText());
-				assertEquals("Sakura", radio(themeMenu, 15).getText());
-				assertEquals("Steampunk", radio(themeMenu, 16).getText());
-				assertEquals("Cyberpunk", radio(themeMenu, 17).getText());
-				assertEquals("Synthwave", radio(themeMenu, 18).getText());
-				assertEquals("Volcano", radio(themeMenu, 19).getText());
-				assertEquals("Runic", radio(themeMenu, 20).getText());
-				assertEquals("Spooky", radio(themeMenu, 21).getText());
-				assertEquals("Garden", radio(themeMenu, 22).getText());
-				assertEquals("Lavender", radio(themeMenu, 23).getText());
-				assertRadios(themeMenu, CardTheme.values(), CardTheme.CLASSIC);
+				assertEquals("one submenu: Original (no picture themes are installed)", 1, themeMenu.getMenuComponentCount());
+				assertEquals("one radio item per original theme", 24, originals(themeMenu).getMenuComponentCount());
+				assertEquals("Classic", radio(originals(themeMenu), 0).getText());
+				assertEquals("Stone", radio(originals(themeMenu), 1).getText());
+				assertEquals("Void", radio(originals(themeMenu), 2).getText());
+				assertEquals("Wiki", radio(originals(themeMenu), 3).getText());
+				assertEquals("Nebula", radio(originals(themeMenu), 4).getText());
+				assertEquals("Aurora", radio(originals(themeMenu), 5).getText());
+				assertEquals("Galaxy", radio(originals(themeMenu), 6).getText());
+				assertEquals("Planet rise", radio(originals(themeMenu), 7).getText());
+				assertEquals("Eclipse", radio(originals(themeMenu), 8).getText());
+				assertEquals("Constellation", radio(originals(themeMenu), 9).getText());
+				assertEquals("Black hole", radio(originals(themeMenu), 10).getText());
+				assertEquals("Cosmic edge", radio(originals(themeMenu), 11).getText());
+				assertEquals("Forest", radio(originals(themeMenu), 12).getText());
+				assertEquals("Ocean", radio(originals(themeMenu), 13).getText());
+				assertEquals("Autumn", radio(originals(themeMenu), 14).getText());
+				assertEquals("Sakura", radio(originals(themeMenu), 15).getText());
+				assertEquals("Steampunk", radio(originals(themeMenu), 16).getText());
+				assertEquals("Cyberpunk", radio(originals(themeMenu), 17).getText());
+				assertEquals("Synthwave", radio(originals(themeMenu), 18).getText());
+				assertEquals("Volcano", radio(originals(themeMenu), 19).getText());
+				assertEquals("Runic", radio(originals(themeMenu), 20).getText());
+				assertEquals("Spooky", radio(originals(themeMenu), 21).getText());
+				assertEquals("Garden", radio(originals(themeMenu), 22).getText());
+				assertEquals("Lavender", radio(originals(themeMenu), 23).getText());
+				assertRadios(originals(themeMenu), CardTheme.values(), CardTheme.CLASSIC);
 				assertTrue("opening the menu writes no theme", themes.isEmpty());
 
-				MenuSelectionManager.defaultManager().setSelectedPath(
-					new MenuElement[] {menu, themeMenu, themeMenu.getPopupMenu()});
+				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, themeMenu,
+					themeMenu.getPopupMenu(), originals(themeMenu), originals(themeMenu).getPopupMenu()});
 				assertTrue("the submenu is up", themeMenu.getPopupMenu().isVisible());
-				final JRadioButtonMenuItem stone = radio(themeMenu, 1);
+				final JRadioButtonMenuItem stone = radio(originals(themeMenu), 1);
 				click(stone);
 
 				assertEquals("one write, Stone", List.of(CardTheme.STONE), themes);
 				assertEquals("the stub is at Stone now", CardTheme.STONE, cardTheme);
 				assertTrue("Stone is the selected item", stone.isSelected());
-				assertFalse("Classic is not", radio(themeMenu, 0).isSelected());
+				assertFalse("Classic is not", radio(originals(themeMenu), 0).isSelected());
 				assertEquals("the row shows the choice at its right", "Stone", themeMenu.value());
 				assertEquals("and its text is still the caption", "Card theme", themeMenu.getText());
 				assertTrue("the menu is still up after the choice", menu.isVisible());
@@ -921,7 +1137,7 @@ public class ClanHubPanelTest
 				final JMenu coloursGroup = groupOf(menu, "Colours");
 				final JPanel nameRow = rowSaying(coloursGroup.getPopupMenu(), "Sidebar names");
 				final JSpinner delaySpinner = (JSpinner) lastOf(rowSaying(whenGroup.getPopupMenu(), "Delay (ms)"));
-				final JPanel okRow = (JPanel) menu.getComponents()[12];
+				final JPanel okRow = (JPanel) menu.getComponents()[13];
 
 				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu});
 				enter(okRow);
@@ -2558,7 +2774,7 @@ public class ClanHubPanelTest
 				assertEquals("Same as cards", sidebarMenu.value());
 				assertTrue("no picture before an item is armed", viewerPictures.isEmpty());
 
-				final JRadioButtonMenuItem synthwave = radio(themeMenu, CardTheme.SYNTHWAVE.ordinal());
+				final JRadioButtonMenuItem synthwave = radio(originals(themeMenu), CardTheme.SYNTHWAVE.ordinal());
 				assertEquals("Synthwave", synthwave.getText());
 				arm(menu, themeMenu, synthwave);
 				assertEquals("arming Synthwave shows one picture", 1, viewerPictures.size());
@@ -2567,7 +2783,7 @@ public class ClanHubPanelTest
 				assertEquals("level with the item on the screen", new Rectangle(synthwave.getLocationOnScreen(), synthwave.getSize()),
 					viewerPictures.get(0)[1]);
 
-				final JRadioButtonMenuItem forest = radio(themeMenu, CardTheme.FOREST.ordinal());
+				final JRadioButtonMenuItem forest = radio(originals(themeMenu), CardTheme.FOREST.ordinal());
 				assertEquals("Forest", forest.getText());
 				arm(menu, themeMenu, forest);
 				assertEquals("arming Forest shows a second", 2, viewerPictures.size());
@@ -2576,7 +2792,7 @@ public class ClanHubPanelTest
 				assertEquals("level with Forest's item", new Rectangle(forest.getLocationOnScreen(), forest.getSize()),
 					viewerPictures.get(1)[1]);
 
-				final JRadioButtonMenuItem garden = radio(sidebarMenu, 3 + CardTheme.GARDEN.ordinal());
+				final JRadioButtonMenuItem garden = radio(originals(sidebarMenu), CardTheme.GARDEN.ordinal());
 				assertEquals("Garden", garden.getText());
 				arm(menu, sidebarMenu, garden);
 				assertEquals("arming Garden in the sidebar list shows a third", 3, viewerPictures.size());
@@ -2638,8 +2854,12 @@ public class ClanHubPanelTest
 						others.add(label);
 					}
 				}
-				assertEquals("one other line speaks of themes", 1, others.size());
-				assertSame("and it is the empty list's tip", emptyListTipIn(panel[0]), others.get(0));
+				// Re-aimed by the lead, 2026-10-28 (lot 14A): the empty list's tip rotates, so the theme tip is one of five.
+				assertTrue("at most one other line speaks of themes", others.size() <= 1);
+				if (!others.isEmpty())
+				{
+					assertSame("and it is the empty list's tip", shownTipIn(panel[0]), others.get(0));
+				}
 			});
 		}
 		finally
@@ -2671,7 +2891,8 @@ public class ClanHubPanelTest
 			final Color[] stoneGrey = new Color[1];
 			onEdt(() ->
 			{
-				tip[0] = emptyListTipIn(panel[0]);
+				// Re-aimed by the lead, 2026-10-28 (lot 14A): whichever of the five tips shows.
+				tip[0] = shownTipIn(panel[0]);
 				final JLabel howToTip = howToTipIn(panel[0]);
 				final JList<CardHistory.Entry> list = historyListIn(panel[0]);
 				final JLabel header = labelSaying(panel[0], ClanHubPanel.RECENT_TEXT);
@@ -2685,7 +2906,7 @@ public class ClanHubPanelTest
 				assertFalse("the empty list is not shown", scroll.isShowing());
 				assertTrue("below the recent cards' header", yIn(panel[0], header) + header.getHeight() <= yIn(panel[0], tip[0]));
 				assertTrue("'Tip:' in bold", tip[0].getText().contains("<b>Tip:</b>"));
-				assertFalse("on one line", tip[0].getText().contains("<br>"));
+				// Re-aimed by the lead, 2026-10-28 (lot 14A): two lines are allowed (the user's yes); everyTipFitsTwoLines checks it.
 				// The user's words are 212 px, wider than the 209 px of ad38f45's shorter line: they are held to the list's room.
 				assertTrue("in the 222 px the list leaves it", tip[0].getPreferredSize().width <= 222);
 				assertEquals("in the how-to tip's grey", howToTip.getForeground(), tip[0].getForeground());
@@ -2724,6 +2945,181 @@ public class ClanHubPanelTest
 		{
 			onEdt(() -> frame[0].dispose());
 		}
+	}
+
+	/**
+	 * Lot 14A: with "Colour names" off the name tip speaks of "a name in a broadcast", as the how-to's action line does;
+	 * with it on, of "a coloured name in chat". The five draws of a new panel are the five tips, so both wordings are seen.
+	 */
+	@Test
+	public void colourNamesOffSaysAName() throws Exception
+	{
+		colourOn = false;
+		final List<String> off = fiveTipsShown();
+		assertTrue("tip 4 reads 'a name' with the colouring off: " + off,
+			off.contains("Tip: Hover a name in a broadcast for its card."));
+		for (final String tip : off)
+		{
+			assertFalse("no tip says 'coloured' with the colouring off: " + tip, tip.contains("coloured"));
+		}
+
+		colourOn = true;
+		final List<String> on = fiveTipsShown();
+		assertTrue("tip 4 reads 'a coloured name' with it on: " + on,
+			on.contains("Tip: Hover a coloured name in chat for its card."));
+		assertFalse("and not the plain wording", on.contains("Tip: Hover a name in a broadcast for its card."));
+	}
+
+	/**
+	 * Lot 14A: each time the sidebar is opened while the list is empty the next tip shows, never the one shown; with a
+	 * card in the list nothing changes, and when the list is cleared the next tip shows.
+	 */
+	@Test
+	public void activatingAnEmptyListShowsTheNextTip() throws Exception
+	{
+		final ClanHubPanel[] panel = new ClanHubPanel[1];
+		final JFrame[] frame = new JFrame[1];
+		final String[] before = new String[1];
+		onEdt(() ->
+		{
+			panel[0] = newPanel();
+			frame[0] = frameOf(panel[0]);
+		});
+		try
+		{
+			onEdt(() ->
+			{
+				final String first = plain(shownTipIn(panel[0]).getText());
+				panel[0].onActivate();
+				final String second = plain(shownTipIn(panel[0]).getText());
+				panel[0].onActivate();
+				final String third = plain(shownTipIn(panel[0]).getText());
+				assertNotEquals("the first activation shows another tip", first, second);
+				assertNotEquals("and the second another still", second, third);
+				assertTrue("the tip shows", shownTipIn(panel[0]).isShowing());
+				before[0] = third;
+			});
+			final String line = "GMucker has completed a medium combat task: Smite Fight.";
+			history.add(line, Collections.<HoverCard>singletonList(card("Smite Fight", "Smite_Fight", line)),
+				System.currentTimeMillis());
+			flush();
+			onEdt(() ->
+			{
+				assertTrue("a card is in the list", historyListIn(panel[0]).isShowing());
+				panel[0].onActivate();
+				panel[0].onActivate();
+				assertTrue("an activation leaves the list showing", historyListIn(panel[0]).isShowing());
+				assertEquals("and the tip as it was", before[0], plain(shownTipIn(panel[0]).getText()));
+			});
+			history.clear();
+			flush();
+			onEdt(() ->
+			{
+				assertTrue("clearing brings the tip back", shownTipIn(panel[0]).isShowing());
+				assertNotEquals("and it is the next tip", before[0], plain(shownTipIn(panel[0]).getText()));
+			});
+		}
+		finally
+		{
+			onEdt(() -> frame[0].dispose());
+		}
+	}
+
+	/** Lot 14A: with "Examine cards" and "Boss cards" off, no activation shows the examine tip or the boss tip. */
+	@Test
+	public void switchedOffFeaturesGiveNoTip() throws Exception
+	{
+		examineOn = false;
+		bossOn = false;
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				final Set<String> seen = new HashSet<>();
+				seen.add(plain(shownTipIn(panel).getText()));
+				for (int i = 0; i < 40; i++)
+				{
+					panel.onActivate();
+					seen.add(plain(shownTipIn(panel).getText()));
+				}
+				assertEquals("the other three tips: " + seen, 3, seen.size());
+				assertFalse("no examine tip", seen.contains("Tip:" + ClanHubPanel.TIP_EXAMINE));
+				assertFalse("no boss tip", seen.contains("Tip:" + ClanHubPanel.TIP_BOSS));
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/**
+	 * Lot 14A: every tip fits the 222 px the list leaves it and takes two lines at most, "Tip:" in bold; the five draws of
+	 * a new panel are the five tips.
+	 */
+	@Test
+	public void everyTipFitsTwoLines() throws Exception
+	{
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				final Set<String> distinct = new HashSet<>();
+				for (int i = 0; i < 5; i++)
+				{
+					if (i > 0)
+					{
+						panel.onActivate();
+					}
+					final JLabel tip = shownTipIn(panel);
+					final String words = plain(tip.getText());
+					distinct.add(words);
+					final JLabel oneLine = new JLabel("<html><b>Tip:</b> x</html>");
+					oneLine.setFont(tip.getFont());
+					assertTrue("'Tip:' in bold: " + words, tip.getText().contains("<b>Tip:</b>"));
+					assertTrue("two lines at most: " + words, tip.getText().split("<br>", -1).length <= 2);
+					assertTrue("laid out in two lines at most: " + words + ", " + tip.getPreferredSize().height + " px against "
+						+ oneLine.getPreferredSize().height + " for one",
+						tip.getPreferredSize().height < 3 * oneLine.getPreferredSize().height);
+					assertTrue("in the 222 px the list leaves it: " + words + ", " + tip.getPreferredSize().width + " px",
+						tip.getPreferredSize().width <= 222);
+				}
+				assertEquals("five different tips: " + distinct, 5, distinct.size());
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+	}
+
+	/** The new panel's first tip and the next four an opening of the sidebar shows, as a player reads them. */
+	private List<String> fiveTipsShown() throws Exception
+	{
+		final List<String> texts = new ArrayList<>();
+		onEdt(() ->
+		{
+			final ClanHubPanel panel = newPanel();
+			final JFrame frame = frameOf(panel);
+			try
+			{
+				texts.add(plain(shownTipIn(panel).getText()));
+				for (int i = 0; i < 4; i++)
+				{
+					panel.onActivate();
+					texts.add(plain(shownTipIn(panel).getText()));
+				}
+			}
+			finally
+			{
+				frame.dispose();
+			}
+		});
+		return texts;
 	}
 
 	/**
@@ -2766,6 +3162,16 @@ public class ClanHubPanelTest
 				clock.doClick(0);
 				assertEquals("clicking '14:32' writes it", List.of(CardTime.CLOCK_24), cardTimes);
 				assertTrue("and selects it", clock.isSelected());
+
+				// 1.1.0: Blur behind text lives under Card theme, not here; with an Original theme it is greyed and says why.
+				final JPanel frostRow = rowSaying(menu, "Blur behind text");
+				final javax.swing.JSlider frost = sliderIn(frostRow);
+				assertEquals("it starts at 0", 0, frost.getValue());
+				assertEquals("it runs from 0", 0, frost.getMinimum());
+				assertEquals("to 100", 100, frost.getMaximum());
+				assertFalse("with an Original theme the slider is greyed", frost.isEnabled());
+				assertEquals("and the row says why on hover", ClanHubPanel.FROST_OFF_TIP, frostRow.getToolTipText());
+				assertEquals("and so does the slider", ClanHubPanel.FROST_OFF_TIP, frost.getToolTipText());
 
 				assertTrue("the menu is still showing", menu.isVisible());
 				assertTrue("and the group", card.isVisible());
@@ -2934,8 +3340,9 @@ public class ClanHubPanelTest
 				assertEquals("Card theme", theme.getText());
 				assertEquals("Classic", theme.value());
 				final int themeWidth = theme.getPreferredSize().width;
-				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, theme, theme.getPopupMenu()});
-				click(radio(theme, CardTheme.STONE.ordinal()));
+				MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[] {menu, theme, theme.getPopupMenu(),
+					originals(theme), originals(theme).getPopupMenu()});
+				click(radio(originals(theme), CardTheme.STONE.ordinal()));
 				assertEquals("a pick makes the value 'Stone'", "Stone", theme.value());
 				assertEquals("and keeps the text", "Card theme", theme.getText());
 				assertEquals("and the width", themeWidth, theme.getPreferredSize().width);
@@ -3082,6 +3489,10 @@ public class ClanHubPanelTest
 	 */
 	private static String wordsOf(Component part)
 	{
+		if (part instanceof JLabel)
+		{
+			return plain(((JLabel) part).getText());
+		}
 		if (part instanceof AbstractButton)
 		{
 			return ((AbstractButton) part).getText();
@@ -3116,7 +3527,11 @@ public class ClanHubPanelTest
 		final List<String> words = new ArrayList<>();
 		for (final Component part : popup.getComponents())
 		{
-			words.add(wordsOf(part));
+			// Re-aimed by the builder, lot 15A: the greyed words that stand in for a locked row are not shown until then.
+			if (part.isVisible())
+			{
+				words.add(wordsOf(part));
+			}
 		}
 		return words;
 	}
@@ -3278,8 +3693,16 @@ public class ClanHubPanelTest
 	/** Arms {@code item} of {@code submenu} the way the mouse does: the selection path runs through the submenu to it. */
 	private static void arm(JPopupMenu menu, JMenu submenu, JMenuItem item)
 	{
-		MenuSelectionManager.defaultManager().setSelectedPath(
-			new MenuElement[] {menu, submenu, submenu.getPopupMenu(), item});
+		// Re-aimed by the builder, lot 15A: an item of a nested list sits in a group's submenu inside the list's.
+		final List<MenuElement> path = new ArrayList<>(Arrays.asList(menu, submenu, submenu.getPopupMenu()));
+		final Container parent = item.getParent();
+		if (parent instanceof JPopupMenu && parent != submenu.getPopupMenu() && ((JPopupMenu) parent).getInvoker() instanceof JMenu)
+		{
+			path.add((JMenu) ((JPopupMenu) parent).getInvoker());
+			path.add((JPopupMenu) parent);
+		}
+		path.add(item);
+		MenuSelectionManager.defaultManager().setSelectedPath(path.toArray(new MenuElement[0]));
 		assertTrue("the item is armed", item.isArmed());
 	}
 
@@ -3389,6 +3812,20 @@ public class ClanHubPanelTest
 			}
 		}
 		throw new AssertionError("no label outside the how-to's box says: " + EMPTY_LIST_TIP);
+	}
+
+	/** The tip the empty list shows now, whichever it is: the label outside the how-to's box whose words start with "Tip:". */
+	private static JLabel shownTipIn(Container root)
+	{
+		final Container box = howToBarIn(root).getParent();
+		for (final JLabel label : labelsIn(root))
+		{
+			if (plain(label.getText()).startsWith("Tip:") && !isInside(label, box))
+			{
+				return label;
+			}
+		}
+		throw new AssertionError("no label outside the how-to's box starts with: Tip:");
 	}
 
 	/** Whether {@code part} is {@code box} or lies anywhere under it. */
@@ -3674,6 +4111,19 @@ public class ClanHubPanelTest
 		return (JRadioButtonMenuItem) submenu.getMenuComponent(index);
 	}
 
+	/** The "Original" submenu of a nested theme list (lot 15A): the first group of it, which holds the original themes. */
+	private static JMenu originals(ValueMenu list)
+	{
+		for (final Component part : list.getMenuComponents())
+		{
+			if (part instanceof JMenu && ClanHubPanel.ORIGINAL_TEXT.equals(((JMenu) part).getText()))
+			{
+				return (JMenu) part;
+			}
+		}
+		throw new AssertionError("no Original submenu in " + list.getText());
+	}
+
 	/** The submenu holds one radio item per value, in the enum's order, and only the current value's is selected. */
 	private static void assertRadios(JMenu submenu, Object[] values, Object current)
 	{
@@ -3799,5 +4249,47 @@ public class ClanHubPanelTest
 			}
 		}
 		return null;
+	}
+
+	/** The slider somewhere inside {@code root} (the Blur behind text row's), or a failure. */
+	private static javax.swing.JSlider sliderIn(Container root)
+	{
+		for (final Component part : root.getComponents())
+		{
+			if (part instanceof javax.swing.JSlider)
+			{
+				return (javax.swing.JSlider) part;
+			}
+			if (part instanceof Container)
+			{
+				try
+				{
+					return sliderIn((Container) part);
+				}
+				catch (AssertionError e)
+				{
+					// not in this part
+				}
+			}
+		}
+		throw new AssertionError("no slider here");
+	}
+
+	/** The words of every label inside {@code root}, joined with spaces. */
+	private static String wordsOf(Container root)
+	{
+		final StringBuilder words = new StringBuilder();
+		for (final Component part : root.getComponents())
+		{
+			if (part instanceof JLabel)
+			{
+				words.append(' ').append(((JLabel) part).getText());
+			}
+			if (part instanceof Container)
+			{
+				words.append(wordsOf((Container) part));
+			}
+		}
+		return words.toString();
 	}
 }

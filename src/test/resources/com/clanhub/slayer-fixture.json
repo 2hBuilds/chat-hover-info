@@ -1,0 +1,9 @@
+{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki", "fetched": "2026-10-28",
+ "tasks": [
+  {"name": "Hellhounds", "wiki": "Hellhound", "slayer": 1, "combat": "122-136", "drops": [{"item": "Smouldering stone", "rate": "1/16384"}, {"item": "Magic shortbow scroll", "rate": "1/326.5"}]},
+  {"name": "Abyssal demons", "wiki": "Abyssal_demon", "slayer": 85, "combat": "124", "drops": [{"item": "Abyssal dagger", "rate": "1/32000"}, {"item": "Abyssal head", "rate": "1/6000"}, {"item": "Abyssal whip", "rate": "1/512"}]},
+  {"name": "Cerberus", "wiki": "Cerberus", "slayer": 91, "combat": "318", "drops": [{"item": "Hellpuppy", "rate": "1/3000"}]},
+  {"name": "The Abyssal Sire", "wiki": "Abyssal_Sire", "slayer": 85, "combat": "350", "drops": []},
+  {"name": "Banshees", "wiki": "Banshee"},
+  {"name": "Kree'arra", "wiki": "Kree'arra", "slayer": 1, "combat": "580", "drops": []}
+ ]}

@@ -7,6 +7,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -62,6 +63,28 @@ final class WikiCard
 
 	private WikiCard()
 	{
+	}
+
+	/**
+	 * The facts the infobox shows as rows: the card's own, and, for a slayer task, its progress as a plain "Progress" row
+	 * and the XP left as an "XP left" row in front of them, since this look has no bar. Every other card gives its own
+	 * facts, as {@link CardPainter#factsOf} does.
+	 */
+	static List<HoverCard.Pair> factsOf(HoverCard card)
+	{
+		final HoverCard.Progress progress = card.progress();
+		if (progress == null)
+		{
+			return CardPainter.factsOf(card);
+		}
+		final List<HoverCard.Pair> facts = new ArrayList<>();
+		facts.add(new HoverCard.Pair("Progress", progress.text, ""));
+		if (!progress.xpLeft.isEmpty())
+		{
+			facts.add(new HoverCard.Pair("XP left", progress.xpLeft, ""));
+		}
+		facts.addAll(CardPainter.factsOf(card));
+		return facts;
 	}
 
 	/**
@@ -138,7 +161,7 @@ final class WikiCard
 			this.stack = quantity == null ? "" : " " + quantity;
 			this.hint = card.hint();
 			this.widePicture = card.wikiPicture();
-			this.facts = CardPainter.factsOf(card);
+			this.facts = factsOf(card);
 			this.drops = CardPainter.dropsOf(card);
 			this.title = sans(Font.BOLD, 15, fontSize);
 			this.bold = sans(Font.BOLD, 13, fontSize);

@@ -1,0 +1,9 @@
+{"source": "Old School RuneScape Wiki", "licence": "CC BY-NC-SA 3.0", "url": "https://oldschool.runescape.wiki", "fetched": "2026-10-28",
+ "tasks": [
+  {"name": "Hellhounds", "wiki": "Hellhound", "slayer": 1, "combat": "122-136", "xp": "116", "drops": [{"item": "Smouldering stone", "rate": "1/32768"}]},
+  {"name": "Abyssal demons", "wiki": "Abyssal_demon", "slayer": 85, "combat": "124", "xp": "116-130", "drops": [{"item": "Abyssal whip", "rate": "1/512"}]},
+  {"name": "Cerberus", "wiki": "Cerberus", "slayer": 91, "combat": "318", "xp": "690", "drops": [{"item": "Hellpuppy", "rate": "1/3000"}]},
+  {"name": "Banshees", "wiki": "Banshee", "slayer": 15, "combat": "23", "xp": "", "drops": [{"item": "Mystic gloves (dark)", "rate": "1/512"}]},
+  {"name": "Cave bugs", "wiki": "Cave_bug", "slayer": 7, "combat": "6", "xp": "62.5", "drops": []},
+  {"name": "Cows", "wiki": "Cow", "slayer": 1, "combat": "2", "drops": []}
+ ]}

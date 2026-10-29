@@ -851,4 +851,68 @@ public class ChatCardOverlayTest
 		assertSame("the mouse a little inside the words", quiet, frameAt(from + 3, 407));
 		assertNull("the mouse 11 px left of them, where the icon pushes them from", frameAt(from - 11, 407));
 	}
+
+	/**
+	 * Lot 15A: while a picture theme is the card theme the card is Medium and opens at the cursor, whatever Card width and
+	 * Card place say; with an original theme the player's own settings apply again, untouched.
+	 */
+	@Test
+	public void aPictureThemeMakesTheCardMediumAtTheCursor()
+	{
+		final PictureTheme theme = PictureFixtures.theme("lock", "Calm", "bright", false, 0.5, 0.5, false);
+		PictureThemes.install(PictureFixtures.catalogue(
+			PictureFixtures.loader(new Color(30, 90, 60), new java.util.HashMap<String, Integer>(), new java.util.ArrayList<String>()),
+			theme));
+		try
+		{
+			final Widget frame = mock(Widget.class);
+			when(frame.isHidden()).thenReturn(false);
+			when(frame.getBounds()).thenReturn(new Rectangle(0, 340, 519, 142));
+			when(client.getWidget(InterfaceID.Chatbox.UNIVERSE)).thenReturn(frame);
+			final Widget visible = line(new Rectangle(0, 400, 500, 14));
+			when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+			final int words = wordsX(LINE, 22, 34, 0);
+			when(config.cardWidth()).thenReturn(ClanHubConfig.CardWidth.WIDE);
+			when(config.cardPlace()).thenReturn(ClanHubConfig.CardPlace.CHAT);
+
+			when(config.pictureTheme()).thenReturn("lock");
+			assertSame("the card is hit", claws, frameAt(words, 407));
+			final Rectangle picture = paintedBox(414);
+			assertEquals("Medium (409 px) though Card width says Wide", 409, picture.width);
+			assertEquals("at the cursor though Card place says above the chat", Math.max(0, words - 409 / 2), picture.x);
+			assertEquals("its bottom row is 400, 6 px above the mouse", 400, picture.y + picture.height - 1);
+			assertEquals("the picture's own edge ring is the card's corner", 0xFFFF0000, canvas.getRGB(picture.x, picture.y));
+			assertEquals("the card image the sidebar shows is Medium too", 409, overlay.cardImage(claws).getWidth());
+
+			when(config.pictureTheme()).thenReturn("");
+			assertSame("the card is hit", claws, frameAt(words, 407));
+			final Rectangle original = paintedBox(414);
+			assertEquals("an original theme: the chatbox's width again", 519, original.width);
+			assertEquals("and its left edge", 0, original.x);
+		}
+		finally
+		{
+			PictureThemes.install(PictureFixtures.catalogue(null));
+		}
+	}
+
+	/** Lot 15A: a picture theme whose picture is missing makes a Classic card, without a throw. */
+	@Test
+	public void aMissingPictureMakesAClassicCard()
+	{
+		final PictureTheme theme = PictureFixtures.theme("gone", "Calm", "bright", false, 0.5, 0.5, false);
+		PictureThemes.install(PictureFixtures.catalogue(PictureFixtures.loader(Color.BLACK, new java.util.HashMap<String, Integer>(),
+			Arrays.asList(PictureFixtures.path("gone", 150), PictureFixtures.path("gone", 200), PictureFixtures.path("gone", 250))),
+			theme));
+		try
+		{
+			when(config.pictureTheme()).thenReturn("gone");
+			final BufferedImage image = overlay.cardImage(claws);
+			assertEquals("the Classic card's black edge", 0xFF000000, image.getRGB(0, 0));
+		}
+		finally
+		{
+			PictureThemes.install(PictureFixtures.catalogue(null));
+		}
+	}
 }

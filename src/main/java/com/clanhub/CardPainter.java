@@ -79,6 +79,12 @@ final class CardPainter
 	/** The least air between two facts, and between two drops of the wide card, at 16 px. */
 	private static final int FACT_GAP = 16;
 	private static final int DROP_GAP = 12;
+	/** A slayer task's progress bar, at 16 px: its length, its thickness, and the air between it and the words beside it. */
+	private static final int PROGRESS_BAR = 120;
+	private static final int PROGRESS_THICK = 6;
+	private static final int PROGRESS_GAP = 10;
+	/** The label that follows the XP left, in the label colour. */
+	private static final String XP_LEFT = " XP left";
 
 	/** The card opens this far above the cursor; when it opens below instead, its top is this far under it. */
 	private static final int OPEN_ABOVE = 6;
@@ -164,6 +170,7 @@ final class CardPainter
 		pen.rule(x + style.inset, lineTop, width - 2 * style.inset, 1);
 		lineTop += 1 + RULE_AIR;
 		pen.string(card.hint(), faces.hint, style.hint, x + style.inset, lineTop + faces.hintMetrics.getAscent());
+		pen.finish(x, y, width, height);
 		return new Dimension(width, height);
 	}
 
@@ -199,6 +206,7 @@ final class CardPainter
 		wideContent(pen, faces, card, picture, fontSize, width, x, y, description, accent);
 		pen.string(card.hint(), faces.hint, style.hint, x + style.inset,
 			y + style.inset + content + faces.hintMetrics.getAscent());
+		pen.finish(x, y, width, height);
 		return new Dimension(width, height);
 	}
 
@@ -236,7 +244,7 @@ final class CardPainter
 		final int hintNeed = faces.hintMetrics.stringWidth(card.hint());
 		final int need = Math.max(Math.max(headerNeed(faces, card, fontSize, innerMax), paragraphNeed),
 			Math.max(dropsNeed, hintNeed));
-		final int inner = Math.min(innerMax, need);
+		final int inner = style.picture != null ? innerMax : Math.min(innerMax, need);
 
 		// The header, then the drops: "Drops:" and each source in grey, each rate in white, one comma after each drop but the last.
 		int y = top + headerRow(pen, faces, card, picture, fontSize, left, top, inner);
@@ -264,7 +272,8 @@ final class CardPainter
 			y += 1 + RULE_AIR;
 			for (final TextLine line : lines)
 			{
-				pen.string(line.text, faces.body, DESCRIPTION, left + line.indent, y + body.getAscent());
+				pen.string(line.text, faces.body, style.picture != null ? style.text : DESCRIPTION, left + line.indent,
+					y + body.getAscent());
 				y += faces.bodyHeight;
 			}
 		}
@@ -350,7 +359,8 @@ final class CardPainter
 		y += 1 + RULE_AIR;
 		for (final TextLine line : layout(description, body, innerWidth, WIDE_LINES))
 		{
-			pen.string(line.text, faces.body, DESCRIPTION, left + line.indent, y + body.getAscent());
+			pen.string(line.text, faces.body, style.picture != null ? style.text : DESCRIPTION, left + line.indent,
+				y + body.getAscent());
 			y += faces.bodyHeight;
 		}
 		return y - top;
@@ -362,7 +372,8 @@ final class CardPainter
 	 * where it would pass the right edge, with the stack in grey after it; the facts of the first row at the right end of
 	 * the line, or, when they would not fit beside the title and the stack, under the title at the text's left, set in
 	 * rows by {@link #factRows} (as many facts to a row as fit between the text's left and the right edge), which makes
-	 * the row taller by a body line for each fact row.
+	 * the row taller by a body line for each fact row. A slayer task's card has a progress row first under the title, the
+	 * facts after it, always under the title ({@link #drawProgress}).
 	 */
 	private static int headerRow(Pen pen, Faces faces, HoverCard card, BufferedImage picture, int fontSize, int left,
 		int top, int innerWidth)
@@ -379,11 +390,14 @@ final class CardPainter
 		final int nameWidth = faces.titleMetrics.stringWidth(name);
 		final List<HoverCard.Pair> facts = factsOf(card);
 		final int factsWidth = rowWidth(facts, body, factGap);
-		final boolean under = !facts.isEmpty() && textLeft + nameWidth + stackWidth + factGap + factsWidth > right;
+		final HoverCard.Progress progress = card.progress();
+		final boolean under = progress != null
+			|| !facts.isEmpty() && textLeft + nameWidth + stackWidth + factGap + factsWidth > right;
 		final List<List<HoverCard.Pair>> underRows = under ? factRows(facts, body, right - textLeft, factGap)
 			: new ArrayList<List<HoverCard.Pair>>();
+		final int progressHeight = progress == null ? 0 : faces.bodyHeight;
 		final int rowHeight = Math.max(boxHeight,
-			under ? faces.titleHeight + underRows.size() * faces.bodyHeight : faces.titleHeight);
+			under ? faces.titleHeight + progressHeight + underRows.size() * faces.bodyHeight : faces.titleHeight);
 		if (card.wikiPicture())
 		{
 			pen.pictureInBox(picture, left, top, PICTURE_BOX);
@@ -402,6 +416,11 @@ final class CardPainter
 		if (under)
 		{
 			int baseline = top + faces.titleHeight + body.getAscent();
+			if (progress != null)
+			{
+				drawProgress(pen, faces, progress, textLeft, baseline, fontSize);
+				baseline += faces.bodyHeight;
+			}
 			for (final List<HoverCard.Pair> factRow : underRows)
 			{
 				drawRow(pen, faces, factRow, textLeft, baseline, factGap);
@@ -436,17 +455,63 @@ final class CardPainter
 		final List<HoverCard.Pair> facts = factsOf(card);
 		final int factsWidth = rowWidth(facts, body, factGap);
 		final int beside = textLeft + titleWidth + stackWidth + (facts.isEmpty() ? 0 : factGap + factsWidth);
-		if (facts.isEmpty() || beside <= innerMax)
+		final HoverCard.Progress progress = card.progress();
+		if (progress == null && (facts.isEmpty() || beside <= innerMax))
 		{
 			return beside;
 		}
 		final String fitted = fit(nameOf(card), faces.titleMetrics, Math.max(1, innerMax - textLeft - stackWidth));
-		int widestFact = 0;
+		int widestFact = progress == null ? 0 : progressWidth(faces, progress, fontSize);
 		for (final HoverCard.Pair fact : facts)
 		{
 			widestFact = Math.max(widestFact, rowWidth(Collections.singletonList(fact), body, factGap));
 		}
 		return textLeft + Math.max(faces.titleMetrics.stringWidth(fitted) + stackWidth, widestFact);
+	}
+
+	/**
+	 * The progress row of a slayer task's card, on {@code baseline} from {@code left}: the bar, its track in the style's rule
+	 * colour and its fill, to the killed of the total, in its value colour (so that every look has its own), and beside it
+	 * the words ("10/155") in the value colour and the XP left ("16,820" in the value colour, then "XP left" in the label
+	 * colour). With no total there is no bar: the words ("145 left") and the XP left, from {@code left}.
+	 */
+	private static void drawProgress(Pen pen, Faces faces, HoverCard.Progress progress, int left, int baseline, int fontSize)
+	{
+		final int gap = scaled(PROGRESS_GAP, fontSize);
+		int x = left;
+		if (progress.hasBar())
+		{
+			final int length = scaled(PROGRESS_BAR, fontSize);
+			final int thick = scaled(PROGRESS_THICK, fontSize);
+			final int filled = progress.fraction <= 0 ? 0
+				: Math.min(length, Math.max(1, (int) Math.round(length * progress.fraction)));
+			pen.bar(x, baseline - faces.bodyMetrics.getAscent() + (faces.bodyHeight - thick) / 2, length, thick, filled);
+			x += length + gap;
+		}
+		pen.string(progress.text, faces.body, pen.style.value, x, baseline);
+		x += faces.bodyMetrics.stringWidth(progress.text);
+		if (!progress.xpLeft.isEmpty())
+		{
+			x += scaled(FACT_GAP, fontSize) / 2;
+			pen.string(progress.xpLeft, faces.body, pen.style.value, x, baseline);
+			x += faces.bodyMetrics.stringWidth(progress.xpLeft);
+			pen.string(XP_LEFT, faces.body, pen.style.label, x, baseline);
+		}
+	}
+
+	/** The width {@link #drawProgress} draws in, in px. */
+	private static int progressWidth(Faces faces, HoverCard.Progress progress, int fontSize)
+	{
+		int width = faces.bodyMetrics.stringWidth(progress.text);
+		if (progress.hasBar())
+		{
+			width += scaled(PROGRESS_BAR, fontSize) + scaled(PROGRESS_GAP, fontSize);
+		}
+		if (!progress.xpLeft.isEmpty())
+		{
+			width += scaled(FACT_GAP, fontSize) / 2 + faces.bodyMetrics.stringWidth(progress.xpLeft + XP_LEFT);
+		}
+		return width;
 	}
 
 	/**
@@ -885,6 +950,14 @@ final class CardPainter
 		/** The card's left edge and its width, in px, which a style's gradient runs across. */
 		private final int cardLeft;
 		private final int cardWidth;
+		/**
+		 * For a picture theme, what is drawn waits here until {@link #finish} has put the picture down, and the boxes of the
+		 * strings (and the title's) are kept for the picture's treatment; null for every other style.
+		 */
+		private final List<Runnable> queue;
+		private final List<int[]> boxes = new ArrayList<>();
+		private int[] titleBox;
+		private boolean inTitle;
 
 		Pen(Graphics2D g, boolean draw, CardStyle style)
 		{
@@ -898,6 +971,52 @@ final class CardPainter
 			this.style = style;
 			this.cardLeft = cardLeft;
 			this.cardWidth = cardWidth;
+			this.queue = draw && style.picture != null ? new ArrayList<Runnable>() : null;
+		}
+
+		/** Runs {@code step} now, or keeps it for {@link #finish} when this pen draws a picture theme; nothing when it does not draw. */
+		private void later(Runnable step)
+		{
+			if (queue != null)
+			{
+				queue.add(step);
+			}
+			else if (draw)
+			{
+				step.run();
+			}
+		}
+
+		/**
+		 * For a picture theme, puts the card's ground down (its picture, treated under the words laid out, or the theme's
+		 * first sidebar colour when the picture cannot be had), then draws everything kept over it. Nothing for any other style.
+		 */
+		void finish(int x, int y, int width, int height)
+		{
+			if (queue == null)
+			{
+				return;
+			}
+			final List<int[]> lines = new ArrayList<>();
+			for (final int[] box : boxes)
+			{
+				lines.add(new int[] {box[0] - x, box[1] - y, box[2], box[3]});
+			}
+			final int[] title = titleBox == null ? null : new int[] {titleBox[0] - x, titleBox[1] - y, titleBox[2], titleBox[3]};
+			final BufferedImage ground = PictureThemes.current().ground(style.picture, width, height, lines, title);
+			if (ground == null)
+			{
+				g.setColor(style.ground);
+				g.fillRect(x, y, width, height);
+			}
+			else
+			{
+				g.drawImage(ground, x, y, null);
+			}
+			for (final Runnable step : queue)
+			{
+				step.run();
+			}
 		}
 
 		/**
@@ -912,11 +1031,23 @@ final class CardPainter
 		/** Draws the string in {@code paint}; {@code edged} false leaves out the outline or the shadow. */
 		private void paintString(String text, Font font, Paint paint, int x, int baseline, boolean edged)
 		{
-			if (draw)
+			if (queue != null && !text.trim().isEmpty())
+			{
+				final FontMetrics metrics = g.getFontMetrics(font);
+				final int[] box = {x, baseline - metrics.getAscent(), metrics.stringWidth(text),
+					metrics.getAscent() + metrics.getDescent()};
+				boxes.add(box);
+				titleBox = inTitle ? box : titleBox;
+			}
+			later(() ->
 			{
 				final Paint before = g.getPaint();
 				g.setFont(font);
-				if (edged && style.outline)
+				if (edged && style.picture != null)
+				{
+					PictureArt.edged(g, style.picture, text, x, baseline);
+				}
+				else if (edged && style.outline)
 				{
 					g.setColor(Color.BLACK);
 					g.drawString(text, x - 1, baseline);
@@ -933,7 +1064,7 @@ final class CardPainter
 				g.setPaint(paint);
 				g.drawString(text, x, baseline);
 				g.setPaint(before);
-			}
+			});
 		}
 
 		/**
@@ -971,9 +1102,28 @@ final class CardPainter
 			if (draw)
 			{
 				// A title with an outline of its own (Steampunk's brown, Synthwave's plum) takes no black one over it.
+				inTitle = true;
 				paintString(text, font, style.titleGradient == null ? style.title : across(), x, baseline,
 					style.titleOutline == null);
+				inTitle = false;
 			}
+		}
+
+		/**
+		 * Draws a progress bar whose top-left corner is ({@code x}, {@code y}): a track {@code width} by {@code height} px in
+		 * the style's rule colour, and over its left {@code filled} px the fill in the style's value colour.
+		 */
+		void bar(int x, int y, int width, int height, int filled)
+		{
+			later(() ->
+			{
+				final Paint before = g.getPaint();
+				g.setColor(style.rule);
+				g.fillRect(x, y, width, height);
+				g.setColor(style.value);
+				g.fillRect(x, y, filled, height);
+				g.setPaint(before);
+			});
 		}
 
 		/**
@@ -982,7 +1132,7 @@ final class CardPainter
 		 */
 		void rule(int x, int y, int width, int height)
 		{
-			if (draw)
+			later(() ->
 			{
 				final Paint before = g.getPaint();
 				g.setPaint(style.gradientRules ? across() : style.rule);
@@ -993,7 +1143,7 @@ final class CardPainter
 					g.fillRect(x, y + height, width, 1);
 				}
 				g.setPaint(before);
-			}
+			});
 		}
 
 		/** The style's gradient colours, left to right across the card, evenly spaced. */
@@ -1010,9 +1160,9 @@ final class CardPainter
 
 		void picture(BufferedImage image, int x, int y)
 		{
-			if (draw && image != null)
+			if (image != null)
 			{
-				g.drawImage(image, x, y, null);
+				later(() -> g.drawImage(image, x, y, null));
 			}
 		}
 
@@ -1023,7 +1173,7 @@ final class CardPainter
 		 */
 		void pictureInBox(BufferedImage image, int x, int y, int box)
 		{
-			if (!draw || image == null)
+			if (image == null)
 			{
 				return;
 			}
@@ -1031,13 +1181,13 @@ final class CardPainter
 			final int height = image.getHeight();
 			if (width <= box && height <= box)
 			{
-				g.drawImage(image, x + (box - width) / 2, y + (box - height) / 2, null);
+				later(() -> g.drawImage(image, x + (box - width) / 2, y + (box - height) / 2, null));
 				return;
 			}
 			final double scale = Math.min(box / (double) width, box / (double) height);
 			final int fittedWidth = Math.max(1, (int) Math.round(width * scale));
 			final int fittedHeight = Math.max(1, (int) Math.round(height * scale));
-			g.drawImage(image, x + (box - fittedWidth) / 2, y + (box - fittedHeight) / 2, fittedWidth, fittedHeight, null);
+			later(() -> g.drawImage(image, x + (box - fittedWidth) / 2, y + (box - fittedHeight) / 2, fittedWidth, fittedHeight, null));
 		}
 	}
 }

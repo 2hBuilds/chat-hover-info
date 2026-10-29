@@ -21,8 +21,9 @@ import org.slf4j.LoggerFactory;
 /**
  * The quests, combat achievement tasks, pets, achievement diaries and skill unlocks of the Old School RuneScape Wiki,
  * from the table the plugin bundles ({@code /com/clanhub/cards.json}, built from the wiki and credited in its own
- * header), and the bosses' combat level, hitpoints, max hit and quest from the second table it bundles
- * ({@code /com/clanhub/bosses.json}, credited the same way): for a name, what the wiki says about it, and for a skill's
+ * header), the bosses' combat level, hitpoints, max hit and quest from the second table it bundles
+ * ({@code /com/clanhub/bosses.json}, credited the same way) and the slayer tasks' Slayer level, combat level and notable
+ * drops from the third ({@code /com/clanhub/slayer.json}): for a name, what the wiki says about it, and for a skill's
  * level, what the wiki lists as new at it. The tables are read once, off the client thread, a second or two after
  * start-up; until then, and for ever if the file is missing or unreadable, every lookup answers null and the cards of
  * these broadcasts are the plain ones. Parsing is pure and is the only part that needs the tables' shape.
@@ -31,7 +32,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Choice: the boss table is a file of its own, and the load treats it apart from the cards: a boss file that is
  * missing or unreadable leaves {@link #boss} answering null and the rest of the table loaded, and when the card table
- * did not load nothing of the bosses is read.
+ * did not load nothing of the bosses is read. The slayer table is treated the same way, apart from both.
  */
 final class CardTables
 {
@@ -42,6 +43,9 @@ final class CardTables
 
 	/** Where the bundled boss table lives on the classpath. */
 	private static final String BOSSES = "/com/clanhub/bosses.json";
+
+	/** Where the bundled slayer table lives on the classpath. */
+	private static final String SLAYER = "/com/clanhub/slayer.json";
 
 	/** What the wiki says of a quest. */
 	static final class QuestInfo
@@ -154,6 +158,48 @@ final class CardTables
 		}
 	}
 
+	/** What the wiki says of a slayer task, as RuneLite's Slayer plugin names it in the answer to {@code !task}. */
+	static final class SlayerInfo
+	{
+		/** One notable drop of the task's monster. */
+		static final class Drop
+		{
+			/** The item's name, such as "Abyssal whip". */
+			final String item;
+			/** The rate as "1/N", such as "1/512"; empty when the table has none. */
+			final String rate;
+
+			Drop(String item, String rate)
+			{
+				this.item = item;
+				this.rate = rate;
+			}
+		}
+
+		/** The task's name as RuneLite spells it, such as "Abyssal demons". */
+		final String name;
+		/** The wiki page of the monster the task is named for, such as "Abyssal_demon". */
+		final String wiki;
+		/** The Slayer level the task asks for; 1 when it asks for none, 0 when the table does not say. */
+		final int slayer;
+		/** The monster's combat level or range as the table writes it, such as "122-136"; empty when it has none. */
+		final String combat;
+		/** The Slayer XP one kill gives as the table writes it, such as "116", "62.5" or "116-130"; empty when it has none. */
+		final String xp;
+		/** The task's notable drops, at most three in the bundled table, the rarest first; may be empty. */
+		final List<Drop> drops;
+
+		SlayerInfo(String name, String wiki, int slayer, String combat, String xp, List<Drop> drops)
+		{
+			this.name = name;
+			this.wiki = wiki;
+			this.slayer = slayer;
+			this.combat = combat;
+			this.xp = xp;
+			this.drops = Collections.unmodifiableList(new ArrayList<>(drops));
+		}
+	}
+
 	/** A table read whole: each kind by its name's key. */
 	private static final class Table
 	{
@@ -162,6 +208,7 @@ final class CardTables
 		private final Map<String, PetInfo> pets = new HashMap<>();
 		private final Map<String, DiaryInfo> diaries = new HashMap<>();
 		private final Map<String, BossInfo> bosses = new HashMap<>();
+		private final Map<String, SlayerInfo> slayers = new HashMap<>();
 		/** Each skill's key, then each level with unlocks, to what the wiki lists as new at it. */
 		private final Map<String, Map<Integer, List<String>>> unlocks = new HashMap<>();
 	}
@@ -252,6 +299,55 @@ final class CardTables
 			}
 		}
 		return this;
+	}
+
+	/**
+	 * Reads the slayer table's shape, {@code {"tasks": [...]}}, each entry an object with a {@code name}, a {@code wiki}
+	 * page, a {@code slayer} level, a {@code combat} text, an {@code xp} text and a {@code drops} array of objects with an
+	 * {@code item} and a {@code rate}, into this table, and returns this table. A missing array gives no tasks.
+	 *
+	 * <p>Choice: as {@link #readBosses} reads its kind: an entry with no {@code name} is skipped, a missing text reads as an
+	 * empty text and a missing number as 0, and a name met twice keeps its first entry; a drop that is no object or has no
+	 * item is skipped and one with no rate reads as an empty rate.
+	 *
+	 * @throws IllegalStateException when this table has not loaded: the tasks are added to a table {@link #parse} made
+	 * @throws com.google.gson.JsonParseException when the text is not JSON
+	 */
+	CardTables readSlayer(Reader json, Gson gson)
+	{
+		if (table == null)
+		{
+			throw new IllegalStateException("the slayer table is read into a table that has loaded");
+		}
+		final JsonObject root = gson.fromJson(json, JsonObject.class);
+		if (root != null)
+		{
+			for (final JsonObject entry : objectsOf(root, "tasks"))
+			{
+				table.slayers.putIfAbsent(key(text(entry, "name")), new SlayerInfo(text(entry, "name"), text(entry, "wiki"),
+					number(entry, "slayer"), text(entry, "combat"), text(entry, "xp"), dropsOf(entry)));
+			}
+		}
+		return this;
+	}
+
+	/** The drops of a slayer task's entry: each object of its {@code drops} array that names an item, in the file's order. */
+	private static List<SlayerInfo.Drop> dropsOf(JsonObject entry)
+	{
+		final List<SlayerInfo.Drop> drops = new ArrayList<>();
+		final JsonElement array = entry.get("drops");
+		if (array == null || !array.isJsonArray())
+		{
+			return drops;
+		}
+		for (final JsonElement element : array.getAsJsonArray())
+		{
+			if (element.isJsonObject() && !text(element.getAsJsonObject(), "item").isEmpty())
+			{
+				drops.add(new SlayerInfo.Drop(text(element.getAsJsonObject(), "item"), text(element.getAsJsonObject(), "rate")));
+			}
+		}
+		return drops;
 	}
 
 	/**
@@ -387,6 +483,15 @@ final class CardTables
 		return loaded() && name != null ? table.bosses.get(key(name)) : null;
 	}
 
+	/**
+	 * The slayer task called {@code task}, as RuneLite's Slayer plugin writes it in its answer to {@code !task}, matched as
+	 * {@link #quest} matches; null when the slayer table does not know it or has not loaded.
+	 */
+	SlayerInfo slayer(String task)
+	{
+		return loaded() && task != null ? table.slayers.get(key(task)) : null;
+	}
+
 	/** The achievement diary of the area called {@code area}, matched as {@link #quest} matches; null when unknown. */
 	DiaryInfo diary(String area)
 	{
@@ -430,7 +535,7 @@ final class CardTables
 		executor.execute(() -> load(gson));
 	}
 
-	/** The load task: two classpath reads, two parses, one publish. */
+	/** The load task: three classpath reads, three parses, one publish. */
 	private void load(Gson gson)
 	{
 		try (InputStream in = CardTables.class.getResourceAsStream(RESOURCE))
@@ -442,6 +547,7 @@ final class CardTables
 			}
 			final CardTables read = parse(new InputStreamReader(in, StandardCharsets.UTF_8), gson);
 			readBossTable(read, gson);
+			readSlayerTable(read, gson);
 			table = read.table;
 		}
 		catch (IOException | RuntimeException e)
@@ -469,6 +575,27 @@ final class CardTables
 		catch (IOException | RuntimeException e)
 		{
 			log.warn("The boss table {} could not be read ({}); the boss cards show no facts", BOSSES, e.toString());
+		}
+	}
+
+	/**
+	 * Reads the bundled slayer table into {@code into}, which has not been published. A missing resource or a table that
+	 * does not parse logs one warning naming the cause and leaves the tasks empty; nothing is thrown out of it.
+	 */
+	private static void readSlayerTable(CardTables into, Gson gson)
+	{
+		try (InputStream in = CardTables.class.getResourceAsStream(SLAYER))
+		{
+			if (in == null)
+			{
+				log.warn("The slayer table {} is not in the plugin; the slayer task cards are not given", SLAYER);
+				return;
+			}
+			into.readSlayer(new InputStreamReader(in, StandardCharsets.UTF_8), gson);
+		}
+		catch (IOException | RuntimeException e)
+		{
+			log.warn("The slayer table {} could not be read ({}); the slayer task cards are not given", SLAYER, e.toString());
 		}
 	}
 }
