@@ -116,6 +116,12 @@ public class ChatCardOverlay extends Overlay
 	private int lastY = NOWHERE;
 	/** The card shown at the last frame that showed one, null when the mouse has been off every card since. */
 	private HoverCard held;
+	/** The card whose spot is kept, and that spot: the mouse when the card first showed. */
+	private HoverCard anchored;
+	private int anchorX;
+	private int anchorY;
+	/** Whether the last frame painted the card at the cursor at the kept spot. */
+	private boolean anchorPainted;
 	/** When the mouse came onto the held card's words, as {@link #hitSince} counts it. */
 	private long heldSince;
 	/** Where the mouse was when the held card was last hit on its words. */
@@ -251,6 +257,9 @@ public class ChatCardOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D g)
 	{
+		// The kept spot lives only while every frame paints the card at the cursor; any frame that does not ends it.
+		final boolean anchorLive = anchorPainted;
+		anchorPainted = false;
 		if (!config.showCards())
 		{
 			forget();
@@ -363,6 +372,15 @@ public class ChatCardOverlay extends Overlay
 		{
 			return null;
 		}
+		// Choice (the user's pick after a recording, 2026-10-30): the card at the cursor keeps the spot where it first showed
+		// for as long as the same card shows. A stretched client re-blends a moving card's letters at every step, which
+		// reads as blurred, choppy words; a card that stays put is one look. The next card opens where the mouse is then.
+		if (anchored != shown || !anchorLive)
+		{
+			anchored = shown;
+			anchorX = mouseX;
+			anchorY = mouseY;
+		}
 
 		final BufferedImage picture = pictureOf(shown);
 		final int fontSize = config.cardFontSize();
@@ -388,7 +406,8 @@ public class ChatCardOverlay extends Overlay
 		final Dimension size = CardPainter.paintSplit(measure, shown, picture, fontSize, 0, 0, description, width.cap,
 			width.lines, style);
 		measure.dispose();
-		final Rectangle at = CardPainter.placeCentred(new Point(mouseX, mouseY), size,
+		anchorPainted = true;
+		final Rectangle at = CardPainter.placeCentred(new Point(anchorX, anchorY), size,
 			new Dimension(client.getCanvasWidth(), client.getCanvasHeight()));
 		CardPainter.paintSplit(g, shown, picture, fontSize, at.x, at.y, description, width.cap, width.lines, style);
 		return null;

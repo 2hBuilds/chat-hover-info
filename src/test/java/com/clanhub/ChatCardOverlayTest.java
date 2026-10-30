@@ -722,6 +722,33 @@ public class ChatCardOverlayTest
 		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible, fresh});
 	}
 
+	/**
+	 * The user's ask (2026-10-30): a card at the cursor stays where it first showed while the mouse moves on the same words,
+	 * so a stretched client does not re-blend its letters at every step; the next hover opens it where the mouse is then.
+	 */
+	@Test
+	public void theCardStaysWhereItFirstShowedWhileOnTheSameWords()
+	{
+		when(config.cardPlace()).thenReturn(ClanHubConfig.CardPlace.CURSOR);
+		final Widget visible = line(new Rectangle(300, 400, 465, 14));
+		when(area.getDynamicChildren()).thenReturn(new Widget[] {visible});
+		final int words = wordsX(LINE, 22, 34, 300);
+
+		assertSame("on the words", claws, frameAt(words, 407));
+		final Rectangle first = paintedBox(414);
+		assertNotNull("the card painted", first);
+		assertSame("still on the words, 8 px on", claws, frameAt(words + 8, 407));
+		assertEquals("the card has not moved", first, paintedBox(414));
+		assertSame("and 8 px back the other way", claws, frameAt(words - 8, 407));
+		assertEquals("still where it first showed", first, paintedBox(414));
+
+		assertNull("off the words", frameAt(words, 300));
+		assertSame("a new hover, 8 px on", claws, frameAt(words + 8, 407));
+		final Rectangle again = paintedBox(414);
+		assertEquals("opens where the mouse is now", first.x + 8, again.x);
+		assertEquals("at the same height", first.y, again.y);
+	}
+
 	@Test
 	public void theCardHoldsWhileTheMouseIsStillWhenTheChatMoves()
 	{
