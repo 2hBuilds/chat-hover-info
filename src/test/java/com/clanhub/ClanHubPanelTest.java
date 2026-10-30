@@ -887,6 +887,12 @@ public class ClanHubPanelTest
 					blur.setValueIsAdjusting(false);
 					assertEquals("the drag's end saves the value once", List.of(37), frostOpacities);
 					assertTrue("and the number shows it", wordsOf(blurRow).contains("37"));
+					// The user's ask: the number ends at the row's right edge, under the arrows of the rows around it, so its
+					// box keeps the width of "100" (the box layout would shrink it to the digits and leave it short).
+					menu.validate();
+					final JLabel number = numberIn(blurRow);
+					// (Where it ends against the arrows depends on RuneLite's look; the local MenuBuiltRenderTest shows it.)
+					assertEquals("the number keeps its box", number.getPreferredSize().width, number.getWidth());
 
 					final JPopupMenu card = open(menu, groupOf(menu, "Card"));
 					assertEquals("the width and place rows are the locked words", List.of("WIDTH", "Medium (by the theme)",
@@ -3320,11 +3326,11 @@ public class ClanHubPanelTest
 	}
 
 	/**
-	 * Lot 11A: a theme row shows its theme in grey at the right and keeps its caption as its text; a pick changes the value
-	 * and never the row's text or width, and the value is drawn at the row's right side.
+	 * Lot 11A, re-aimed for the user's pick D: a theme row shows its theme in grey under its caption and keeps its caption as
+	 * its text; a pick changes the value and never the row's text or width, and the value is drawn on the row's lower half.
 	 */
 	@Test
-	public void aThemeRowShowsItsValueAtTheRight() throws Exception
+	public void aThemeRowShowsItsValueUnderItsCaption() throws Exception
 	{
 		onEdt(() ->
 		{
@@ -3358,7 +3364,8 @@ public class ClanHubPanelTest
 				assertEquals("and keeps the text", "Sidebar theme", sidebar.getText());
 				assertEquals("and the width", sidebarWidth, sidebar.getPreferredSize().width);
 
-				// The value is drawn: a row with a value differs from the same row without one, on its right half only.
+				// The value is drawn: a row with a value differs from the same row without one, on its lower half only
+				// (re-aimed for the user's pick D: the value under the caption, no longer at the right).
 				theme.setValue("Classic");
 				final BufferedImage again = paintOf(theme);
 				theme.setValue("");
@@ -3372,7 +3379,7 @@ public class ClanHubPanelTest
 					{
 						if (again.getRGB(x, y) != without.getRGB(x, y))
 						{
-							if (x < again.getWidth() / 2)
+							if (y < again.getHeight() / 2)
 							{
 								leftDiffs++;
 							}
@@ -3383,8 +3390,8 @@ public class ClanHubPanelTest
 						}
 					}
 				}
-				assertEquals("the caption's side is the same", 0, leftDiffs);
-				assertTrue("the value is drawn on the right side", rightDiffs > 0);
+				assertEquals("the caption's line is the same", 0, leftDiffs);
+				assertTrue("the value is drawn under it", rightDiffs > 0);
 				menu.setVisible(false);
 			}
 			finally
@@ -4291,5 +4298,29 @@ public class ClanHubPanelTest
 			}
 		}
 		return words.toString();
+	}
+
+	/** The number label (its text all digits) somewhere inside {@code root}, or a failure. */
+	private static JLabel numberIn(Container root)
+	{
+		for (final Component part : root.getComponents())
+		{
+			if (part instanceof JLabel && ((JLabel) part).getText() != null && ((JLabel) part).getText().matches("[0-9]+"))
+			{
+				return (JLabel) part;
+			}
+			if (part instanceof Container)
+			{
+				try
+				{
+					return numberIn((Container) part);
+				}
+				catch (AssertionError e)
+				{
+					// not in this part
+				}
+			}
+		}
+		throw new AssertionError("no number here");
 	}
 }

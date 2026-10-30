@@ -1,116 +1,120 @@
 package com.clanhub;
 
-import java.awt.Dimension;
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Insets;
-import javax.swing.Icon;
 import javax.swing.JMenu;
-import javax.swing.UIManager;
+import javax.swing.plaf.basic.BasicHTML;
+import javax.swing.text.View;
 import net.runelite.client.ui.ColorScheme;
 
 /**
- * A submenu row that shows its current choice in grey at the right, before the arrow ("Card theme ... Classic >"): the
- * caption is the row's text and the choice is drawn over the row's right side by the row itself, so a pick changes
- * what is drawn and never the row's text.
+ * A submenu row that shows its current choice in grey on a second line under its caption ("Card theme", then "Snow
+ * Village, Dawn Rose"): the caption is the row's text, and the two lines are drawn by the look and feel from an HTML view
+ * the row sets itself, so a pick changes what is drawn and never the row's text.
  *
- * <p>Choice: the row makes room once for the widest choice of its list, so a pick never changes its width and the menu
- * under it never jumps.
+ * <p>Choice (the user's pick D of docs/art-research/round2/menu-width-options-1.png): the choice under the caption and not
+ * beside it, so the menu is as narrow as its other rows; a choice wider than {@link #CHOICE_WIDTH} is cut with an
+ * ellipsis, and the row is as wide for every choice, so a pick never changes its width and the menu under it never jumps.
  */
 final class ValueMenu extends JMenu
 {
-	/** The room kept between the caption and the widest choice, and between the choice and the arrow, in px. */
-	private static final int GAP = 12;
-	private static final int ARROW_GAP = 6;
-	/** The arrow's width when the look and feel gives no arrow icon, in px. */
-	private static final int ARROW_FALLBACK = 8;
+	/** The widest a choice is drawn, in px; a wider one is cut to fit with an ellipsis. */
+	static final int CHOICE_WIDTH = 150;
+	private static final String ELLIPSIS = "…";
+	private static final Color CHOICE_COLOUR = ColorScheme.LIGHT_GRAY_COLOR;
 
-	private final String[] words;
-	private String value;
-	/** The room the widest choice takes in {@link #roomFont}, or -1 before it was measured. */
-	private int room = -1;
-	private Font roomFont;
+	private final String caption;
+	private String value = "";
+	/** The two-line view the row set last; the look and feel's own view is put back to it. */
+	private View shown;
 
 	/**
 	 * @param text the row's caption
-	 * @param choices the choices the row may show, whose widest it makes room for; the first is shown until
-	 *        {@link #setValue} says otherwise
+	 * @param choices the choices the row may show; the first is shown until {@link #setValue} says otherwise
 	 */
 	ValueMenu(String text, Object[] choices)
 	{
 		super(text);
-		this.words = new String[choices.length];
-		for (int i = 0; i < choices.length; i++)
+		this.caption = text;
+		// The look and feel sets the row's HTML view again from its plain caption whenever the font, the colour or the
+		// screen changes, which drops the second line: the row puts its two lines back, drawn in the current font.
+		addPropertyChangeListener(BasicHTML.propertyKey, e ->
 		{
-			words[i] = String.valueOf(choices[i]);
-		}
-		this.value = words.length > 0 ? words[0] : "";
+			if (e.getNewValue() != shown && getFont() != null)
+			{
+				showLines();
+			}
+		});
+		setValue(choices.length > 0 ? String.valueOf(choices[0]) : "");
 	}
 
-	/** Shows {@code choice} at the row's right; the row's text and width stay. */
+	/** Shows {@code choice} on the row's second line; the row's text and width stay. */
 	void setValue(String choice)
 	{
 		this.value = choice == null ? "" : choice;
-		repaint();
+		if (getFont() != null)
+		{
+			showLines();
+		}
 	}
 
-	/** The choice the row shows now. */
+	/** The choice the row shows now, whole (the drawn one may be cut). */
 	String value()
 	{
 		return value;
 	}
 
-	/** The row's own size and the room for the widest choice, worked out the first time and again only if the font changes. */
-	@Override
-	public Dimension getPreferredSize()
+	/** The choice as drawn: whole when it fits {@link #CHOICE_WIDTH}, else cut to fit with an ellipsis. */
+	String shownValue()
 	{
-		final Dimension size = super.getPreferredSize();
 		final Font font = getFont();
 		if (font == null)
 		{
-			return size;
+			return value();
 		}
-		if (room < 0 || roomFont != font)
+		final FontMetrics metrics = getFontMetrics(font);
+		final String whole = value();
+		if (metrics.stringWidth(whole) <= CHOICE_WIDTH)
 		{
-			final FontMetrics metrics = getFontMetrics(font);
-			int widest = 0;
-			for (final String choice : words)
-			{
-				widest = Math.max(widest, metrics.stringWidth(choice));
-			}
-			room = GAP + widest;
-			roomFont = font;
+			return whole;
 		}
-		return new Dimension(size.width + room, size.height);
+		String cut = whole;
+		while (cut.length() > 1 && metrics.stringWidth(cut.trim() + ELLIPSIS) > CHOICE_WIDTH)
+		{
+			cut = cut.substring(0, cut.length() - 1);
+		}
+		return cut.trim() + ELLIPSIS;
 	}
 
-	/** The row as the look and feel draws it, then the choice in light grey, right-aligned before the arrow. */
-	@Override
-	protected void paintComponent(Graphics g)
+	/** Sets the two lines again (a new choice), and lays the row out again. */
+	private void showLines()
 	{
-		super.paintComponent(g);
-		final String choice = value();
-		if (choice.isEmpty())
-		{
-			return;
-		}
-		final Graphics g2 = g.create();
-		try
-		{
-			g2.setFont(getFont());
-			g2.setColor(ColorScheme.LIGHT_GRAY_COLOR);
-			final FontMetrics metrics = g2.getFontMetrics();
-			final Insets in = getInsets();
-			final Icon arrow = UIManager.getIcon("Menu.arrowIcon");
-			final int arrowWidth = arrow == null ? ARROW_FALLBACK : arrow.getIconWidth();
-			final int x = getWidth() - in.right - arrowWidth - ARROW_GAP - metrics.stringWidth(choice);
-			final int y = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
-			g2.drawString(choice, x, y);
-		}
-		finally
-		{
-			g2.dispose();
-		}
+		shown = lines();
+		putClientProperty(BasicHTML.propertyKey, shown);
+		revalidate();
+		repaint();
+	}
+
+	/** The HTML view the look and feel draws: the caption, then the choice in grey under it. */
+	private View lines()
+	{
+		// The body is as wide as the widest a line may be drawn, so every pick gives the row the same width; no choice
+		// still keeps the second line, so the row's height stays too. Swing's HTML draws a "pt" as one pixel (a "px" as
+		// 1.3), so the width is given in pt.
+		final int width = Math.max(getFontMetrics(getFont()).stringWidth(caption), CHOICE_WIDTH);
+		final String html = "<html><body style='width:" + width + "pt'>" + escape(caption) + "<br><font color='"
+			+ hex(CHOICE_COLOUR) + "'>" + (value().isEmpty() ? "&nbsp;" : escape(shownValue())) + "</font></body></html>";
+		return BasicHTML.createHTMLView(this, html);
+	}
+
+	private static String escape(String text)
+	{
+		return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+	}
+
+	private static String hex(Color colour)
+	{
+		return String.format("#%02x%02x%02x", colour.getRed(), colour.getGreen(), colour.getBlue());
 	}
 }

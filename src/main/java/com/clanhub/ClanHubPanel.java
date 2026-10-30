@@ -142,8 +142,8 @@ public class ClanHubPanel extends PluginPanel
 	static final int MIN_FROST = 0;
 	static final int DEFAULT_FROST = 0;
 	static final int MAX_FROST = 100;
-	/** The blur slider's width, px (the user's pick D: a slider with its number beside it). */
-	static final int FROST_SLIDER_WIDTH = 110;
+	/** The blur slider's width, px (a slider with its number beside it; 100, the user's pick B: long enough to reach the number). */
+	static final int FROST_SLIDER_WIDTH = 100;
 	static final String BOSS_TEXT = "Boss cards";
 	static final String ALWAYS_UNDERLINE_TEXT = "Underline level-ups";
 	static final String SIDEBAR_THEME_TEXT = "Sidebar theme";
@@ -527,9 +527,12 @@ public class ClanHubPanel extends PluginPanel
 		frostSlider.setMaximumSize(frostSlider.getPreferredSize());
 		frostValue.setFont(menuFont());
 		frostValue.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		// The number is as wide as "100", so the slider does not move as it changes.
-		frostValue.setPreferredSize(new Dimension(frostValue.getFontMetrics(frostValue.getFont()).stringWidth("100") + 2,
-			frostValue.getPreferredSize().height));
+		// The number is as wide as "100", so the slider does not move as it changes, and ends at the row's right edge,
+		// under the arrows of the rows around it (the box layout sizes a label to its maximum, so that is set too).
+		final Dimension numberBox = new Dimension(frostValue.getFontMetrics(frostValue.getFont()).stringWidth("100") + 2,
+			frostValue.getPreferredSize().height);
+		frostValue.setPreferredSize(numberBox);
+		frostValue.setMaximumSize(numberBox);
 		frostValue.setHorizontalAlignment(SwingConstants.RIGHT);
 		frostSlider.addChangeListener(e ->
 		{
@@ -2266,7 +2269,8 @@ public class ClanHubPanel extends PluginPanel
 		control.add(frostValue);
 		control.setMaximumSize(control.getPreferredSize());
 		final JPanel blur = row(FROST_TEXT, control);
-		blur.setBorder(new EmptyBorder(2, 6, 2, 6));
+		// One pixel less at the right than the other rows: the digits' own side room, so the number ends where the arrows do.
+		blur.setBorder(new EmptyBorder(2, 6, 2, 5));
 		// A row of the menu itself, as Card theme is: its caption in the items' white (greyed by applyLocks when disabled).
 		blur.getComponent(0).setForeground(Color.WHITE);
 		return blur;
