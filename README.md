@@ -10,6 +10,10 @@ Prices, drop rates, unlocks, boss stats and the wiki's first paragraph, with the
 3. **Pick a theme** in the settings menu (the settings icon on the sidebar).
 4. **Missed one?** Every card this session waits in the sidebar.
 
+<p align="center"><img width="620" src="images/hover.webp" alt="Hovering a level-up line and a drop in the chat: a card appears for each"></p>
+
+<p align="center"><img width="654" src="images/sidebar.webp" alt="The sidebar's recent cards: hover one for its card, right-click it for Open wiki and Copy"></p>
+
 <table width="100%">
 <tr>
 <td width="48" valign="top"><img src="images/icon-drops.png" width="40" alt=""></td>
@@ -28,10 +32,6 @@ Prices, drop rates, unlocks, boss stats and the wiki's first paragraph, with the
 <td valign="top"><b>24 themes</b><br>For the card and the sidebar.</td>
 </tr>
 </table>
-
-<br>
-
-<p align="center"><img width="930" src="images/hero-mosaic.png" alt="A card over the chat in Classic, the same card in Ocean, and Ocean's sidebar of recent cards"></p>
 
 <br>
 
