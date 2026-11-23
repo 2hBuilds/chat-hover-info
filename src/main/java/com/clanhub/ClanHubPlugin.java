@@ -715,6 +715,15 @@ public class ClanHubPlugin extends Plugin
 				titles.append(titles.length() == 0 ? "" : ", ").append(card.title());
 			}
 			log.info("hoverinfo trace: {} card(s): {}", cards.size(), cards.isEmpty() ? "-" : titles);
+			for (final LineReader reader : readers)
+			{
+				final String why = reader instanceof BroadcastItemReader
+					? ((BroadcastItemReader) reader).missed(event.getType(), message) : null;
+				if (why != null)
+				{
+					log.info("hoverinfo trace: no item card: {}", why);
+				}
+			}
 		}
 		final String plain = ChatText.plain(message);
 		store.put(plain, cards);

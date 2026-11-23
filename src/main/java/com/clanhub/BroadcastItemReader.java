@@ -3,6 +3,7 @@ package com.clanhub;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import net.runelite.api.ChatMessageType;
@@ -61,6 +62,26 @@ final class BroadcastItemReader implements LineReader
 			cards.add(bossCard(mention.source, mention.text, mention.sourceStart, mention.sourceEnd, tables));
 		}
 		return cards;
+	}
+
+	/**
+	 * For the developer trace: why a broadcast line gave no item card, or null when it gave one or is not a broadcast. "not
+	 * read" when the line says "received a drop", "received a clue item" or "collection log" but its words did not match
+	 * a broadcast's; "no item called 'X'" when they matched and the name the line holds is no item the item manager or
+	 * the names index knows.
+	 */
+	String missed(ChatMessageType type, String message)
+	{
+		final Optional<BroadcastLine.ItemMention> found = BroadcastLine.parse(type, message);
+		if (!found.isPresent())
+		{
+			final String plain = message == null ? "" : ChatText.plain(message).toLowerCase(Locale.ROOT);
+			final boolean looks = plain.contains("received a drop") || plain.contains("received a clue item")
+				|| plain.contains("collection log");
+			return looks ? "not read as a broadcast" : null;
+		}
+		final String name = found.get().name;
+		return itemCards.idOf(name) < 0 ? "no item called '" + name + "'" : null;
 	}
 
 	/**

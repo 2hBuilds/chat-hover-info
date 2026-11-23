@@ -139,4 +139,20 @@ public class BroadcastItemReaderTest
 		assertEquals("with the combat sprite behind it", SkillSprites.spriteOf("Combat"), unknown.spriteId());
 		assertEquals("Nobody", unknown.wikiTitle());
 	}
+
+	@Test
+	public void theTraceSaysWhyALineGaveNoItemCard()
+	{
+		final ItemCards itemCards = Mockito.mock(ItemCards.class);
+		when(itemCards.idOf("Dragon claws")).thenReturn(13652);
+		when(itemCards.idOf("Crystal armour seed")).thenReturn(-1);
+		final BroadcastItemReader reader = new BroadcastItemReader(itemCards, () -> true, new CardTables());
+
+		assertEquals(null, reader.missed(ChatMessageType.CLAN_MESSAGE, LINE));
+		assertEquals("no item called 'Crystal armour seed'", reader.missed(ChatMessageType.CLAN_MESSAGE,
+			"ismellpoo received a drop: Crystal armour seed (4,705,541 coins)."));
+		assertEquals("not read as a broadcast", reader.missed(ChatMessageType.CLAN_MESSAGE,
+			"ismellpoo received a drop: Crystal armour seed"));
+		assertEquals(null, reader.missed(ChatMessageType.CLAN_MESSAGE, "Klar: gz!!!"));
+	}
 }
